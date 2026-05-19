@@ -1,26 +1,129 @@
-@import "tailwindcss";
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Font */
+  --font-en: var(--jetbrains-mono), ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-kr: 'Pretendard', system-ui, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+
+  /* Brand */
+  --brand:     #0C3C60;
+  --brand-700: #0A3050;
+  --brand-500: #1B5685;
+  --brand-300: #6E94B5;
+  --brand-100: #D6E2EC;
+  --brand-050: #EEF3F8;
+
+  /* Surface / Line */
+  --bg:        #F5F6F8;
+  --surface:   #FFFFFF;
+  --surface-2: #FAFBFC;
+  --line:      #ECEEF2;
+  --line-2:    #DDE1E8;
+  --divider:   #F0F2F5;
+
+  /* Ink */
+  --ink-900:      #0E1320;
+  --ink-700:      #4A5160;
+  --ink-500:      #8B91A1;
+  --ink-300:      #B8BDC9;
+  --ink-on-brand: #FFFFFF;
+
+  /* Semantic */
+  --success:     #16A34A;
+  --warn:        #ffcd00;
+  --danger:      #DC2626;
+  --danger-soft: #FEEAEA;
+
+  /* Layout */
+  --spacing-app-frame: 480px;
+
+  /* Tracked Palette */
+  --c1: #2563EB;  --c1-soft: #DBE7FE;
+  --c2: #16A34A;  --c2-soft: #D6F2DE;
+  --c3: #DB2777;  --c3-soft: #FBDDEA;
+  --c4: #D97706;  --c4-soft: #FCE9C7;
+  --c5: #7C3AED;  --c5-soft: #E5DCFE;
+  --c6: #0891B2;  --c6-soft: #CCEEF5;
+  --c7: #DC2626;  --c7-soft: #FCD9D9;
+  --c8: #65A30D;  --c8-soft: #E1F1C7;
+  --c9: #0F766E;  --c9-soft: #CCFBF1;
+  --c10: #BE185D; --c10-soft: #FCE7F3;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  html { -webkit-text-size-adjust: 100%; height: 100%; }
+
+  body {
+    font-family: var(--font-kr);
+    background-color: var(--bg);
+    color: var(--ink-900);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-size: 16px;
+    line-height: 24px;
+    overscroll-behavior-y: none;
+    min-height: 100dvh;
+  }
+
+  ::selection {
+    background: var(--brand-100);
+    color: var(--brand-700);
+  }
+
+  a { color: inherit; text-decoration: none; }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
+    padding: 0;
+  }
+
+  input, select, textarea {
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  input[type="checkbox"] {
+    -webkit-appearance: checkbox;
+    appearance: checkbox;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ─── App Frame ─── */
+.app-frame {
+  width: 100%;
+  max-width: 480px;
+  margin-inline: auto;
+  min-height: 100dvh;
+  background: var(--bg);
+  position: relative;
+}
+
+@media (min-width: 600px) {
+  body {
+    background:
+      radial-gradient(1200px 700px at 30% 0%, var(--brand-050) 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 100%, #EAF2F8 0%, transparent 60%),
+      var(--bg);
+  }
+  .app-frame {
+    box-shadow: 0 8px 24px rgba(13,30,55,.10), 0 2px 8px rgba(13,30,55,.06);
+    min-height: calc(100dvh - 32px);
+    margin-top: 16px;
+    margin-bottom: 16px;
+    border-radius: 28px;
+    overflow: hidden;
+  }
 }
