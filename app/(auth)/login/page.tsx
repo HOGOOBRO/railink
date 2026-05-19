@@ -7,9 +7,9 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { BrandMark, EyeIcon } from '@/components/ui/icons'
-import { login, getSession } from '@/lib/auth'
+import { login, getCurrentSession, resendConfirmation } from '@/lib/auth'
 import { seedDemo } from '@/lib/demo-seed'
-import { DEMO_ME, DEMO_LOGIN } from '@/lib/demo-data'
+import { DEMO_LOGIN } from '@/lib/demo-data'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -19,11 +19,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState<string>(DEMO_LOGIN.pw)
   const [showPw, setShowPw]     = useState(false)
   const [error, setError]       = useState<string | null>(null)
+  const [unconfirmed, setUnconfirmed] = useState(false)
   const [loading, setLoading]   = useState(false)
 
   useEffect(() => {
     seedDemo()
-    if (getSession()) router.replace('/calendar')
+    let alive = true
+    getCurrentSession().then(s => { if (alive && s) router.replace('/calendar') })
+    return () => { alive = false }
   }, [router])
 
   function autofillDemo() {
@@ -32,22 +35,32 @@ export default function LoginPage() {
     setError(null)
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setError(null)
+    setUnconfirmed(false)
     if (!email || !password) {
       setError('이메일 또는 비밀번호를 확인해 주세요.')
       return
     }
-    // Demo alias: the memorable demo creds sign in as the seeded 이서연 account.
-    const isDemoAlias = email === DEMO_LOGIN.email && password === DEMO_LOGIN.pw
     setLoading(true)
-    const result = isDemoAlias
-      ? login(DEMO_ME.email, DEMO_ME.pw)
-      : login(email, password)
+    const result = await login(email, password)
+    if (!result.ok) {
+      setLoading(false)
+      setError(result.message)
+      if (result.code === 'unconfirmed') setUnconfirmed(true)
+      return
+    }
+    const s = await getCurrentSession()
     setLoading(false)
-    if (!result.ok) { setError(result.message); return }
-    showToast(`환영합니다, ${result.session.name} 님!`, 'success')
+    showToast(`환영합니다, ${s?.name || '이서연'} 님!`, 'success')
     router.push('/calendar')
+  }
+
+  async function handleResend() {
+    if (!email) return
+    await resendConfirmation(email)
+    showToast('인증 메일을 다시 보냈어요. 메일함을 확인해 주세요.', 'success')
   }
 
   return (
@@ -124,6 +137,15 @@ export default function LoginPage() {
         <Button type="submit" block disabled={loading}>
           {loading ? '로그인 중…' : '로그인'}
         </Button>
+        {unconfirmed && (
+          <button
+            type="button"
+            onClick={handleResend}
+            className="mt-2 text-caption font-semibold text-brand hover:text-brand-700 transition-colors self-center"
+          >
+            인증 메일 다시 보내기
+          </button>
+        )}
 
         {/* 또는 divider */}
         <div className="flex items-center gap-3 my-4">

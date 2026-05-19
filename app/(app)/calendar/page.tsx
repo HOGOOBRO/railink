@@ -15,7 +15,7 @@ import { MenuSheet } from '@/components/calendar/MenuSheet'
 import { SearchOverlay } from '@/components/calendar/SearchOverlay'
 import { UploadModal, type UploadMethod } from '@/components/calendar/UploadModal'
 import type { TimelineItem } from '@/components/calendar/Timeline'
-import { getSession, logout, type Session } from '@/lib/auth'
+import { getCurrentSession, logout, type Session } from '@/lib/auth'
 import { seedDemo } from '@/lib/demo-seed'
 import { getMonthSchedules, replaceUserSchedule } from '@/lib/store/schedules'
 import {
@@ -52,22 +52,25 @@ export default function CalendarPage() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [uploadStep, setUploadStep] = useState<'pick' | 'preview'>('pick')
 
-  // Single localStorage loader. The setState-in-effect below is the
-  // SSR-safe Next.js client-init pattern (server can't read localStorage);
-  // the lint rule is suppressed deliberately for this hydration boundary.
+  // Loader: resolve the session (demo localStorage OR Supabase), then read
+  // the localStorage schedule/compare stores. setState runs after the await,
+  // so it is not a synchronous effect-body update.
   useEffect(() => {
+    let alive = true
     seedDemo()
-    const s = getSession()
-    if (!s) { router.replace('/login'); return }
-    const list = getCompareList()
-    const cols: Record<string, ScheduleEntry[]> = {}
-    for (const c of list) cols[c.uid] = getMonthSchedules(c.uid, year, month)
-    /* eslint-disable react-hooks/set-state-in-effect */
-    setSession(s)
-    setCompares(list)
-    setMySched(getMonthSchedules(s.uid, year, month))
-    setColSched(cols)
-    /* eslint-enable react-hooks/set-state-in-effect */
+    ;(async () => {
+      const s = await getCurrentSession()
+      if (!alive) return
+      if (!s) { router.replace('/login'); return }
+      const list = getCompareList()
+      const cols: Record<string, ScheduleEntry[]> = {}
+      for (const c of list) cols[c.uid] = getMonthSchedules(c.uid, year, month)
+      setSession(s)
+      setCompares(list)
+      setMySched(getMonthSchedules(s.uid, year, month))
+      setColSched(cols)
+    })()
+    return () => { alive = false }
   }, [router, year, month, reload])
 
   // My schedule for the visible month, by ISO date.
@@ -189,8 +192,8 @@ export default function CalendarPage() {
     showToast('8건 등록 완료', 'success')
   }
 
-  function handleLogout() {
-    logout()
+  async function handleLogout() {
+    await logout()
     router.replace('/login')
   }
 

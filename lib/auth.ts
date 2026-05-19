@@ -1,12 +1,6 @@
-export interface User {
-  uid: string
-  email: string
-  name: string
-  employeeId: string
-  part?: string
-  photo?: string
-  pw: string
-}
+import { supabase } from './supabase'
+import { DEMO_ME, DEMO_LOGIN } from './demo-data'
+import { seedDemo } from './demo-seed'
 
 export interface Session {
   uid: string
@@ -17,77 +11,117 @@ export interface Session {
   photo?: string
 }
 
-const USERS_KEY = 'railink_users_v3'
-const SESSION_KEY = 'railink_session_v3'
+/* ── Demo path (localStorage) ──────────────────────────────────────────────
+ * Only the fixed demo credentials use this. Real accounts go through Supabase.
+ * Schedules/compare are still localStorage in Phase 6a, so a localStorage demo
+ * session is consistent with that. */
 
-export function getUsers(): User[] {
-  if (typeof window === 'undefined') return []
-  try { return JSON.parse(localStorage.getItem(USERS_KEY) ?? '[]') } catch { return [] }
+const DEMO_SESSION_KEY = 'railink_demo_session_v3'
+
+export function isDemoCreds(email: string, pw: string): boolean {
+  return email === DEMO_LOGIN.email && pw === DEMO_LOGIN.pw
 }
 
-export function saveUsers(users: User[]): void {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users))
-}
-
-export function getSession(): Session | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const raw = localStorage.getItem(SESSION_KEY)
-    return raw ? (JSON.parse(raw) as Session) : null
-  } catch { return null }
-}
-
-export function setSession(session: Session): void {
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session))
-}
-
-export function clearSession(): void {
-  localStorage.removeItem(SESSION_KEY)
-}
-
-function toSession(u: User): Session {
+function demoSession(): Session {
   return {
-    uid: u.uid, email: u.email, name: u.name,
-    employeeId: u.employeeId, part: u.part, photo: u.photo,
+    uid: DEMO_ME.uid, email: DEMO_ME.email, name: DEMO_ME.name,
+    employeeId: DEMO_ME.employeeId, part: DEMO_ME.part, photo: DEMO_ME.photo,
   }
 }
+
+function getDemoSession(): Session | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(DEMO_SESSION_KEY) ? demoSession() : null
+}
+
+/* ── Unified session (used by calendar / menu) ─────────────────────────────── */
+
+export async function getCurrentSession(): Promise<Session | null> {
+  const demo = getDemoSession()
+  if (demo) return demo
+  const { data } = await supabase.auth.getSession()
+  const u = data.session?.user
+  if (!u) return null
+  const m = (u.user_metadata ?? {}) as Record<string, string>
+  return {
+    uid: u.id,
+    email: u.email ?? '',
+    name: m.name ?? '',
+    employeeId: m.employee_id ?? '',
+    part: m.part || undefined,
+    photo: m.photo || undefined,
+  }
+}
+
+/* ── Login ─────────────────────────────────────────────────────────────────── */
 
 export type LoginResult =
-  | { ok: true; session: Session }
-  | { ok: false; field: 'email' | 'password'; message: string }
+  | { ok: true; demo: boolean }
+  | { ok: false; code: 'invalid' | 'unconfirmed' | 'error'; message: string }
 
-export function login(email: string, password: string): LoginResult {
-  const users = getUsers()
-  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase())
-  // Security: don't disclose which field is wrong.
-  if (!user || user.pw !== password) {
-    return { ok: false, field: 'email', message: '이메일 또는 비밀번호를 확인해 주세요.' }
+export async function login(email: string, password: string): Promise<LoginResult> {
+  if (isDemoCreds(email, password)) {
+    seedDemo()
+    localStorage.setItem(DEMO_SESSION_KEY, '1')
+    return { ok: true, demo: true }
   }
-  const session = toSession(user)
-  setSession(session)
-  return { ok: true, session }
+  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  if (!error) return { ok: true, demo: false }
+  if (/email not confirmed/i.test(error.message)) {
+    return { ok: false, code: 'unconfirmed', message: '이메일 인증이 아직 안 됐어요. 받은 메일의 링크를 눌러 주세요.' }
+  }
+  if (/invalid login credentials/i.test(error.message)) {
+    return { ok: false, code: 'invalid', message: '이메일 또는 비밀번호를 확인해 주세요.' }
+  }
+  return { ok: false, code: 'error', message: '로그인 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
+}
+
+/* ── Sign-up ───────────────────────────────────────────────────────────────── */
+
+export interface SignupInput {
+  email: string
+  password: string
+  employeeId: string
+  name: string
+  part?: string
 }
 
 export type SignupResult =
-  | { ok: true; session: Session }
-  | { ok: false; field: string; message: string }
+  | { ok: true; needsConfirm: boolean }
+  | { ok: false; field?: 'email'; message: string }
 
-export function signup(data: Omit<User, 'uid'>): SignupResult {
-  const users = getUsers()
-  if (users.some(u => u.email.toLowerCase() === data.email.toLowerCase())) {
-    return { ok: false, field: 'email', message: '이미 가입된 이메일이에요.' }
+export async function signup(input: SignupInput): Promise<SignupResult> {
+  const emailRedirectTo =
+    typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined
+  const { data, error } = await supabase.auth.signUp({
+    email: input.email,
+    password: input.password,
+    options: {
+      emailRedirectTo,
+      data: {
+        employee_id: input.employeeId,
+        name: input.name,
+        part: input.part ?? null,
+      },
+    },
+  })
+  if (error) {
+    if (/already|registered|exists/i.test(error.message)) {
+      return { ok: false, field: 'email', message: '이미 가입된 이메일이에요.' }
+    }
+    return { ok: false, message: '가입 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
   }
-  if (users.some(u => u.employeeId === data.employeeId)) {
-    return { ok: false, field: 'employeeId', message: '이 사번으로 가입된 계정이 있어요.' }
-  }
-  const uid = crypto.randomUUID()
-  const user: User = { uid, ...data }
-  saveUsers([...users, user])
-  const session = toSession(user)
-  setSession(session)
-  return { ok: true, session }
+  // Email confirmation is ON → no session until the link is clicked.
+  return { ok: true, needsConfirm: !data.session }
 }
 
-export function logout(): void {
-  clearSession()
+export async function resendConfirmation(email: string): Promise<void> {
+  await supabase.auth.resend({ type: 'signup', email })
+}
+
+/* ── Logout ────────────────────────────────────────────────────────────────── */
+
+export async function logout(): Promise<void> {
+  if (typeof window !== 'undefined') localStorage.removeItem(DEMO_SESSION_KEY)
+  await supabase.auth.signOut()
 }

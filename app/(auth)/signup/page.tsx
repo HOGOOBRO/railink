@@ -8,8 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { BrandMark, ChevronLeftIcon, EyeIcon } from '@/components/ui/icons'
 import { useToast } from '@/components/ui/Toast'
-import { signup, getSession } from '@/lib/auth'
-import { seedDemo } from '@/lib/demo-seed'
+import { signup, getCurrentSession, resendConfirmation } from '@/lib/auth'
 
 interface FormErrors {
   email?: string
@@ -46,10 +45,12 @@ export default function SignupPage() {
   const [errors, setErrors] = useState<FormErrors>({})
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [sentTo, setSentTo] = useState<string | null>(null)
 
   useEffect(() => {
-    seedDemo()
-    if (getSession()) router.replace('/calendar')
+    let alive = true
+    getCurrentSession().then(s => { if (alive && s) router.replace('/calendar') })
+    return () => { alive = false }
   }, [router])
 
   function set(field: keyof typeof form) {
@@ -87,24 +88,66 @@ export default function SignupPage() {
     return e
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
 
     setLoading(true)
-    const result = signup({
+    const result = await signup({
       email: form.email,
+      password: form.password,
       employeeId: form.employeeId,
       name: form.name,
       part: form.part || undefined,
-      pw: form.password,
     })
     setLoading(false)
-    if (!result.ok) { setErrors({ [result.field]: result.message }); return }
-
+    if (!result.ok) {
+      if (result.field) setErrors({ [result.field]: result.message })
+      else showToast(result.message, 'danger')
+      return
+    }
+    if (result.needsConfirm) {
+      setSentTo(form.email)
+      return
+    }
     showToast(`환영합니다, ${form.name} 님!`, 'success')
     router.push('/calendar')
+  }
+
+  async function handleResend() {
+    if (!sentTo) return
+    await resendConfirmation(sentTo)
+    showToast('인증 메일을 다시 보냈어요.', 'success')
+  }
+
+  if (sentTo) {
+    return (
+      <div
+        className="flex flex-col items-center justify-center text-center min-h-[100dvh] bg-surface px-8"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <div className="w-14 h-14 rounded-lg bg-brand-050 text-brand grid place-items-center mb-5">
+          <BrandMark size={26} />
+        </div>
+        <h1 className="text-[22px] font-bold tracking-tighter text-ink-900">메일을 확인해 주세요</h1>
+        <p className="mt-3 text-callout text-ink-700 leading-relaxed">
+          <span className="font-en text-ink-900">{sentTo}</span> 으로<br />
+          인증 메일을 보냈어요. 메일의 링크를 누르면<br />가입이 완료되고 로그인할 수 있어요.
+        </p>
+        <div className="h-7" />
+        <Link href="/login" className="w-full max-w-[360px]">
+          <Button block>로그인 화면으로</Button>
+        </Link>
+        <button
+          type="button"
+          onClick={handleResend}
+          className="mt-3.5 text-caption font-semibold text-brand hover:text-brand-700 transition-colors"
+        >
+          메일을 못 받으셨나요? 다시 보내기
+        </button>
+      </div>
+    )
   }
 
   return (
