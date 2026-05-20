@@ -16,7 +16,6 @@ import { SearchOverlay } from '@/components/calendar/SearchOverlay'
 import { UploadModal } from '@/components/calendar/UploadModal'
 import type { TimelineItem } from '@/components/calendar/Timeline'
 import { getCurrentSession, logout, type Session } from '@/lib/auth'
-import { seedDemo } from '@/lib/demo-seed'
 import { getMonthSchedules, replaceUserScheduleMonths } from '@/lib/store/schedules'
 import {
   getCompareList, addCompare, removeCompare, MAX_COMPARE,
@@ -58,12 +57,11 @@ export default function CalendarPage() {
   // so it is not a synchronous effect-body update.
   useEffect(() => {
     let alive = true
-    seedDemo()
     ;(async () => {
       const s = await getCurrentSession()
       if (!alive) return
       if (!s) { router.replace('/login'); return }
-      const list = getCompareList()
+      const list = getCompareList(s.uid)
       const cols: Record<string, ScheduleEntry[]> = {}
       for (const c of list) cols[c.uid] = getMonthSchedules(c.uid, year, month)
       setSession(s)
@@ -163,10 +161,11 @@ export default function CalendarPage() {
   function goToday() { setYear(today.getFullYear()); setMonth(today.getMonth() + 1) }
 
   function toggleCompare(uid: string) {
+    if (!session) return
     const existing = compares.find(c => c.uid === uid)
     const meta = findColleague(uid)
     if (existing) {
-      removeCompare(uid)
+      removeCompare(session.uid, uid)
       showToast(`${existing.name} 님을 비교에서 제거했어요.`)
     } else {
       if (compares.length >= MAX_COMPARE) {
@@ -174,7 +173,7 @@ export default function CalendarPage() {
         return
       }
       if (!meta) return
-      addCompare(uid, meta.name, meta.employeeId, { photo: meta.photo, office: meta.office })
+      addCompare(session.uid, uid, meta.name, meta.employeeId, { photo: meta.photo, office: meta.office })
       showToast(`${meta.name} 님을 비교에 추가했어요.`, 'success')
     }
     setReload(n => n + 1)
@@ -412,7 +411,7 @@ export default function CalendarPage() {
         <SearchOverlay
           query={searchQuery}
           setQuery={setSearchQuery}
-          colleagues={DEMO_COLLEAGUES}
+          colleagues={session.isDemo ? DEMO_COLLEAGUES : []}
           comparedUids={new Set(compares.map(c => c.uid))}
           onClose={() => setSearchOpen(false)}
           onToggle={toggleCompare}

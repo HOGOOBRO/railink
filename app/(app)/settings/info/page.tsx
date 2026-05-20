@@ -11,10 +11,9 @@ import {
 } from '@/components/ui/icons'
 import { getCurrentSession, logout, type Session } from '@/lib/auth'
 import { getMonthSchedules } from '@/lib/store/schedules'
-import { getCompareList } from '@/lib/store/compare'
+import { getCompareList, COMPARE_KEY } from '@/lib/store/compare'
 
 const SCHEDULES_KEY = 'railink_schedules_v3'
-const COMPARE_KEY = 'railink_compare_v3'
 const DEMO_SESSION_KEY = 'railink_demo_session_v3'
 
 export default function SettingsInfoPage() {
@@ -50,7 +49,7 @@ export default function SettingsInfoPage() {
       setName(s.name)
       setPart(s.part ?? '')
       setEmail(s.email)
-      setCompareCount(getCompareList().length)
+      setCompareCount(getCompareList(s.uid).length)
       setWorkDays(sched.length - off)
       setOffDays(off)
     })()
@@ -71,6 +70,7 @@ export default function SettingsInfoPage() {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(SCHEDULES_KEY)
       localStorage.removeItem(COMPARE_KEY)
+      localStorage.removeItem('railink_compare_v3') // legacy shared list
       localStorage.removeItem(DEMO_SESSION_KEY)
     }
     await logout()

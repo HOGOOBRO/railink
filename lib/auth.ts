@@ -9,6 +9,8 @@ export interface Session {
   employeeId: string
   part?: string
   photo?: string
+  /** True when this session is the local demo (localStorage), not Supabase. */
+  isDemo: boolean
 }
 
 /* ── Demo path (localStorage) ──────────────────────────────────────────────
@@ -26,6 +28,7 @@ function demoSession(): Session {
   return {
     uid: DEMO_ME.uid, email: DEMO_ME.email, name: DEMO_ME.name,
     employeeId: DEMO_ME.employeeId, part: DEMO_ME.part, photo: DEMO_ME.photo,
+    isDemo: true,
   }
 }
 
@@ -50,6 +53,7 @@ export async function getCurrentSession(): Promise<Session | null> {
     employeeId: m.employee_id ?? '',
     part: m.part || undefined,
     photo: m.photo || undefined,
+    isDemo: false,
   }
 }
 

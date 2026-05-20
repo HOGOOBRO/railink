@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { BrandMark, EyeIcon } from '@/components/ui/icons'
 import { login, getCurrentSession, resendConfirmation } from '@/lib/auth'
-import { seedDemo } from '@/lib/demo-seed'
 import { DEMO_LOGIN } from '@/lib/demo-data'
 
 export default function LoginPage() {
@@ -23,7 +22,6 @@ export default function LoginPage() {
   const [loading, setLoading]   = useState(false)
 
   useEffect(() => {
-    seedDemo()
     let alive = true
     getCurrentSession().then(s => { if (alive && s) router.replace('/calendar') })
     return () => { alive = false }
