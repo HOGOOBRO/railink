@@ -1,17 +1,10 @@
 import { supabase } from '@/lib/supabase'
-import {
-  DEMO_COLLEAGUES,
-  DEMO_ME,
-  buildDemoSchedules,
-  type Colleague,
-} from '@/lib/demo-data'
+import { DEMO_COLLEAGUES, DEMO_ME, type Colleague } from '@/lib/demo-data'
 import type { Session } from '@/lib/auth'
-import { getSchedules, saveSchedules } from '@/lib/store/schedules'
 
 export const COLLEAGUE_DIRECTORY_KEY = 'railink_colleague_directory_v1'
 export const SAMPLE_DIRECTORY_SEEDED_KEY = 'railink_sample_directory_seeded_v1'
-
-type StoredColleague = Colleague
+const DEMO_UIDS = new Set([DEMO_ME.uid, ...DEMO_COLLEAGUES.map(u => u.uid)])
 
 interface RemoteProfile {
   id: unknown
@@ -21,59 +14,25 @@ interface RemoteProfile {
   photo: unknown
 }
 
-function readLocalDirectory(): StoredColleague[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const parsed = JSON.parse(localStorage.getItem(COLLEAGUE_DIRECTORY_KEY) ?? '[]')
-    return Array.isArray(parsed) ? parsed.filter(isStoredColleague) : []
-  } catch {
-    return []
-  }
-}
-
-function writeLocalDirectory(entries: StoredColleague[]): void {
-  if (typeof window === 'undefined') return
-  try {
-    localStorage.setItem(COLLEAGUE_DIRECTORY_KEY, JSON.stringify(entries))
-  } catch {
-    // Local directory is a convenience cache; ignore quota/private-mode failures.
-  }
-}
-
-function isStoredColleague(value: unknown): value is StoredColleague {
-  if (!value || typeof value !== 'object') return false
-  const entry = value as Record<string, unknown>
-  return (
-    typeof entry.uid === 'string' &&
-    typeof entry.name === 'string' &&
-    typeof entry.employeeId === 'string' &&
-    typeof entry.office === 'string' &&
-    typeof entry.email === 'string'
-  )
-}
-
 function officeFromPart(part?: string): string {
   const trimmed = part?.trim()
   return trimmed ? `${trimmed}파트` : 'RaiLink'
 }
 
-function toStoredColleague(session: Session): StoredColleague {
-  return {
-    uid: session.uid,
-    name: session.name || '이름 없음',
-    employeeId: session.employeeId || '',
-    office: officeFromPart(session.part),
-    email: session.email,
-    photo: session.photo,
-  }
-}
-
-export function rememberSessionProfile(session: Session): void {
+async function syncSessionProfile(session: Session): Promise<void> {
   if (session.isDemo) return
-  const entry = toStoredColleague(session)
-  const existing = readLocalDirectory()
-  const next = [entry, ...existing.filter(u => u.uid !== entry.uid)]
-  writeLocalDirectory(next)
+  try {
+    await supabase.from('profiles').upsert({
+      id: session.uid,
+      name: session.name || '',
+      employee_id: session.employeeId || '',
+      part: session.part ?? null,
+      photo: session.photo ?? null,
+    }, { onConflict: 'id' })
+  } catch {
+    // The directory depends on the profiles table. If it has not been created
+    // yet, search simply returns no real colleagues instead of demo data.
+  }
 }
 
 function mapProfile(profile: RemoteProfile): Colleague | null {
@@ -131,38 +90,18 @@ function uniqueColleagues(entries: Colleague[]): Colleague[] {
   return sortByName(unique)
 }
 
-function ensureSampleColleagueSchedules(): void {
-  if (typeof window === 'undefined') return
-  if (localStorage.getItem(SAMPLE_DIRECTORY_SEEDED_KEY)) return
-
-  const schedules = getSchedules()
-  const sampleUids = new Set(DEMO_COLLEAGUES.map(c => c.uid))
-  const existingUids = new Set(schedules.filter(e => sampleUids.has(e.uid)).map(e => e.uid))
-  const sampleEntries = buildDemoSchedules().filter(e => sampleUids.has(e.uid) && !existingUids.has(e.uid))
-
-  if (sampleEntries.length) saveSchedules([...schedules, ...sampleEntries])
-  try {
-    localStorage.setItem(SAMPLE_DIRECTORY_SEEDED_KEY, '1')
-  } catch {
-    // Non-critical marker; schedules were already seeded if storage allowed it.
-  }
-}
-
 export async function getColleagueDirectory(session: Session): Promise<Colleague[]> {
   if (session.isDemo) return sortByName(DEMO_COLLEAGUES)
 
-  rememberSessionProfile(session)
-
+  await syncSessionProfile(session)
   const remote = await getRemoteDirectory(session.uid)
-  if (remote && remote.length) return uniqueColleagues(remote)
-
-  const local = readLocalDirectory().filter(u => u.uid !== session.uid)
-  if (local.length) return uniqueColleagues(local)
-
-  ensureSampleColleagueSchedules()
-  return sortByName(DEMO_COLLEAGUES.filter(u => u.uid !== DEMO_ME.uid))
+  return uniqueColleagues(remote ?? [])
 }
 
 export function findColleagueInDirectory(uid: string, directory: Colleague[]): Colleague | undefined {
-  return directory.find(u => u.uid === uid) ?? DEMO_COLLEAGUES.find(u => u.uid === uid)
+  return directory.find(u => u.uid === uid)
+}
+
+export function isDemoColleagueUid(uid: string): boolean {
+  return DEMO_UIDS.has(uid)
 }

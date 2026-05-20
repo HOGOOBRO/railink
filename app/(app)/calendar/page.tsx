@@ -18,11 +18,12 @@ import type { TimelineItem } from '@/components/calendar/Timeline'
 import { getCurrentSession, logout, type Session } from '@/lib/auth'
 import { getMonthSchedules, replaceUserScheduleMonths } from '@/lib/store/schedules'
 import {
-  getCompareList, addCompare, removeCompare, MAX_COMPARE,
+  getCompareList, saveCompareList, addCompare, removeCompare, MAX_COMPARE,
 } from '@/lib/store/compare'
 import {
   findColleagueInDirectory,
   getColleagueDirectory,
+  isDemoColleagueUid,
 } from '@/lib/store/colleagues'
 import type { Colleague } from '@/lib/demo-data'
 import {
@@ -67,7 +68,9 @@ export default function CalendarPage() {
       const s = await getCurrentSession()
       if (!alive) return
       if (!s) { router.replace('/login'); return }
-      const list = getCompareList(s.uid)
+      const storedList = getCompareList(s.uid)
+      const list = s.isDemo ? storedList : storedList.filter(c => !isDemoColleagueUid(c.uid))
+      if (!s.isDemo && list.length !== storedList.length) saveCompareList(s.uid, list)
       const cols: Record<string, ScheduleEntry[]> = {}
       for (const c of list) cols[c.uid] = getMonthSchedules(c.uid, year, month)
       setSession(s)
