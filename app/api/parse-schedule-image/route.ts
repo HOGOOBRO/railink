@@ -4,6 +4,8 @@ import type { ParsedScheduleRow } from '@/lib/parse/schedule-file'
 export const runtime = 'nodejs'
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
+const MAX_IMAGES = 5
+const MAX_TOTAL_IMAGE_BYTES = 24 * 1024 * 1024
 const MODEL = process.env.OPENAI_VISION_MODEL || 'gpt-4.1-mini'
 
 interface AiScheduleRow {
@@ -77,21 +79,36 @@ export async function POST(req: NextRequest) {
     }
 
     const form = await req.formData()
-    const file = form.get('image')
+    const files = form.getAll('image').filter((file): file is File => file instanceof File)
     const defaultYear = Number(form.get('defaultYear')) || new Date().getFullYear()
     const defaultMonth = Number(form.get('defaultMonth')) || new Date().getMonth() + 1
 
-    if (!(file instanceof File)) {
+    if (!files.length) {
       return NextResponse.json({ error: '이미지 파일이 필요해요.' }, { status: 400 })
     }
-    if (!file.type.startsWith('image/')) {
-      return NextResponse.json({ error: '이미지 파일만 업로드할 수 있어요.' }, { status: 400 })
+    if (files.length > MAX_IMAGES) {
+      return NextResponse.json({ error: `이미지는 한 번에 최대 ${MAX_IMAGES}장까지 올릴 수 있어요.` }, { status: 400 })
     }
-    if (file.size > MAX_IMAGE_BYTES) {
-      return NextResponse.json({ error: '이미지는 8MB 이하로 올려주세요.' }, { status: 400 })
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0)
+    if (totalSize > MAX_TOTAL_IMAGE_BYTES) {
+      return NextResponse.json({ error: '이미지는 총 24MB 이하로 올려주세요.' }, { status: 400 })
+    }
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        return NextResponse.json({ error: '이미지 파일만 업로드할 수 있어요.' }, { status: 400 })
+      }
+      if (file.size > MAX_IMAGE_BYTES) {
+        return NextResponse.json({ error: '이미지는 장당 8MB 이하로 올려주세요.' }, { status: 400 })
+      }
     }
 
-    const dataUrl = await fileToDataUrl(file)
+    const imageContent = await Promise.all(
+      files.map(async file => ({
+        type: 'input_image' as const,
+        image_url: await fileToDataUrl(file),
+        detail: 'high' as const,
+      })),
+    )
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
@@ -106,13 +123,9 @@ export async function POST(req: NextRequest) {
             content: [
               {
                 type: 'input_text',
-                text: buildPrompt(defaultYear, defaultMonth),
+                text: buildPrompt(defaultYear, defaultMonth, files.length),
               },
-              {
-                type: 'input_image',
-                image_url: dataUrl,
-                detail: 'high',
-              },
+              ...imageContent,
             ],
           },
         ],
@@ -154,6 +167,7 @@ export async function POST(req: NextRequest) {
       warnings: parsed.warnings ?? [],
       raw: parsed,
       model: MODEL,
+      imageCount: files.length,
     })
   } catch (error) {
     return NextResponse.json(
@@ -163,9 +177,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function buildPrompt(defaultYear: number, defaultMonth: number): string {
+function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: number): string {
   return [
     'You are extracting a KTX crew monthly work schedule from a screenshot.',
+    imageCount > 1
+      ? `There are ${imageCount} screenshots. Treat them as cropped pieces of the same monthly schedule, in upload order.`
+      : 'There is one screenshot.',
+    'If screenshots overlap, merge duplicate dates and keep the clearest row.',
     'Return JSON only according to the schema.',
     `If the year/month are ambiguous, use ${defaultYear}-${String(defaultMonth).padStart(2, '0')}.`,
     'Extract one row per visible business date that has a duty/off entry.',
@@ -207,7 +225,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function normalizeRows(rows: AiScheduleRow[] = []): ParsedScheduleRow[] {
-  return rows
+  const normalized = rows
     .filter(row => /^\d{4}-\d{2}-\d{2}$/.test(row.date))
     .map(row => {
       const isOff = Boolean(row.isOff)
@@ -223,7 +241,23 @@ function normalizeRows(rows: AiScheduleRow[] = []): ParsedScheduleRow[] {
       }
     })
     .filter(row => row.diaNr || row.startTime || row.endTime || row.trainNr)
-    .sort((a, b) => a.date.localeCompare(b.date))
+
+  const byDate = new Map<string, ParsedScheduleRow>()
+  for (const row of normalized) {
+    const existing = byDate.get(row.date)
+    if (!existing || rowScore(row) >= rowScore(existing)) byDate.set(row.date, row)
+  }
+
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+}
+
+function rowScore(row: ParsedScheduleRow): number {
+  return [
+    row.diaNr,
+    row.trainNr,
+    row.startTime,
+    row.endTime,
+  ].filter(Boolean).length + (row.isOff ? 1 : 0)
 }
 
 function normalizeTime(value: string): string {

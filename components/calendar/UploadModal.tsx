@@ -34,7 +34,7 @@ const OPTIONS: {
   primary?: boolean
 }[] = [
   { key: 'file',   icon: <FileIcon size={22} />,  label: '엑셀 / CSV', sub: '회사 시스템에서 받은 표를 그대로 올리기', meta: '.xlsx · .xls · .csv', primary: true },
-  { key: 'image',  icon: <ImageIcon size={22} />, label: '이미지',      sub: '스크린샷을 AI로 읽어서 등록',           meta: '.png · .jpg · .webp' },
+  { key: 'image',  icon: <ImageIcon size={22} />, label: '이미지',      sub: '스크린샷을 AI로 읽어서 등록',           meta: '.png · .jpg · .webp · 여러 장 가능' },
   { key: 'manual', icon: <EditIcon size={22} />,  label: '직접 입력',   sub: '날짜별로 빈 표를 채워서 등록',          meta: '이번 달 전체 30일 폼' },
 ]
 
@@ -112,6 +112,7 @@ export function UploadModal({
   const fileRef = useRef<HTMLInputElement>(null)
   const imageRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState('')
+  const [sourceLabel, setSourceLabel] = useState('엑셀 / CSV')
   const [rows, setRows] = useState<ParsedScheduleRow[]>([])
   const [busy, setBusy] = useState<'file' | 'image' | null>(null)
   const [ocr, setOcr] = useState<OcrProgress | null>(null)
@@ -154,6 +155,7 @@ export function UploadModal({
     setNotice(null)
     setRows([])
     setFileName(file.name)
+    setSourceLabel('엑셀 / CSV')
 
     try {
       const parsed = await parseScheduleFile(file, defaultYear)
@@ -168,22 +170,26 @@ export function UploadModal({
   }
 
   async function handleImageChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files ?? [])
+    if (!files.length) return
 
     setBusy('image')
-    setOcr({ status: '이미지를 준비하고 있어요', progress: 0.02 })
+    setOcr({
+      status: files.length > 1 ? `이미지 ${files.length}장을 준비하고 있어요` : '이미지를 준비하고 있어요',
+      progress: 0.02,
+    })
     setOcrText('')
     setError(null)
     setNotice(null)
     setRows([])
-    setFileName(file.name)
+    setFileName(files.length === 1 ? files[0].name : `${files[0].name} 외 ${files.length - 1}장`)
+    setSourceLabel('이미지')
 
     try {
-      const result = await recognizeScheduleImage(file, defaultYear, defaultMonth, setOcr)
+      const result = await recognizeScheduleImage(files, defaultYear, defaultMonth, setOcr)
       setRows(result.rows)
       setOcrText(result.text)
-      setNotice(`AI 인식 신뢰도 ${Math.round(result.confidence)}%. 저장 전 날짜와 시간을 확인해 주세요.`)
+      setNotice(`AI 인식 신뢰도 ${Math.round(result.confidence)}%. 여러 장을 올린 경우 겹치는 날짜는 병합했어요.`)
       onPreview()
     } catch (err) {
       setError(err instanceof Error ? err.message : '이미지를 읽는 중 문제가 생겼어요.')
@@ -240,6 +246,7 @@ export function UploadModal({
       <input
         ref={imageRef}
         type="file"
+        multiple
         accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
         className="sr-only"
         onChange={handleImageChange}
@@ -358,7 +365,8 @@ export function UploadModal({
               <ChevronLeftIcon size={14} /> 입력 방식
               <span className="text-ink-300">·</span>
               <span className="text-ink-900 font-semibold inline-flex items-center gap-1">
-                <FileIcon size={14} /> 엑셀 / CSV
+                {sourceLabel === '이미지' ? <ImageIcon size={14} /> : <FileIcon size={14} />}
+                {sourceLabel}
               </span>
             </button>
             <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-md text-callout" style={{ background: '#DCFCE7', color: '#166534' }}>
