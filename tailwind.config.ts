@@ -86,10 +86,27 @@ const config: Config = {
           from: { opacity: '0', transform: 'translateY(-4px)' },
           to:   { opacity: '1', transform: 'translateY(0)' },
         },
+        // Bottom-sheet animations bake the centering translate(-50%) into
+        // the keyframe so it isn't lost while the animation is running.
+        'sheet-up': {
+          from: { transform: 'translate(-50%, 100%)' },
+          to:   { transform: 'translate(-50%, 0)' },
+        },
+        'sheet-down': {
+          from: { transform: 'translate(-50%, 0)' },
+          to:   { transform: 'translate(-50%, 100%)' },
+        },
+        'backdrop-in':  { from: { opacity: '0' }, to: { opacity: '1' } },
+        'backdrop-out': { from: { opacity: '1' }, to: { opacity: '0' } },
       },
       animation: {
         'slide-up': 'slide-up .28s cubic-bezier(.2,.8,.2,1)',
         'fade-in':  'fade-in .22s ease',
+        // Material 3 emphasized easings.
+        'sheet-up':     'sheet-up .35s cubic-bezier(.05,.7,.1,1) both',
+        'sheet-down':   'sheet-down .2s cubic-bezier(.3,0,.8,.15) both',
+        'backdrop-in':  'backdrop-in .25s ease-out both',
+        'backdrop-out': 'backdrop-out .18s ease-in both',
       },
       fontWeight: {
         regular:   '400',
