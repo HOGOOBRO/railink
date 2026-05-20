@@ -9,13 +9,14 @@ interface SearchOverlayProps {
   query: string
   setQuery: (q: string) => void
   colleagues: Colleague[]
+  loading?: boolean
   comparedUids: Set<string>
   onClose: () => void
   onToggle: (uid: string) => void
 }
 
 export function SearchOverlay({
-  query, setQuery, colleagues, comparedUids, onClose, onToggle,
+  query, setQuery, colleagues, loading = false, comparedUids, onClose, onToggle,
 }: SearchOverlayProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { inputRef.current?.focus() }, [])
@@ -66,12 +67,18 @@ export function SearchOverlay({
       {/* List */}
       <div className="flex-1 overflow-y-auto px-3 pt-2 pb-6">
         <p className="px-2 py-2.5 text-caption font-semibold text-ink-500">
-          {q ? (
+          {loading ? (
+            '동료 목록 불러오는 중'
+          ) : q ? (
             <>‘<span className="text-ink-900">{q}</span>’ 검색 결과 <span className="font-en">{filtered.length}</span>건</>
           ) : '추천 동료 · 이름 가나다순'}
         </p>
 
-        {filtered.length === 0 ? (
+        {loading ? (
+          <p className="py-16 px-4 text-center text-callout text-ink-500">
+            검색 가능한 동료를 확인하고 있어요.
+          </p>
+        ) : filtered.length === 0 ? (
           <p className="py-16 px-4 text-center text-callout text-ink-500">
             검색 결과가 없어요. 이름이나 사번을 다시 확인해 주세요.
           </p>

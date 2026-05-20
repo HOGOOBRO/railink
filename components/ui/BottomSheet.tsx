@@ -33,14 +33,18 @@ export function BottomSheet({ open, onClose, children, className }: BottomSheetP
   const sheetRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (open) {
-      setMounted(true)
-      setClosing(false)
-      setOpened(false)
-      setDragY(0)
-    } else if (mounted) {
-      setClosing(true)
-    }
+    if (!open && !mounted) return
+    const frame = window.requestAnimationFrame(() => {
+      if (open) {
+        setMounted(true)
+        setClosing(false)
+        setOpened(false)
+        setDragY(0)
+      } else {
+        setClosing(true)
+      }
+    })
+    return () => window.cancelAnimationFrame(frame)
   }, [open, mounted])
 
   // Body scroll lock for the lifetime of the sheet.

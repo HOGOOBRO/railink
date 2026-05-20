@@ -12,6 +12,7 @@ import {
 import { getCurrentSession, logout, type Session } from '@/lib/auth'
 import { getMonthSchedules } from '@/lib/store/schedules'
 import { getCompareList, COMPARE_KEY } from '@/lib/store/compare'
+import { COLLEAGUE_DIRECTORY_KEY, SAMPLE_DIRECTORY_SEEDED_KEY } from '@/lib/store/colleagues'
 
 const SCHEDULES_KEY = 'railink_schedules_v3'
 const DEMO_SESSION_KEY = 'railink_demo_session_v3'
@@ -70,6 +71,8 @@ export default function SettingsInfoPage() {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(SCHEDULES_KEY)
       localStorage.removeItem(COMPARE_KEY)
+      localStorage.removeItem(COLLEAGUE_DIRECTORY_KEY)
+      localStorage.removeItem(SAMPLE_DIRECTORY_SEEDED_KEY)
       localStorage.removeItem('railink_compare_v3') // legacy shared list
       localStorage.removeItem(DEMO_SESSION_KEY)
       localStorage.removeItem('railink_demo_photo_v1')
