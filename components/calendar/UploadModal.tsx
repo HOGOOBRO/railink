@@ -105,6 +105,52 @@ function manualRowsToParsed(
   return out
 }
 
+function isIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+function normalizePreviewRows(rows: ParsedScheduleRow[]): ParsedScheduleRow[] {
+  const byDate = new Map<string, ParsedScheduleRow>()
+  for (const row of rows) {
+    const date = row.date.trim()
+    if (!isIsoDate(date)) {
+      throw new Error('날짜는 YYYY-MM-DD 형식으로 입력해 주세요.')
+    }
+
+    const isOff = Boolean(row.isOff)
+    const next: ParsedScheduleRow = isOff
+      ? {
+          date,
+          isOff: true,
+          diaNr: row.diaNr?.trim() || 'S',
+        }
+      : {
+          date,
+          isOff: false,
+          diaNr: row.diaNr?.trim() || undefined,
+          trainNr: row.trainNr?.trim() || undefined,
+          startTime: row.startTime?.trim() || undefined,
+          endTime: row.endTime?.trim() || undefined,
+        }
+
+    const filled = next.isOff || next.diaNr || next.trainNr || next.startTime || next.endTime
+    if (filled) byDate.set(date, next)
+  }
+
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+}
+
+function nextPreviewDate(rows: ParsedScheduleRow[], year: number, month: number): string {
+  const usedDays = new Set(rows.map(row => Number(row.date.slice(8, 10))).filter(Number.isFinite))
+  const total = daysInMonth(year, month)
+  for (let day = 1; day <= total; day++) {
+    if (!usedDays.has(day)) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    }
+  }
+  return `${year}-${String(month).padStart(2, '0')}-${String(total).padStart(2, '0')}`
+}
+
 export function UploadModal({
   step, defaultYear, defaultMonth, initialRows = [],
   onPreview, onManual, onBack, onClose, onSave,
@@ -189,7 +235,10 @@ export function UploadModal({
       const result = await recognizeScheduleImage(files, defaultYear, defaultMonth, setOcr)
       setRows(result.rows)
       setOcrText(result.text)
-      setNotice(`AI 인식 신뢰도 ${Math.round(result.confidence)}%. 여러 장을 올린 경우 겹치는 날짜는 병합했어요.`)
+      const usageText = result.usage
+        ? ` 이번 달 ${result.usage.used}/${result.usage.limit}회 사용.`
+        : ''
+      setNotice(`AI 인식 신뢰도 ${Math.round(result.confidence)}%. 여러 장을 올린 경우 겹치는 날짜는 병합했어요.${usageText}`)
       onPreview()
     } catch (err) {
       setError(err instanceof Error ? err.message : '이미지를 읽는 중 문제가 생겼어요.')
@@ -217,10 +266,34 @@ export function UploadModal({
       onSave(parsed)
       return
     }
-    onSave(rows)
+    try {
+      const parsed = normalizePreviewRows(rows)
+      if (parsed.length === 0) {
+        setError('저장할 근무 행이 없어요.')
+        return
+      }
+      onSave(parsed)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '입력한 값을 확인해 주세요.')
+    }
   }
 
-  const previewRows = rows.slice(0, 20)
+  function setPreviewRow(i: number, patch: Partial<ParsedScheduleRow>) {
+    setRows(current => current.map((row, idx) => idx === i ? { ...row, ...patch } : row))
+  }
+
+  function removePreviewRow(i: number) {
+    setRows(current => current.filter((_, idx) => idx !== i))
+  }
+
+  function appendPreviewRow() {
+    setRows(current => [
+      ...current,
+      { date: nextPreviewDate(current, defaultYear, defaultMonth), isOff: false },
+    ])
+  }
+
+  const previewRows = rows
   const saveDisabled =
     step === 'pick' ||
     (step === 'preview' && rows.length === 0) ||
@@ -377,34 +450,12 @@ export function UploadModal({
               </div>
             </div>
 
-            <div className="mt-3 border border-line rounded-md overflow-hidden">
-              <div className="grid grid-cols-[74px_1fr_60px_60px] bg-bg px-2.5 py-2 text-[10px] font-bold text-ink-500 tracking-wide uppercase border-b border-line">
-                <span>사업일자</span><span>다이/열번</span><span>출근</span><span>퇴근</span>
-              </div>
-              {previewRows.map((r, i) => (
-                <div
-                  key={`${r.date}-${i}`}
-                  className={`grid grid-cols-[74px_1fr_60px_60px] px-2.5 py-2.5 items-center font-en text-caption ${
-                    i < previewRows.length - 1 ? 'border-b border-line' : ''
-                  } ${r.isOff ? 'bg-surface-2 text-ink-500' : 'bg-surface text-ink-900'}`}
-                >
-                  <span>{r.date.slice(5)}</span>
-                  <span className="flex gap-1.5 items-center min-w-0">
-                    <strong className={`font-bold ${r.isOff ? 'text-warn' : 'text-ink-900'}`}>
-                      {r.diaNr || '—'}
-                    </strong>
-                    {!r.isOff && r.trainNr && <span className="text-ink-500 truncate">{r.trainNr}</span>}
-                  </span>
-                  <span>{r.startTime || '—'}</span>
-                  <span>{r.endTime || '—'}</span>
-                </div>
-              ))}
-            </div>
-            {rows.length > previewRows.length && (
-              <p className="mt-2 text-caption text-ink-500">
-                미리보기는 처음 <span className="font-en">{previewRows.length}</span>건만 표시해요.
-              </p>
-            )}
+            <PreviewBody
+              rows={previewRows}
+              onChange={setPreviewRow}
+              onRemove={removePreviewRow}
+              onAppend={appendPreviewRow}
+            />
             {ocrText && (
               <details className="mt-3 rounded-md border border-line bg-bg px-3 py-2">
                 <summary className="cursor-pointer text-caption font-semibold text-ink-700">
@@ -472,6 +523,105 @@ interface ManualBodyProps {
   onBack: () => void
   onChange: (i: number, patch: Partial<ManualRow>) => void
   onAppendRest: () => void
+}
+
+interface PreviewBodyProps {
+  rows: ParsedScheduleRow[]
+  onChange: (i: number, patch: Partial<ParsedScheduleRow>) => void
+  onRemove: (i: number) => void
+  onAppend: () => void
+}
+
+function PreviewBody({ rows, onChange, onRemove, onAppend }: PreviewBodyProps) {
+  return (
+    <div className="mt-3">
+      <div className="flex items-center justify-between px-1 mb-2">
+        <p className="text-caption font-semibold text-ink-500">
+          저장 전 날짜와 시간을 직접 수정할 수 있어요.
+        </p>
+        <button
+          type="button"
+          onClick={onAppend}
+          className="inline-flex items-center gap-1 text-caption font-bold text-brand"
+        >
+          <PlusIcon size={13} /> 행 추가
+        </button>
+      </div>
+
+      <div className="border border-line rounded-md overflow-hidden">
+        {rows.map((row, i) => (
+          <div
+            key={`${row.date}-${i}`}
+            className={`px-3 py-3 ${
+              i < rows.length - 1 ? 'border-b border-line' : ''
+            } ${row.isOff ? 'bg-surface-2' : 'bg-surface'}`}
+          >
+            <div className="flex items-center gap-2">
+              <input
+                value={row.date}
+                onChange={e => onChange(i, { date: e.target.value })}
+                aria-label="사업일자"
+                className="font-en text-caption text-ink-900 outline-none px-2 h-8 rounded-xs border border-line bg-bg"
+                style={{ width: 106 }}
+              />
+              <label className="shrink-0 inline-flex items-center gap-1.5 text-caption font-semibold text-ink-700">
+                <input
+                  type="checkbox"
+                  checked={row.isOff}
+                  onChange={e => onChange(i, {
+                    isOff: e.target.checked,
+                    startTime: e.target.checked ? undefined : row.startTime,
+                    endTime: e.target.checked ? undefined : row.endTime,
+                  })}
+                  className="w-4 h-4 accent-[var(--brand)]"
+                />
+                휴무
+              </label>
+              <div className="flex-1" />
+              <button
+                type="button"
+                onClick={() => onRemove(i)}
+                className="w-8 h-8 grid place-items-center rounded-full text-ink-500 hover:bg-bg"
+                aria-label={`${row.date} 행 삭제`}
+              >
+                <CloseIcon size={14} />
+              </button>
+            </div>
+
+            <div className="mt-2 grid grid-cols-[1fr_1fr_62px_62px] gap-1.5">
+              <input
+                value={row.diaNr ?? ''}
+                placeholder={row.isOff ? 'S' : '다이'}
+                onChange={e => onChange(i, { diaNr: e.target.value })}
+                className="min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg"
+              />
+              <input
+                value={row.trainNr ?? ''}
+                placeholder="열번"
+                disabled={row.isOff}
+                onChange={e => onChange(i, { trainNr: e.target.value })}
+                className="min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
+              />
+              <input
+                value={row.startTime ?? ''}
+                placeholder="시작"
+                disabled={row.isOff}
+                onChange={e => onChange(i, { startTime: e.target.value })}
+                className="font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
+              />
+              <input
+                value={row.endTime ?? ''}
+                placeholder="종료"
+                disabled={row.isOff}
+                onChange={e => onChange(i, { endTime: e.target.value })}
+                className="font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function ManualBody({

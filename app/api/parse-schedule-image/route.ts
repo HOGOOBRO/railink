@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ParsedScheduleRow } from '@/lib/parse/schedule-file'
 
 export const runtime = 'nodejs'
@@ -6,6 +8,7 @@ export const runtime = 'nodejs'
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 const MAX_IMAGES = 5
 const MAX_TOTAL_IMAGE_BYTES = 24 * 1024 * 1024
+const MONTHLY_AI_LIMIT = 5
 const MODEL = process.env.OPENAI_VISION_MODEL || 'gpt-4.1-mini'
 
 interface AiScheduleRow {
@@ -21,6 +24,49 @@ interface AiScheduleResult {
   rows: AiScheduleRow[]
   warnings: string[]
 }
+
+interface UsageStatus {
+  limit: number
+  used: number
+  remaining: number
+  month: string
+}
+
+interface AiUsageDatabase {
+  public: {
+    Tables: {
+      ai_image_usage: {
+        Row: {
+          id: number
+          user_id: string
+          usage_month: string
+          image_count: number
+          model: string | null
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+          usage_month: string
+          image_count?: number
+          model?: string | null
+        }
+        Update: {
+          user_id?: string
+          usage_month?: string
+          image_count?: number
+          model?: string | null
+        }
+        Relationships: []
+      }
+    }
+    Views: Record<string, never>
+    Functions: Record<string, never>
+    Enums: Record<string, never>
+    CompositeTypes: Record<string, never>
+  }
+}
+
+type AiUsageSupabase = SupabaseClient<AiUsageDatabase>
 
 const scheduleSchema = {
   type: 'object',
@@ -77,6 +123,25 @@ export async function POST(req: NextRequest) {
         { status: 500 },
       )
     }
+    const auth = await getAuthenticatedSupabase(req)
+    if (!auth) {
+      return NextResponse.json(
+        { error: 'AI 이미지 인식은 실제 로그인 계정에서만 사용할 수 있어요.' },
+        { status: 401 },
+      )
+    }
+
+    const usageMonth = getCurrentUsageMonth()
+    const usedThisMonth = await getImageUsageCount(auth.supabase, auth.userId, usageMonth)
+    if (usedThisMonth >= MONTHLY_AI_LIMIT) {
+      return NextResponse.json(
+        {
+          error: `이번 달 AI 이미지 인식 ${MONTHLY_AI_LIMIT}회 한도를 모두 사용했어요. 엑셀/CSV 또는 직접 입력을 사용해 주세요.`,
+          usage: buildUsageStatus(usedThisMonth, usageMonth),
+        },
+        { status: 429 },
+      )
+    }
 
     const form = await req.formData()
     const files = form.getAll('image').filter((file): file is File => file instanceof File)
@@ -129,6 +194,7 @@ export async function POST(req: NextRequest) {
             ],
           },
         ],
+        temperature: 0,
         text: {
           format: {
             type: 'json_schema',
@@ -147,6 +213,8 @@ export async function POST(req: NextRequest) {
         { status: response.status },
       )
     }
+    await recordImageUsage(auth.supabase, auth.userId, usageMonth, files.length)
+    const usage = buildUsageStatus(usedThisMonth + 1, usageMonth)
 
     const outputText = extractOutputText(payload)
     if (!outputText) {
@@ -168,6 +236,7 @@ export async function POST(req: NextRequest) {
       raw: parsed,
       model: MODEL,
       imageCount: files.length,
+      usage,
     })
   } catch (error) {
     return NextResponse.json(
@@ -175,6 +244,85 @@ export async function POST(req: NextRequest) {
       { status: 500 },
     )
   }
+}
+
+async function getAuthenticatedSupabase(req: NextRequest): Promise<{
+  supabase: AiUsageSupabase
+  userId: string
+} | null> {
+  const token = getBearerToken(req)
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!token || !url || !anonKey) return null
+
+  const supabase = createClient<AiUsageDatabase>(url, anonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
+  const { data, error } = await supabase.auth.getUser(token)
+  if (error || !data.user) return null
+  return { supabase, userId: data.user.id }
+}
+
+function getBearerToken(req: NextRequest): string {
+  const header = req.headers.get('authorization') ?? ''
+  const match = header.match(/^Bearer\s+(.+)$/i)
+  return match?.[1] ?? ''
+}
+
+function getCurrentUsageMonth(): string {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+async function getImageUsageCount(
+  supabase: AiUsageSupabase,
+  userId: string,
+  usageMonth: string,
+): Promise<number> {
+  const { data, error } = await supabase
+    .from('ai_image_usage')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('usage_month', usageMonth)
+    .limit(MONTHLY_AI_LIMIT + 1)
+
+  if (error) throw new Error(formatUsageStoreError(error.message))
+  return Array.isArray(data) ? data.length : 0
+}
+
+async function recordImageUsage(
+  supabase: AiUsageSupabase,
+  userId: string,
+  usageMonth: string,
+  imageCount: number,
+): Promise<void> {
+  const { error } = await supabase.from('ai_image_usage').insert({
+    user_id: userId,
+    usage_month: usageMonth,
+    image_count: imageCount,
+    model: MODEL,
+  })
+  if (error) throw new Error(formatUsageStoreError(error.message))
+}
+
+function buildUsageStatus(used: number, usageMonth: string): UsageStatus {
+  return {
+    limit: MONTHLY_AI_LIMIT,
+    used,
+    remaining: Math.max(0, MONTHLY_AI_LIMIT - used),
+    month: usageMonth,
+  }
+}
+
+function formatUsageStoreError(message: string): string {
+  if (/ai_image_usage|schema cache|relation|does not exist/i.test(message)) {
+    return 'Supabase AI 사용량 테이블이 아직 적용되지 않아 이미지 인식을 사용할 수 없어요.'
+  }
+  return message || 'AI 사용량을 확인할 수 없어요.'
 }
 
 function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: number): string {

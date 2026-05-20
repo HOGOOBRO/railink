@@ -1,4 +1,5 @@
 import type { ParsedScheduleRow } from './schedule-file'
+import { supabase } from '@/lib/supabase'
 
 export interface OcrProgress {
   status: string
@@ -9,6 +10,14 @@ export interface RecognizedScheduleImage {
   rows: ParsedScheduleRow[]
   text: string
   confidence: number
+  usage?: AiUsageStatus
+}
+
+export interface AiUsageStatus {
+  limit: number
+  used: number
+  remaining: number
+  month: string
 }
 
 interface ParseImageResponse {
@@ -17,6 +26,7 @@ interface ParseImageResponse {
   raw?: unknown
   model?: string
   imageCount?: number
+  usage?: AiUsageStatus
   error?: string
 }
 
@@ -47,12 +57,21 @@ export async function recognizeScheduleImage(
   form.append('defaultYear', String(defaultYear))
   form.append('defaultMonth', String(defaultMonth))
 
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) {
+    throw new Error('AI 이미지 인식은 실제 로그인 계정에서만 사용할 수 있어요.')
+  }
+
   onProgress?.({
     status: files.length > 1 ? `이미지 ${files.length}장을 업로드하고 있어요` : '이미지를 업로드하고 있어요',
     progress: 0.15,
   })
   const request = fetch('/api/parse-schedule-image', {
     method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
     body: form,
   })
 
@@ -83,5 +102,6 @@ export async function recognizeScheduleImage(
     rows: payload.rows,
     text,
     confidence: payload.warnings?.length ? 80 : 92,
+    usage: payload.usage,
   }
 }
