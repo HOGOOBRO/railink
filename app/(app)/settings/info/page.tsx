@@ -10,7 +10,7 @@ import {
   ChevronLeftIcon, ChevronRightIcon, EditIcon, KeyIcon, UploadIcon,
 } from '@/components/ui/icons'
 import { getCurrentSession, logout, type Session } from '@/lib/auth'
-import { getMonthSchedules } from '@/lib/store/schedules'
+import { getMonthSchedules, getRemoteMonthSchedules } from '@/lib/store/schedules'
 import { getCompareList, COMPARE_KEY } from '@/lib/store/compare'
 import { COLLEAGUE_DIRECTORY_KEY, SAMPLE_DIRECTORY_SEEDED_KEY } from '@/lib/store/colleagues'
 
@@ -44,7 +44,14 @@ export default function SettingsInfoPage() {
       if (!alive) return
       if (!s) { router.replace('/login'); return }
       const now = new Date()
-      const sched = getMonthSchedules(s.uid, now.getFullYear(), now.getMonth() + 1)
+      let sched = getMonthSchedules(s.uid, now.getFullYear(), now.getMonth() + 1)
+      if (!s.isDemo) {
+        try {
+          sched = await getRemoteMonthSchedules(s.uid, now.getFullYear(), now.getMonth() + 1)
+        } catch {
+          sched = []
+        }
+      }
       const off = sched.filter(e => e.isOff).length
       setSession(s)
       setName(s.name)

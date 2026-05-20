@@ -16,7 +16,13 @@ import { SearchOverlay } from '@/components/calendar/SearchOverlay'
 import { UploadModal } from '@/components/calendar/UploadModal'
 import type { TimelineItem } from '@/components/calendar/Timeline'
 import { getCurrentSession, logout, type Session } from '@/lib/auth'
-import { getMonthSchedules, replaceUserScheduleMonths } from '@/lib/store/schedules'
+import {
+  getMonthSchedules,
+  getRemoteMonthSchedules,
+  getRemoteMonthSchedulesForUsers,
+  replaceRemoteUserScheduleMonths,
+  replaceUserScheduleMonths,
+} from '@/lib/store/schedules'
 import {
   getCompareList, saveCompareList, addCompare, removeCompare, MAX_COMPARE,
 } from '@/lib/store/compare'
@@ -71,11 +77,30 @@ export default function CalendarPage() {
       const storedList = getCompareList(s.uid)
       const list = s.isDemo ? storedList : storedList.filter(c => !isDemoColleagueUid(c.uid))
       if (!s.isDemo && list.length !== storedList.length) saveCompareList(s.uid, list)
-      const cols: Record<string, ScheduleEntry[]> = {}
-      for (const c of list) cols[c.uid] = getMonthSchedules(c.uid, year, month)
+      let mine = getMonthSchedules(s.uid, year, month)
+      let cols: Record<string, ScheduleEntry[]> = {}
+      if (s.isDemo) {
+        for (const c of list) cols[c.uid] = getMonthSchedules(c.uid, year, month)
+      } else {
+        try {
+          const [remoteMine, remoteCols] = await Promise.all([
+            getRemoteMonthSchedules(s.uid, year, month),
+            getRemoteMonthSchedulesForUsers(list.map(c => c.uid), year, month),
+          ])
+          if (!alive) return
+          if (!remoteMine.length && mine.length) {
+            await replaceRemoteUserScheduleMonths(s.uid, mine)
+          } else {
+            mine = remoteMine
+          }
+          cols = remoteCols
+        } catch {
+          cols = {}
+        }
+      }
       setSession(s)
       setCompares(list)
-      setMySched(getMonthSchedules(s.uid, year, month))
+      setMySched(mine)
       setColSched(cols)
 
       setColleagueLoading(true)
@@ -199,10 +224,20 @@ export default function CalendarPage() {
     setReload(n => n + 1)
   }
 
-  function handleUploadSave(rows: ParsedScheduleRow[]) {
+  async function handleUploadSave(rows: ParsedScheduleRow[]) {
     if (!session) return
     const entries = rows.map(row => ({ ...row, uid: session.uid }))
-    replaceUserScheduleMonths(session.uid, entries)
+    try {
+      if (session.isDemo) {
+        replaceUserScheduleMonths(session.uid, entries)
+      } else {
+        await replaceRemoteUserScheduleMonths(session.uid, entries)
+        replaceUserScheduleMonths(session.uid, entries)
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '근무표 저장 중 문제가 생겼어요.', 'danger')
+      return
+    }
     const first = entries[0]?.date
     if (first) {
       setYear(Number(first.slice(0, 4)))
