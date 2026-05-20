@@ -25,3 +25,10 @@ export function replaceUserSchedule(uid: string, entries: ScheduleEntry[]): void
   const others = getSchedules().filter(e => e.uid !== uid)
   saveSchedules([...others, ...entries])
 }
+
+/** Replace only the months included in `entries`, preserving other months. */
+export function replaceUserScheduleMonths(uid: string, entries: ScheduleEntry[]): void {
+  const monthPrefixes = new Set(entries.map(e => e.date.slice(0, 7)))
+  const others = getSchedules().filter(e => e.uid !== uid || !monthPrefixes.has(e.date.slice(0, 7)))
+  saveSchedules([...others, ...entries])
+}

@@ -13,18 +13,19 @@ import { CalCell, type CellBar } from '@/components/calendar/CalCell'
 import { DetailSheet } from '@/components/calendar/DetailSheet'
 import { MenuSheet } from '@/components/calendar/MenuSheet'
 import { SearchOverlay } from '@/components/calendar/SearchOverlay'
-import { UploadModal, type UploadMethod } from '@/components/calendar/UploadModal'
+import { UploadModal } from '@/components/calendar/UploadModal'
 import type { TimelineItem } from '@/components/calendar/Timeline'
 import { getCurrentSession, logout, type Session } from '@/lib/auth'
 import { seedDemo } from '@/lib/demo-seed'
-import { getMonthSchedules, replaceUserSchedule } from '@/lib/store/schedules'
+import { getMonthSchedules, replaceUserScheduleMonths } from '@/lib/store/schedules'
 import {
   getCompareList, addCompare, removeCompare, MAX_COMPARE,
 } from '@/lib/store/compare'
-import { DEMO_COLLEAGUES, findColleague, buildMyScheduleFor } from '@/lib/demo-data'
+import { DEMO_COLLEAGUES, findColleague } from '@/lib/demo-data'
 import {
   MONTHS_EN, DOW_EN, buildMonthCells, hmToDecimal,
 } from '@/lib/schedule-utils'
+import type { ParsedScheduleRow } from '@/lib/parse/schedule-file'
 import type { CompareEntry, CompareColor, ScheduleEntry } from '@/lib/types/schedule'
 
 const BRAND = 'var(--brand)'
@@ -178,18 +179,18 @@ export default function CalendarPage() {
     setReload(n => n + 1)
   }
 
-  function handleUploadPick(m: UploadMethod) {
-    if (m === 'file') { setUploadStep('preview'); return }
-    if (m === 'image') showToast('이미지 인식은 곧 추가될 예정이에요.')
-    else showToast('직접 입력은 곧 추가될 예정이에요.')
-  }
-
-  function handleUploadSave() {
+  function handleUploadSave(rows: ParsedScheduleRow[]) {
     if (!session) return
-    replaceUserSchedule(session.uid, buildMyScheduleFor(session.uid))
+    const entries = rows.map(row => ({ ...row, uid: session.uid }))
+    replaceUserScheduleMonths(session.uid, entries)
+    const first = entries[0]?.date
+    if (first) {
+      setYear(Number(first.slice(0, 4)))
+      setMonth(Number(first.slice(5, 7)))
+    }
     setUploadOpen(false); setUploadStep('pick')
     setReload(n => n + 1)
-    showToast('8건 등록 완료', 'success')
+    showToast(`${entries.length}건 등록 완료`, 'success')
   }
 
   async function handleLogout() {
@@ -420,7 +421,9 @@ export default function CalendarPage() {
       {uploadOpen && (
         <UploadModal
           step={uploadStep}
-          onPick={handleUploadPick}
+          defaultYear={year}
+          defaultMonth={month}
+          onPreview={() => setUploadStep('preview')}
           onBack={() => setUploadStep('pick')}
           onClose={() => { setUploadOpen(false); setUploadStep('pick') }}
           onSave={handleUploadSave}
