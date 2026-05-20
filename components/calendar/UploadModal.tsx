@@ -31,7 +31,7 @@ const OPTIONS: {
   primary?: boolean
 }[] = [
   { key: 'file',   icon: <FileIcon size={22} />,  label: '엑셀 / CSV', sub: '회사 시스템에서 받은 표를 그대로 올리기', meta: '.xlsx · .xls · .csv', primary: true },
-  { key: 'image',  icon: <ImageIcon size={22} />, label: '이미지',      sub: '스크린샷 OCR 인식으로 표 읽기',          meta: '.png · .jpg · .heic' },
+  { key: 'image',  icon: <ImageIcon size={22} />, label: '이미지',      sub: '스크린샷을 AI로 읽어서 등록',           meta: '.png · .jpg · .webp' },
   { key: 'manual', icon: <EditIcon size={22} />,  label: '직접 입력',   sub: '날짜별로 빈 표를 채워서 등록',          meta: '이번 달 전체 30일 폼' },
 ]
 
@@ -88,7 +88,7 @@ export function UploadModal({
       const result = await recognizeScheduleImage(file, defaultYear, defaultMonth, setOcr)
       setRows(result.rows)
       setOcrText(result.text)
-      setNotice(`OCR 신뢰도 ${Math.round(result.confidence)}%. 저장 전 날짜와 시간을 확인해 주세요.`)
+      setNotice(`AI 인식 신뢰도 ${Math.round(result.confidence)}%. 저장 전 날짜와 시간을 확인해 주세요.`)
       onPreview()
     } catch (err) {
       setError(err instanceof Error ? err.message : '이미지를 읽는 중 문제가 생겼어요.')
@@ -129,7 +129,7 @@ export function UploadModal({
       <input
         ref={imageRef}
         type="file"
-        accept="image/*"
+        accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
         className="sr-only"
         onChange={handleImageChange}
       />
@@ -232,7 +232,7 @@ export function UploadModal({
             {!busy && !error && !notice && (
               <StatusBox tone="info">
                 <span className="text-brand shrink-0"><InfoIcon size={16} /></span>
-                <span>엑셀/CSV는 컬럼을 읽고, 이미지는 OCR로 텍스트를 추출한 뒤 근무 행을 찾아요.</span>
+                <span>엑셀/CSV는 컬럼을 읽고, 이미지는 AI가 캘린더 내용을 해석해 근무 행을 찾아요.</span>
               </StatusBox>
             )}
           </>
@@ -287,7 +287,7 @@ export function UploadModal({
             {ocrText && (
               <details className="mt-3 rounded-md border border-line bg-bg px-3 py-2">
                 <summary className="cursor-pointer text-caption font-semibold text-ink-700">
-                  OCR 원문 확인
+                  AI 인식 원문 확인
                 </summary>
                 <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap font-en text-[10px] leading-4 text-ink-500">
                   {ocrText}
