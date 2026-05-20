@@ -72,6 +72,7 @@ export default function SettingsInfoPage() {
       localStorage.removeItem(COMPARE_KEY)
       localStorage.removeItem('railink_compare_v3') // legacy shared list
       localStorage.removeItem(DEMO_SESSION_KEY)
+      localStorage.removeItem('railink_demo_photo_v1')
     }
     await logout()
     showToast('데이터를 모두 삭제했어요.', 'success')
@@ -112,13 +113,13 @@ export default function SettingsInfoPage() {
         <section className="flex flex-col items-center px-4 py-5 bg-surface border border-line rounded-lg">
           <div className="relative">
             <Avatar name={session.name} photo={session.photo} size="xl" color="brand" className="!w-[84px] !h-[84px] text-[28px]" />
-            <button
-              onClick={() => showToast('사진 변경은 곧 추가될 예정이에요.')}
+            <Link
+              href="/settings/photo"
               aria-label="프로필 사진 변경"
               className="absolute -right-1 -bottom-1 w-8 h-8 rounded-full bg-brand text-ink-on-brand border-[3px] border-surface grid place-items-center"
             >
               <EditIcon size={14} />
-            </button>
+            </Link>
           </div>
           <p className="mt-3 text-[20px] font-bold tracking-tight text-ink-900">{session.name}</p>
           <p className="mt-0.5 font-en text-caption text-ink-500">

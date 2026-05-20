@@ -19,15 +19,25 @@ export interface Session {
  * session is consistent with that. */
 
 const DEMO_SESSION_KEY = 'railink_demo_session_v3'
+const DEMO_PHOTO_KEY = 'railink_demo_photo_v1'
 
 export function isDemoCreds(email: string, pw: string): boolean {
   return email === DEMO_LOGIN.email && pw === DEMO_LOGIN.pw
 }
 
+function getDemoPhotoOverride(): { has: boolean; value?: string } {
+  if (typeof window === 'undefined') return { has: false }
+  const raw = localStorage.getItem(DEMO_PHOTO_KEY)
+  if (raw === null) return { has: false }
+  return { has: true, value: raw === '' ? undefined : raw }
+}
+
 function demoSession(): Session {
+  const override = getDemoPhotoOverride()
+  const photo = override.has ? override.value : DEMO_ME.photo
   return {
     uid: DEMO_ME.uid, email: DEMO_ME.email, name: DEMO_ME.name,
-    employeeId: DEMO_ME.employeeId, part: DEMO_ME.part, photo: DEMO_ME.photo,
+    employeeId: DEMO_ME.employeeId, part: DEMO_ME.part, photo,
     isDemo: true,
   }
 }
@@ -121,6 +131,21 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
 
 export async function resendConfirmation(email: string): Promise<void> {
   await supabase.auth.resend({ type: 'signup', email })
+}
+
+/* ── Profile updates ───────────────────────────────────────────────────────── */
+
+/** Save a new profile photo. Pass `null` to clear it (fall back to initials).
+ * Demo accounts persist to localStorage; real accounts hit Supabase
+ * user_metadata. */
+export async function updatePhoto(photo: string | null): Promise<{ ok: boolean; message?: string }> {
+  if (typeof window !== 'undefined' && localStorage.getItem(DEMO_SESSION_KEY)) {
+    localStorage.setItem(DEMO_PHOTO_KEY, photo ?? '')
+    return { ok: true }
+  }
+  const { error } = await supabase.auth.updateUser({ data: { photo: photo ?? null } })
+  if (error) return { ok: false, message: error.message }
+  return { ok: true }
 }
 
 /* ── Logout ────────────────────────────────────────────────────────────────── */
