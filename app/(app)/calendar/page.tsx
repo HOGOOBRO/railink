@@ -51,7 +51,7 @@ export default function CalendarPage() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [uploadOpen, setUploadOpen] = useState(false)
-  const [uploadStep, setUploadStep] = useState<'pick' | 'preview'>('pick')
+  const [uploadStep, setUploadStep] = useState<'pick' | 'preview' | 'manual'>('pick')
 
   // Loader: resolve the session (demo localStorage OR Supabase), then read
   // the localStorage schedule/compare stores. setState runs after the await,
@@ -152,6 +152,7 @@ export default function CalendarPage() {
 
   const openSearch = () => { closeOverlays(); setSearchQuery(''); setSearchOpen(true) }
   const openUpload = () => { closeOverlays(); setUploadStep('pick'); setUploadOpen(true) }
+  const openManualEdit = () => { closeOverlays(); setUploadStep('manual'); setUploadOpen(true) }
 
   function prevMonth() {
     if (month === 1) { setYear(y => y - 1); setMonth(12) } else setMonth(m => m - 1)
@@ -391,6 +392,7 @@ export default function CalendarPage() {
             items={detailItems}
             onClose={() => setDetailOpen(false)}
             onAddCompare={openSearch}
+            onEdit={openManualEdit}
           />
         )}
       </BottomSheet>
@@ -423,7 +425,13 @@ export default function CalendarPage() {
           step={uploadStep}
           defaultYear={year}
           defaultMonth={month}
+          initialRows={mySched.map(e => ({
+            date: e.date, isOff: e.isOff,
+            diaNr: e.diaNr, trainNr: e.trainNr,
+            startTime: e.startTime, endTime: e.endTime,
+          }))}
           onPreview={() => setUploadStep('preview')}
+          onManual={() => setUploadStep('manual')}
           onBack={() => setUploadStep('pick')}
           onClose={() => { setUploadOpen(false); setUploadStep('pick') }}
           onSave={handleUploadSave}

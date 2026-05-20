@@ -1,22 +1,25 @@
 'use client'
 
-import { ChangeEvent, ReactNode, useRef, useState } from 'react'
+import { ChangeEvent, ReactNode, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import {
   CloseIcon, FileIcon, ImageIcon, EditIcon, ChevronLeftIcon,
-  ChevronRightIcon, InfoIcon, CheckIcon,
+  ChevronRightIcon, InfoIcon, CheckIcon, PlusIcon,
 } from '@/components/ui/icons'
 import { parseScheduleFile, type ParsedScheduleRow } from '@/lib/parse/schedule-file'
 import { recognizeScheduleImage, type OcrProgress } from '@/lib/parse/schedule-image'
 
 export type UploadMethod = 'file' | 'image' | 'manual'
-type Step = 'pick' | 'preview'
+type Step = 'pick' | 'preview' | 'manual'
 
 interface UploadModalProps {
   step: Step
   defaultYear: number
   defaultMonth: number
+  /** Existing rows for current month — used to pre-fill ManualBody on entry. */
+  initialRows?: ParsedScheduleRow[]
   onPreview: () => void
+  onManual: () => void
   onBack: () => void
   onClose: () => void
   onSave: (rows: ParsedScheduleRow[]) => void
@@ -35,8 +38,76 @@ const OPTIONS: {
   { key: 'manual', icon: <EditIcon size={22} />,  label: '직접 입력',   sub: '날짜별로 빈 표를 채워서 등록',          meta: '이번 달 전체 30일 폼' },
 ]
 
+const DOW_KR = ['일', '월', '화', '수', '목', '금', '토']
+
+interface ManualRow {
+  day: number       // 1..31
+  dow: string       // 한글 요일
+  dia?: string
+  st?: string
+  et?: string
+  holiday?: boolean
+  sun?: boolean
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate()
+}
+
+function buildInitialManualRows(
+  year: number, month: number, existing: ParsedScheduleRow[],
+): ManualRow[] {
+  const total = daysInMonth(year, month)
+  const max = Math.min(12, total)
+  const byDay = new Map<number, ParsedScheduleRow>()
+  for (const r of existing) byDay.set(Number(r.date.slice(8, 10)), r)
+  const rows: ManualRow[] = []
+  for (let d = 1; d <= max; d++) {
+    const dow = DOW_KR[new Date(year, month - 1, d).getDay()]
+    const row: ManualRow = { day: d, dow }
+    const hit = byDay.get(d)
+    if (hit) {
+      if (hit.isOff) {
+        row.holiday = true
+        row.sun = !!hit.diaNr && /주휴/.test(hit.diaNr)
+      } else {
+        row.dia = hit.diaNr
+        row.st = hit.startTime
+        row.et = hit.endTime
+      }
+    }
+    rows.push(row)
+  }
+  return rows
+}
+
+function manualRowsToParsed(
+  rows: ManualRow[], year: number, month: number,
+): ParsedScheduleRow[] {
+  const out: ParsedScheduleRow[] = []
+  const yyyy = String(year)
+  const mm = String(month).padStart(2, '0')
+  for (const r of rows) {
+    const filled = r.holiday || r.dia || r.st || r.et
+    if (!filled) continue
+    const date = `${yyyy}-${mm}-${String(r.day).padStart(2, '0')}`
+    if (r.holiday) {
+      out.push({ date, isOff: true, diaNr: r.sun ? 'S(주휴)' : 'S' })
+    } else {
+      out.push({
+        date, isOff: false,
+        diaNr: (r.dia || '').trim() || undefined,
+        startTime: (r.st || '').trim() || undefined,
+        endTime: (r.et || '').trim() || undefined,
+      })
+    }
+  }
+  return out
+}
+
 export function UploadModal({
-  step, defaultYear, defaultMonth, onPreview, onBack, onClose, onSave,
+  step, defaultYear, defaultMonth, initialRows = [],
+  onPreview, onManual, onBack, onClose, onSave,
 }: UploadModalProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const imageRef = useRef<HTMLInputElement>(null)
@@ -47,6 +118,30 @@ export function UploadModal({
   const [ocrText, setOcrText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+
+  // Manual-entry state — independent of file/image preview rows.
+  const [manualRows, setManualRows] = useState<ManualRow[]>(
+    () => buildInitialManualRows(defaultYear, defaultMonth, initialRows),
+  )
+  const monthTotal = useMemo(
+    () => daysInMonth(defaultYear, defaultMonth), [defaultYear, defaultMonth],
+  )
+  const manualFilled = manualRows.filter(r => r.holiday || r.dia).length
+
+  function setManualRow(i: number, patch: Partial<ManualRow>) {
+    setManualRows(rs => rs.map((r, idx) => idx === i ? { ...r, ...patch } : r))
+  }
+
+  function appendRemainingDays() {
+    setManualRows(rs => {
+      const start = rs.length + 1
+      const more: ManualRow[] = []
+      for (let d = start; d <= monthTotal; d++) {
+        more.push({ day: d, dow: DOW_KR[new Date(defaultYear, defaultMonth - 1, d).getDay()] })
+      }
+      return [...rs, ...more]
+    })
+  }
 
   async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -101,18 +196,34 @@ export function UploadModal({
   function handleOption(key: UploadMethod) {
     setError(null)
     setNotice(null)
-    if (key === 'file') {
-      fileRef.current?.click()
+    if (key === 'file') { fileRef.current?.click(); return }
+    if (key === 'image') { imageRef.current?.click(); return }
+    onManual()
+  }
+
+  function handleSave() {
+    if (step === 'manual') {
+      const parsed = manualRowsToParsed(manualRows, defaultYear, defaultMonth)
+      if (parsed.length === 0) {
+        setError('하루 이상 입력한 뒤 저장해 주세요.')
+        return
+      }
+      onSave(parsed)
       return
     }
-    if (key === 'image') {
-      imageRef.current?.click()
-      return
-    }
-    setNotice('직접 입력 폼은 다음 단계에서 같은 저장 구조로 연결할 수 있어요.')
+    onSave(rows)
   }
 
   const previewRows = rows.slice(0, 20)
+  const saveDisabled =
+    step === 'pick' ||
+    (step === 'preview' && rows.length === 0) ||
+    (step === 'manual' && manualFilled === 0)
+
+  const footerStatus =
+    step === 'pick' ? '엑셀/CSV 파일을 선택해 주세요'
+    : step === 'manual' ? '직접 입력 중'
+    : `총 ${rows.length}건`
 
   return (
     <div
@@ -148,7 +259,7 @@ export function UploadModal({
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-6">
-        {step === 'pick' ? (
+        {step === 'pick' && (
           <>
             <p className="text-callout text-ink-700 leading-relaxed mb-3.5">
               어떻게 등록할까요? 회사에서 받은{' '}
@@ -236,7 +347,9 @@ export function UploadModal({
               </StatusBox>
             )}
           </>
-        ) : (
+        )}
+
+        {step === 'preview' && (
           <>
             <button
               onClick={onBack}
@@ -296,19 +409,30 @@ export function UploadModal({
             )}
           </>
         )}
+
+        {step === 'manual' && (
+          <ManualBody
+            rows={manualRows}
+            year={defaultYear}
+            month={defaultMonth}
+            filled={manualFilled}
+            total={monthTotal}
+            onBack={onBack}
+            onChange={setManualRow}
+            onAppendRest={appendRemainingDays}
+          />
+        )}
       </div>
 
       {/* Footer */}
       <div className="flex items-center gap-2.5 px-4 py-3 pb-[calc(12px+env(safe-area-inset-bottom))] border-t border-line bg-surface shrink-0">
-        <span className="flex-1 text-caption text-ink-500">
-          {step === 'pick' ? '엑셀/CSV 파일을 선택해 주세요' : `총 ${rows.length}건`}
-        </span>
+        <span className="flex-1 text-caption text-ink-500">{footerStatus}</span>
         <Button variant="ghost" size="sm" onClick={onClose}>취소</Button>
         <Button
           variant={step === 'pick' ? 'outline' : 'primary'}
           size="sm"
-          disabled={step === 'pick' || rows.length === 0}
-          onClick={() => onSave(rows)}
+          disabled={saveDisabled}
+          onClick={handleSave}
         >
           저장
         </Button>
@@ -328,5 +452,138 @@ function StatusBox({ tone, children }: { tone: 'info' | 'danger'; children: Reac
     >
       {children}
     </div>
+  )
+}
+
+interface ManualBodyProps {
+  rows: ManualRow[]
+  year: number
+  month: number
+  filled: number
+  total: number
+  onBack: () => void
+  onChange: (i: number, patch: Partial<ManualRow>) => void
+  onAppendRest: () => void
+}
+
+function ManualBody({
+  rows, year, month, filled, total, onBack, onChange, onAppendRest,
+}: ManualBodyProps) {
+  return (
+    <>
+      <button
+        onClick={onBack}
+        className="flex items-center gap-1.5 text-caption text-ink-500 mb-2.5"
+      >
+        <ChevronLeftIcon size={14} /> 입력 방식
+        <span className="text-ink-300">·</span>
+        <span className="text-ink-900 font-semibold inline-flex items-center gap-1">
+          <EditIcon size={14} /> 직접 입력
+        </span>
+      </button>
+
+      <div className="flex items-center justify-between px-3 py-2.5 rounded-md bg-brand-050 text-brand-700 text-caption mb-2.5">
+        <div className="flex items-center gap-2">
+          <span className="text-brand shrink-0"><EditIcon size={14} /></span>
+          <span>
+            {year}년 {month}월 ·{' '}
+            <strong className="font-en">{filled}/{rows.length}</strong>일 입력됨
+          </span>
+        </div>
+      </div>
+
+      <div className="border border-line rounded-md overflow-hidden">
+        <div className="grid grid-cols-[64px_1fr] bg-bg px-3 py-2 text-[10px] font-bold text-ink-500 tracking-wide uppercase border-b border-line">
+          <span>날짜</span><span>다이 · 출근 · 퇴근</span>
+        </div>
+        {rows.map((r, i) => {
+          const dowColor =
+            r.dow === '일' ? 'text-danger'
+            : r.dow === '토' ? 'text-c1'
+            : 'text-ink-500'
+          return (
+            <div
+              key={r.day}
+              className={`grid grid-cols-[64px_1fr] items-center px-3 py-2.5 ${
+                i < rows.length - 1 ? 'border-b border-line' : ''
+              } ${r.holiday ? 'bg-surface-2' : 'bg-surface'}`}
+            >
+              <div className="font-en text-caption text-ink-900 leading-tight">
+                <div>{String(month).padStart(2, '0')}-{String(r.day).padStart(2, '0')}</div>
+                <div className={`text-[10px] ${dowColor}`}>{r.dow}</div>
+              </div>
+              {r.holiday ? (
+                <div className="flex items-center gap-2">
+                  <span
+                    className="font-bold text-[11px] tracking-wide px-2 py-0.5 rounded-pill"
+                    style={{ background: '#FEF3C7', color: '#92400E' }}
+                  >
+                    휴무
+                  </span>
+                  <span className="text-caption text-ink-500 font-en">
+                    {r.sun ? 'S(주휴)' : 'S'}
+                  </span>
+                  <div className="flex-1" />
+                  <button
+                    onClick={() => onChange(i, { holiday: false, sun: false })}
+                    className="font-en text-[11px] font-bold text-brand"
+                  >
+                    근무로
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    value={r.dia ?? ''}
+                    placeholder="H----"
+                    onChange={e => onChange(i, { dia: e.target.value })}
+                    className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
+                      r.dia ? 'border-line-2 bg-surface' : 'border-line bg-bg'
+                    }`}
+                    style={{ width: 84 }}
+                  />
+                  <input
+                    value={r.st ?? ''}
+                    placeholder="시작"
+                    onChange={e => onChange(i, { st: e.target.value })}
+                    className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
+                      r.st ? 'border-line-2 bg-surface' : 'border-line bg-bg'
+                    }`}
+                    style={{ width: 62 }}
+                  />
+                  <span className="text-ink-300 font-en">→</span>
+                  <input
+                    value={r.et ?? ''}
+                    placeholder="종료"
+                    onChange={e => onChange(i, { et: e.target.value })}
+                    className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
+                      r.et ? 'border-line-2 bg-surface' : 'border-line bg-bg'
+                    }`}
+                    style={{ width: 62 }}
+                  />
+                  <div className="flex-1" />
+                  <button
+                    onClick={() => onChange(i, { holiday: true, dia: undefined, st: undefined, et: undefined })}
+                    className="font-en text-[11px] font-bold text-brand"
+                  >
+                    휴무
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {rows.length < total && (
+        <button
+          onClick={onAppendRest}
+          className="mt-2.5 w-full flex items-center justify-center gap-1.5 px-3 py-3 rounded-md border border-dashed border-line-2 bg-surface text-callout font-semibold text-ink-700"
+        >
+          <PlusIcon size={14} />
+          {rows.length + 1}일~{total}일 추가하기
+        </button>
+      )}
+    </>
   )
 }

@@ -161,21 +161,19 @@ export default function LoginPage() {
         </Link>
 
         <div className="flex items-center justify-center gap-3.5 my-3.5 text-[13px]">
-          <button
-            type="button"
+          <Link
+            href="/find?mode=id"
             className="font-kr font-semibold text-ink-700 hover:text-brand transition-colors px-1.5 py-1"
-            onClick={() => showToast('아이디 찾기는 곧 추가될 예정이에요.', 'default')}
           >
             아이디 찾기
-          </button>
+          </Link>
           <span className="text-ink-300 select-none">·</span>
-          <button
-            type="button"
+          <Link
+            href="/find?mode=pw"
             className="font-kr font-semibold text-ink-700 hover:text-brand transition-colors px-1.5 py-1"
-            onClick={() => showToast('비밀번호 찾기는 곧 추가될 예정이에요.', 'default')}
           >
             비밀번호 찾기
-          </button>
+          </Link>
         </div>
 
         {/* Demo account card */}

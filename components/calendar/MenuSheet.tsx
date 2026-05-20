@@ -1,6 +1,7 @@
 'use client'
 
 import { ReactNode } from 'react'
+import Link from 'next/link'
 import { Avatar } from '@/components/ui/Avatar'
 import {
   UserIcon, UploadIcon, InfoIcon, LogoutIcon, ChevronRightIcon,
@@ -36,9 +37,9 @@ export function MenuSheet({ session, compareCount, onManageSchedule, onLogout }:
       <div className="h-px bg-line mx-4 my-2" />
 
       <div className="px-2 pb-3">
-        <MenuRow icon={<UserIcon size={18} />} label="내 정보" />
+        <MenuRow icon={<UserIcon size={18} />} label="내 정보" href="/settings/info" />
         <MenuRow icon={<UploadIcon size={18} />} label="내 근무표 관리" onClick={onManageSchedule} />
-        <MenuRow icon={<InfoIcon size={18} />} label="도움말 · 약관" />
+        <MenuRow icon={<InfoIcon size={18} />} label="도움말 · 약관" href="/settings/help" />
         <div className="h-px bg-line mx-4 my-1" />
         <MenuRow icon={<LogoutIcon size={18} />} label="로그아웃" danger onClick={onLogout} />
       </div>
@@ -46,24 +47,25 @@ export function MenuSheet({ session, compareCount, onManageSchedule, onLogout }:
   )
 }
 
-function MenuRow({ icon, label, danger, onClick }: {
+function MenuRow({ icon, label, danger, onClick, href }: {
   icon: ReactNode
   label: string
   danger?: boolean
   onClick?: () => void
+  href?: string
 }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-3.5 px-4 py-3.5 rounded-md text-body font-medium text-left ${
-        danger ? 'text-danger hover:bg-danger-soft' : 'text-ink-900 hover:bg-bg'
-      } transition-colors`}
-    >
+  const cls = `w-full flex items-center gap-3.5 px-4 py-3.5 rounded-md text-body font-medium text-left ${
+    danger ? 'text-danger hover:bg-danger-soft' : 'text-ink-900 hover:bg-bg'
+  } transition-colors`
+  const content = (
+    <>
       <span className={danger ? 'text-danger' : 'text-ink-700'}>{icon}</span>
       <span className="flex-1">{label}</span>
       <span className={danger ? 'text-danger' : 'text-ink-300'}>
         <ChevronRightIcon size={16} />
       </span>
-    </button>
+    </>
   )
+  if (href) return <Link href={href} className={cls}>{content}</Link>
+  return <button onClick={onClick} className={cls}>{content}</button>
 }

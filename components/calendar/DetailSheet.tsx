@@ -10,9 +10,10 @@ interface DetailSheetProps {
   items: TimelineItem[]
   onClose: () => void
   onAddCompare: () => void
+  onEdit: () => void
 }
 
-export function DetailSheet({ date, items, onClose, onAddCompare }: DetailSheetProps) {
+export function DetailSheet({ date, items, onClose, onAddCompare, onEdit }: DetailSheetProps) {
   const workN = items.length
   const dow = DOW_KR[date.getDay()]
   const sheetH = workN === 0 ? '42dvh' : workN > 1 ? '82dvh' : '60dvh'
@@ -56,7 +57,7 @@ export function DetailSheet({ date, items, onClose, onAddCompare }: DetailSheetP
             <Timeline items={items} />
             <div className="h-2.5" />
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={onEdit}>
                 <EditIcon size={14} /> 일정 수정
               </Button>
               <div className="flex-1" />
