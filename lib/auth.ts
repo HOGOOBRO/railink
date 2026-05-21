@@ -50,11 +50,10 @@ function getDemoSession(): Session | null {
 /* ── Unified session (used by calendar / menu) ─────────────────────────────── */
 
 export async function getCurrentSession(): Promise<Session | null> {
-  const demo = getDemoSession()
-  if (demo) return demo
   const { data } = await supabase.auth.getSession()
   const u = data.session?.user
-  if (!u) return null
+  if (!u) return getDemoSession()
+  if (typeof window !== 'undefined') localStorage.removeItem(DEMO_SESSION_KEY)
   const m = (u.user_metadata ?? {}) as Record<string, string>
   return {
     uid: u.id,
@@ -75,10 +74,12 @@ export type LoginResult =
 
 export async function login(email: string, password: string): Promise<LoginResult> {
   if (isDemoCreds(email, password)) {
+    await supabase.auth.signOut()
     seedDemo()
     localStorage.setItem(DEMO_SESSION_KEY, '1')
     return { ok: true, demo: true }
   }
+  if (typeof window !== 'undefined') localStorage.removeItem(DEMO_SESSION_KEY)
   const { error } = await supabase.auth.signInWithPassword({ email, password })
   if (!error) return { ok: true, demo: false }
   if (/email not confirmed/i.test(error.message)) {
