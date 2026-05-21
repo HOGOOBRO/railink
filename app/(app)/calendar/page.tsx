@@ -71,7 +71,13 @@ export default function CalendarPage() {
   useEffect(() => {
     let alive = true
     ;(async () => {
-      const s = await getCurrentSession()
+      let s: Session | null = null
+      try {
+        s = await getCurrentSession()
+      } catch {
+        if (alive) router.replace('/login')
+        return
+      }
       if (!alive) return
       if (!s) { router.replace('/login'); return }
       const storedList = getCompareList(s.uid)
@@ -79,8 +85,16 @@ export default function CalendarPage() {
       if (!s.isDemo && list.length !== storedList.length) saveCompareList(s.uid, list)
       let mine = getMonthSchedules(s.uid, year, month)
       let cols: Record<string, ScheduleEntry[]> = {}
+
+      setSession(s)
+      setCompares(list)
+      setMySched(mine)
+      setColSched(cols)
+
       if (s.isDemo) {
         for (const c of list) cols[c.uid] = getMonthSchedules(c.uid, year, month)
+        if (!alive) return
+        setColSched(cols)
       } else {
         try {
           const [remoteMine, remoteCols] = await Promise.all([
@@ -97,11 +111,10 @@ export default function CalendarPage() {
         } catch {
           cols = {}
         }
+        if (!alive) return
+        setMySched(mine)
+        setColSched(cols)
       }
-      setSession(s)
-      setCompares(list)
-      setMySched(mine)
-      setColSched(cols)
 
       setColleagueLoading(true)
       try {
