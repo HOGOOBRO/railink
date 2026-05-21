@@ -30,6 +30,8 @@ interface ParseImageResponse {
   error?: string
 }
 
+const SUPABASE_JWT_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
+
 export async function recognizeScheduleImage(
   input: File | File[],
   defaultYear: number,
@@ -57,32 +59,25 @@ export async function recognizeScheduleImage(
   form.append('defaultYear', String(defaultYear))
   form.append('defaultMonth', String(defaultMonth))
 
-  const { data } = await supabase.auth.getSession()
-  const token = data.session?.access_token
-  if (!token) {
-    throw new Error('AI 이미지 인식은 실제 로그인 계정에서만 사용할 수 있어요.')
-  }
+  const token = await getImageAuthToken()
 
   onProgress?.({
     status: files.length > 1 ? `이미지 ${files.length}장을 업로드하고 있어요` : '이미지를 업로드하고 있어요',
     progress: 0.15,
   })
-  const request = fetch('/api/parse-schedule-image', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    body: form,
-  })
+  const request = uploadImages(form, token)
 
   onProgress?.({
     status: files.length > 1 ? 'AI가 여러 스크린샷을 이어서 읽고 있어요' : 'AI가 근무표를 읽고 있어요',
     progress: 0.55,
   })
   const response = await request
-  const payload = (await response.json()) as ParseImageResponse
+  const payload = await readParseImageResponse(response)
 
   if (!response.ok) {
+    if (response.status === 401) {
+      await supabase.auth.signOut().catch(() => undefined)
+    }
     throw new Error(payload.error || '이미지 인식에 실패했어요.')
   }
   if (!payload.rows?.length) {
@@ -103,5 +98,55 @@ export async function recognizeScheduleImage(
     text,
     confidence: payload.warnings?.length ? 80 : 92,
     usage: payload.usage,
+  }
+}
+
+async function getImageAuthToken(): Promise<string> {
+  try {
+    const { data, error } = await supabase.auth.getSession()
+    if (error) throw error
+
+    const token = data.session?.access_token?.trim()
+    if (!token) {
+      throw new Error('AI_IMAGE_NO_TOKEN')
+    }
+    if (!SUPABASE_JWT_PATTERN.test(token)) {
+      throw new Error('AI_IMAGE_INVALID_TOKEN')
+    }
+    return token
+  } catch (error) {
+    if (error instanceof Error && error.message === 'AI_IMAGE_NO_TOKEN') {
+      throw new Error('AI 이미지 인식은 실제 로그인 계정에서만 사용할 수 있어요.')
+    }
+
+    await supabase.auth.signOut().catch(() => undefined)
+    throw new Error('로그인 세션이 손상되어 이미지 업로드를 시작하지 못했어요. 다시 로그인한 뒤 시도해 주세요.')
+  }
+}
+
+async function uploadImages(form: FormData, token: string): Promise<Response> {
+  try {
+    return await fetch('/api/parse-schedule-image', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: form,
+    })
+  } catch {
+    await supabase.auth.signOut().catch(() => undefined)
+    throw new Error('이미지 업로드 요청을 만들지 못했어요. 다시 로그인한 뒤 시도해 주세요.')
+  }
+}
+
+async function readParseImageResponse(response: Response): Promise<ParseImageResponse> {
+  try {
+    return (await response.json()) as ParseImageResponse
+  } catch {
+    return {
+      error: response.ok
+        ? '이미지 인식 서버 응답을 읽지 못했어요. 새로고침 후 다시 시도해 주세요.'
+        : '이미지 인식 서버가 올바른 응답을 보내지 않았어요. 잠시 후 다시 시도해 주세요.',
+    }
   }
 }
