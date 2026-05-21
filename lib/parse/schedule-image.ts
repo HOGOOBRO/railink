@@ -31,6 +31,16 @@ interface ParseImageResponse {
 }
 
 const SUPABASE_JWT_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
+const MAX_RAW_IMAGE_BYTES = 12 * 1024 * 1024
+const MAX_UPLOAD_IMAGE_BYTES = 4 * 1024 * 1024
+const IMAGE_EXT_RE = /\.(png|jpe?g|webp)$/i
+const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
+const COMPRESSION_PLANS = [
+  { maxEdge: 2600, quality: 0.92 },
+  { maxEdge: 2200, quality: 0.88 },
+  { maxEdge: 1900, quality: 0.82 },
+  { maxEdge: 1600, quality: 0.76 },
+]
 
 export async function recognizeScheduleImage(
   input: File | File[],
@@ -46,16 +56,22 @@ export async function recognizeScheduleImage(
     throw new Error('이미지는 한 번에 최대 5장까지 올릴 수 있어요.')
   }
   for (const file of files) {
-    if (!file.type.startsWith('image/')) {
-      throw new Error('이미지 파일만 업로드할 수 있어요.')
+    if (!isSupportedImage(file)) {
+      throw new Error('PNG, JPG, WEBP 이미지만 업로드할 수 있어요.')
     }
-    if (file.size > 8 * 1024 * 1024) {
-      throw new Error('이미지는 장당 8MB 이하로 올려주세요.')
+    if (file.size > MAX_RAW_IMAGE_BYTES) {
+      throw new Error('이미지는 장당 12MB 이하로 올려주세요.')
     }
   }
 
+  onProgress?.({
+    status: files.length > 1 ? `이미지 ${files.length}장을 압축하고 있어요` : '이미지를 압축하고 있어요',
+    progress: 0.08,
+  })
+  const uploadFiles = await prepareImagesForUpload(files)
+
   const form = new FormData()
-  files.forEach(file => form.append('image', file))
+  uploadFiles.forEach(file => form.append('image', file))
   form.append('defaultYear', String(defaultYear))
   form.append('defaultMonth', String(defaultMonth))
 
@@ -99,6 +115,82 @@ export async function recognizeScheduleImage(
     confidence: payload.warnings?.length ? 80 : 92,
     usage: payload.usage,
   }
+}
+
+function isSupportedImage(file: File): boolean {
+  return SUPPORTED_IMAGE_TYPES.has(file.type) || IMAGE_EXT_RE.test(file.name)
+}
+
+async function prepareImagesForUpload(files: File[]): Promise<File[]> {
+  let prepared = files
+  for (const plan of COMPRESSION_PLANS) {
+    prepared = await Promise.all(files.map(file => compressImage(file, plan.maxEdge, plan.quality)))
+    if (totalSize(prepared) <= MAX_UPLOAD_IMAGE_BYTES) return prepared
+  }
+
+  throw new Error('이미지 용량이 커서 업로드할 수 없어요. 한 번에 올리는 스크린샷 수를 줄이거나 조금 더 잘라서 올려주세요.')
+}
+
+function totalSize(files: File[]): number {
+  return files.reduce((sum, file) => sum + file.size, 0)
+}
+
+async function compressImage(file: File, maxEdge: number, quality: number): Promise<File> {
+  if (typeof window === 'undefined') return file
+
+  const url = URL.createObjectURL(file)
+  try {
+    const image = await loadImage(url)
+    const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth, image.naturalHeight))
+    const width = Math.max(1, Math.round(image.naturalWidth * scale))
+    const height = Math.max(1, Math.round(image.naturalHeight * scale))
+
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return file
+
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, width, height)
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(image, 0, 0, width, height)
+
+    const blob = await canvasToBlob(canvas, 'image/jpeg', quality)
+    const next = new File([blob], replaceExtension(file.name, 'jpg'), {
+      type: 'image/jpeg',
+      lastModified: file.lastModified,
+    })
+    return next.size < file.size || file.size > MAX_UPLOAD_IMAGE_BYTES ? next : file
+  } catch {
+    return file
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('IMAGE_LOAD_FAILED'))
+    image.src = url
+  })
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (blob) resolve(blob)
+      else reject(new Error('IMAGE_COMPRESSION_FAILED'))
+    }, type, quality)
+  })
+}
+
+function replaceExtension(name: string, extension: string): string {
+  const base = name.replace(/\.[^.]+$/, '')
+  return `${base || 'schedule'}.${extension}`
 }
 
 async function getImageAuthToken(): Promise<string> {

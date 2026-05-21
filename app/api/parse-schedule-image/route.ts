@@ -7,7 +7,9 @@ export const runtime = 'nodejs'
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 const MAX_IMAGES = 5
-const MAX_TOTAL_IMAGE_BYTES = 24 * 1024 * 1024
+// Keep multipart payloads below Vercel's request body ceiling after client-side compression.
+const MAX_TOTAL_IMAGE_BYTES = 4 * 1024 * 1024
+const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 const MONTHLY_AI_LIMIT = 5
 const MODEL = process.env.OPENAI_VISION_MODEL || 'gpt-4.1-mini'
 
@@ -156,11 +158,11 @@ export async function POST(req: NextRequest) {
     }
     const totalSize = files.reduce((sum, file) => sum + file.size, 0)
     if (totalSize > MAX_TOTAL_IMAGE_BYTES) {
-      return NextResponse.json({ error: '이미지는 총 24MB 이하로 올려주세요.' }, { status: 400 })
+      return NextResponse.json({ error: '이미지는 총 4MB 이하로 올려주세요.' }, { status: 400 })
     }
     for (const file of files) {
-      if (!file.type.startsWith('image/')) {
-        return NextResponse.json({ error: '이미지 파일만 업로드할 수 있어요.' }, { status: 400 })
+      if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
+        return NextResponse.json({ error: 'PNG, JPG, WEBP 이미지만 업로드할 수 있어요.' }, { status: 400 })
       }
       if (file.size > MAX_IMAGE_BYTES) {
         return NextResponse.json({ error: '이미지는 장당 8MB 이하로 올려주세요.' }, { status: 400 })
@@ -206,10 +208,14 @@ export async function POST(req: NextRequest) {
       }),
     })
 
-    const payload = await response.json()
+    const payload = await readJson(response)
     if (!response.ok) {
+      console.error('[parse-schedule-image] OpenAI request failed', {
+        status: response.status,
+        message: getOpenAiErrorMessage(payload),
+      })
       return NextResponse.json(
-        { error: payload?.error?.message || '이미지 인식 API 호출에 실패했어요.' },
+        { error: getOpenAiErrorMessage(payload) || '이미지 인식 API 호출에 실패했어요.' },
         { status: response.status },
       )
     }
@@ -221,9 +227,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '이미지 인식 결과가 비어 있어요.' }, { status: 502 })
     }
 
-    const parsed = JSON.parse(outputText) as AiScheduleResult
-    const rows = normalizeRows(parsed.rows)
+    const parsed = parseAiScheduleResult(outputText)
+    if (!parsed) {
+      console.error('[parse-schedule-image] Failed to parse model output', {
+        preview: outputText.slice(0, 500),
+      })
+      return NextResponse.json({ error: '이미지 인식 결과 형식이 올바르지 않아요. 다시 시도해 주세요.' }, { status: 502 })
+    }
+
+    const rows = normalizeRows(parsed.rows, defaultYear, defaultMonth)
     if (!rows.length) {
+      console.error('[parse-schedule-image] No usable rows extracted', {
+        rowCount: parsed.rows?.length ?? 0,
+        warnings: parsed.warnings ?? [],
+      })
       return NextResponse.json(
         { error: '이미지에서 저장 가능한 근무 행을 찾지 못했어요.', warnings: parsed.warnings ?? [] },
         { status: 422 },
@@ -239,6 +256,9 @@ export async function POST(req: NextRequest) {
       usage,
     })
   } catch (error) {
+    console.error('[parse-schedule-image] Unexpected failure', {
+      message: error instanceof Error ? error.message : String(error),
+    })
     return NextResponse.json(
       { error: error instanceof Error ? error.message : '이미지 인식 중 문제가 생겼어요.' },
       { status: 500 },
@@ -332,9 +352,13 @@ function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: numb
       ? `There are ${imageCount} screenshots. Treat them as cropped pieces of the same monthly schedule, in upload order.`
       : 'There is one screenshot.',
     'If screenshots overlap, merge duplicate dates and keep the clearest row.',
+    'The source is often a calendar or roster screenshot. Scan every visible cell and row from top to bottom and left to right.',
     'Return JSON only according to the schema.',
     `If the year/month are ambiguous, use ${defaultYear}-${String(defaultMonth).padStart(2, '0')}.`,
+    'If a date is shown only as a day number, convert it to a full YYYY-MM-DD date using the default year/month.',
+    'Never return a date as only a day number, M/D, or YYYY-M-D.',
     'Extract one row per visible business date that has a duty/off entry.',
+    'Include rows even when train numbers or times are unclear; leave unclear fields as empty strings.',
     'Important fields:',
     '- date: YYYY-MM-DD.',
     '- diaNr: duty code, usually H plus digits/letters, ~(Hxxxx), S, S(주휴), 휴무, 오프.',
@@ -345,6 +369,46 @@ function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: numb
     'Ignore UI chrome, phone status bar, app navigation, and unrelated text.',
     'Korean text may appear; preserve Korean off labels when visible.',
   ].join('\n')
+}
+
+async function readJson(response: Response): Promise<unknown> {
+  try {
+    return await response.json()
+  } catch {
+    return null
+  }
+}
+
+function getOpenAiErrorMessage(payload: unknown): string {
+  if (!isRecord(payload)) return ''
+  const error = payload.error
+  if (isRecord(error) && typeof error.message === 'string') return error.message
+  return ''
+}
+
+function parseAiScheduleResult(text: string): AiScheduleResult | null {
+  try {
+    const parsed = JSON.parse(text) as Partial<AiScheduleResult>
+    if (!Array.isArray(parsed.rows)) return null
+    return {
+      rows: parsed.rows.filter(isAiScheduleRow),
+      warnings: Array.isArray(parsed.warnings)
+        ? parsed.warnings.filter((warning): warning is string => typeof warning === 'string')
+        : [],
+    }
+  } catch {
+    return null
+  }
+}
+
+function isAiScheduleRow(value: unknown): value is AiScheduleRow {
+  return isRecord(value)
+    && typeof value.date === 'string'
+    && typeof value.diaNr === 'string'
+    && typeof value.trainNr === 'string'
+    && typeof value.startTime === 'string'
+    && typeof value.endTime === 'string'
+    && typeof value.isOff === 'boolean'
 }
 
 async function fileToDataUrl(file: File): Promise<string> {
@@ -372,22 +436,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-function normalizeRows(rows: AiScheduleRow[] = []): ParsedScheduleRow[] {
+function normalizeRows(
+  rows: AiScheduleRow[] = [],
+  defaultYear: number,
+  defaultMonth: number,
+): ParsedScheduleRow[] {
   const normalized = rows
-    .filter(row => /^\d{4}-\d{2}-\d{2}$/.test(row.date))
-    .map(row => {
-      const isOff = Boolean(row.isOff)
+    .map((row): ParsedScheduleRow | null => {
+      const date = normalizeDate(row.date, defaultYear, defaultMonth)
+      if (!date) return null
+      const diaNr = normalizeDia(row.diaNr)
+      const isOff = Boolean(row.isOff) || detectOff(diaNr)
       const startTime = isOff ? '' : normalizeTime(row.startTime)
       const endTime = isOff ? '' : normalizeTime(row.endTime)
-      return {
-        date: row.date,
-        diaNr: row.diaNr.trim() || undefined,
-        trainNr: row.trainNr.trim() || undefined,
+      const normalizedRow: ParsedScheduleRow = {
+        date,
+        diaNr: diaNr || undefined,
+        trainNr: normalizeTrainNr(row.trainNr) || undefined,
         startTime: startTime || undefined,
         endTime: endTime || undefined,
         isOff,
       }
+      return normalizedRow
     })
+    .filter((row): row is ParsedScheduleRow => row !== null)
     .filter(row => row.diaNr || row.startTime || row.endTime || row.trainNr)
 
   const byDate = new Map<string, ParsedScheduleRow>()
@@ -397,6 +469,54 @@ function normalizeRows(rows: AiScheduleRow[] = []): ParsedScheduleRow[] {
   }
 
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+}
+
+function normalizeDate(value: string, defaultYear: number, defaultMonth: number): string | null {
+  const text = normalizeDigits(value).trim()
+  if (!text) return null
+
+  const iso = text.match(/(20\d{2})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})/)
+  if (iso) return buildIso(Number(iso[1]), Number(iso[2]), Number(iso[3]))
+
+  const korean = text.match(/(?:(20\d{2})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일?/)
+  if (korean) {
+    return buildIso(
+      korean[1] ? Number(korean[1]) : defaultYear,
+      Number(korean[2]),
+      Number(korean[3]),
+    )
+  }
+
+  const monthDay = text.match(/^(\d{1,2})\s*[-./]\s*(\d{1,2})$/)
+  if (monthDay) return buildIso(defaultYear, Number(monthDay[1]), Number(monthDay[2]))
+
+  const dayOnly = text.match(/^(\d{1,2})(?:일)?$/)
+  if (dayOnly) return buildIso(defaultYear, defaultMonth, Number(dayOnly[1]))
+
+  return null
+}
+
+function buildIso(year: number, month: number, day: number): string | null {
+  if (!year || month < 1 || month > 12 || day < 1 || day > 31) return null
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+function normalizeDia(value: string): string {
+  return normalizeDigits(value)
+    .replace(/\s+/g, '')
+    .replace(/^OFF$/i, '오프')
+    .trim()
+}
+
+function normalizeTrainNr(value: string): string {
+  return normalizeDigits(value)
+    .replace(/\s*[,.、]\s*/g, ' · ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function detectOff(diaNr: string): boolean {
+  return /^(S(?:\([^)]*\))?|휴무|휴일|오프|OFF)$/iu.test(diaNr)
 }
 
 function rowScore(row: ParsedScheduleRow): number {
@@ -409,12 +529,25 @@ function rowScore(row: ParsedScheduleRow): number {
 }
 
 function normalizeTime(value: string): string {
-  const text = value.trim()
+  const text = normalizeDigits(value).trim()
   if (!text) return ''
-  const match = text.match(/^(\d{1,2}):(\d{2})$/)
+
+  const nextDay = /익일|다음날|next/i.test(text)
+  const match = text.match(/(\d{1,2})\s*[:시h]\s*(\d{1,2})/)
+    ?? text.replace(/\D/g, '').match(/^(\d{1,2})(\d{2})$/)
   if (!match) return ''
+
   const hour = Number(match[1])
   const minute = Number(match[2])
   if (!Number.isFinite(hour) || minute < 0 || minute > 59) return ''
-  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+  const normalizedHour = nextDay && hour < 24 ? hour + 24 : hour
+  if (normalizedHour > 35) return ''
+  return `${String(normalizedHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+}
+
+function normalizeDigits(value: string): string {
+  return value
+    .replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
+    .replace(/[：]/g, ':')
+    .replace(/[—–]/g, '-')
 }
