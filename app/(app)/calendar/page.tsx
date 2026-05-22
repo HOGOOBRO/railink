@@ -240,16 +240,13 @@ export default function CalendarPage() {
   async function handleUploadSave(rows: ParsedScheduleRow[]) {
     if (!session) return
     const entries = rows.map(row => ({ ...row, uid: session.uid }))
-    try {
-      if (session.isDemo) {
-        replaceUserScheduleMonths(session.uid, entries)
-      } else {
+    replaceUserScheduleMonths(session.uid, entries)
+    if (!session.isDemo) {
+      try {
         await replaceRemoteUserScheduleMonths(session.uid, entries)
-        replaceUserScheduleMonths(session.uid, entries)
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : '근무표는 이 기기에 저장됐지만 연동하지 못했어요.', 'danger')
       }
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '근무표 저장 중 문제가 생겼어요.', 'danger')
-      return
     }
     const first = entries[0]?.date
     if (first) {

@@ -94,19 +94,6 @@ export async function replaceRemoteUserScheduleMonths(uid: string, entries: Sche
     throw new Error('다른 사용자의 근무표는 저장할 수 없어요.')
   }
 
-  const monthPrefixes = [...new Set(entries.map(e => e.date.slice(0, 7)))]
-  for (const prefix of monthPrefixes) {
-    const { start, end } = monthRangeFromPrefix(prefix)
-    const { error } = await supabase
-      .from('schedules')
-      .delete()
-      .eq('user_id', uid)
-      .gte('work_date', start)
-      .lt('work_date', end)
-
-    if (error) throw new Error(formatScheduleStoreError(error.message))
-  }
-
   if (!entries.length) return
 
   const payload = entries.map(entry => ({
@@ -119,7 +106,9 @@ export async function replaceRemoteUserScheduleMonths(uid: string, entries: Sche
     is_off: entry.isOff,
   }))
 
-  const { error } = await supabase.from('schedules').insert(payload)
+  const { error } = await supabase
+    .from('schedules')
+    .upsert(payload, { onConflict: 'user_id,work_date' })
   if (error) throw new Error(formatScheduleStoreError(error.message))
 }
 
@@ -158,6 +147,9 @@ function monthRangeFromPrefix(prefix: string): { start: string; end: string } {
 function formatScheduleStoreError(message: string): string {
   if (/schedules|schema cache|relation|does not exist/i.test(message)) {
     return 'Supabase schedules 테이블이 아직 적용되지 않아 근무표를 연동할 수 없어요.'
+  }
+  if (/row-level security|permission denied|policy/i.test(message)) {
+    return '근무표 저장 권한을 확인하지 못했어요. 다시 로그인한 뒤 저장해 주세요.'
   }
   return message || '근무표 저장소에 연결할 수 없어요.'
 }
