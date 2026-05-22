@@ -22,7 +22,7 @@ interface UploadModalProps {
   onManual: () => void
   onBack: () => void
   onClose: () => void
-  onSave: (rows: ParsedScheduleRow[]) => void
+  onSave: (rows: ParsedScheduleRow[]) => Promise<void> | void
 }
 
 const OPTIONS: {
@@ -165,6 +165,7 @@ export function UploadModal({
   const [ocrText, setOcrText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   // Manual-entry state — independent of file/image preview rows.
   const [manualRows, setManualRows] = useState<ManualRow[]>(
@@ -256,25 +257,29 @@ export function UploadModal({
     onManual()
   }
 
-  function handleSave() {
-    if (step === 'manual') {
-      const parsed = manualRowsToParsed(manualRows, defaultYear, defaultMonth)
-      if (parsed.length === 0) {
-        setError('하루 이상 입력한 뒤 저장해 주세요.')
-        return
-      }
-      onSave(parsed)
-      return
-    }
+  async function handleSave() {
+    let parsed: ParsedScheduleRow[]
     try {
-      const parsed = normalizePreviewRows(rows)
+      parsed = step === 'manual'
+        ? manualRowsToParsed(manualRows, defaultYear, defaultMonth)
+        : normalizePreviewRows(rows)
       if (parsed.length === 0) {
-        setError('저장할 근무 행이 없어요.')
+        setError(step === 'manual' ? '하루 이상 입력한 뒤 저장해 주세요.' : '저장할 근무 행이 없어요.')
         return
       }
-      onSave(parsed)
     } catch (err) {
       setError(err instanceof Error ? err.message : '입력한 값을 확인해 주세요.')
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    try {
+      await onSave(parsed)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '근무표 저장 중 문제가 생겼어요.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -295,6 +300,7 @@ export function UploadModal({
 
   const previewRows = rows
   const saveDisabled =
+    saving ||
     step === 'pick' ||
     (step === 'preview' && rows.length === 0) ||
     (step === 'manual' && manualFilled === 0)
@@ -498,7 +504,7 @@ export function UploadModal({
           disabled={saveDisabled}
           onClick={handleSave}
         >
-          저장
+          {saving ? '저장 중...' : '저장'}
         </Button>
       </div>
     </div>
