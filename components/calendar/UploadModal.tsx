@@ -239,7 +239,12 @@ export function UploadModal({
       const usageText = result.usage
         ? ` 이번 달 ${result.usage.used}/${result.usage.limit}회 사용.`
         : ''
-      setNotice(`AI 인식 신뢰도 ${Math.round(result.confidence)}%. 여러 장을 올린 경우 겹치는 날짜는 병합했어요.${usageText}`)
+      const periodText = result.period
+        ? result.period.source === 'image'
+          ? ` 이미지에서 ${result.period.year}년 ${result.period.month}월로 읽었어요.`
+          : ` 월 표기가 불명확해 현재 화면의 ${result.period.year}년 ${result.period.month}월 기준으로 읽었어요.`
+        : ''
+      setNotice(`AI 인식 신뢰도 ${Math.round(result.confidence)}%.${periodText} 여러 장을 올린 경우 겹치는 날짜는 병합했어요.${usageText}`)
       onPreview()
     } catch (err) {
       setError(err instanceof Error ? err.message : '이미지를 읽는 중 문제가 생겼어요.')
@@ -306,7 +311,8 @@ export function UploadModal({
     (step === 'manual' && manualFilled === 0)
 
   const footerStatus =
-    step === 'pick' ? '엑셀/CSV 파일을 선택해 주세요'
+    saving ? 'Supabase에 저장하고 확인 중'
+    : step === 'pick' ? '엑셀/CSV 파일을 선택해 주세요'
     : step === 'manual' ? '직접 입력 중'
     : `총 ${rows.length}건`
 
@@ -467,6 +473,24 @@ export function UploadModal({
               onRemove={removePreviewRow}
               onAppend={appendPreviewRow}
             />
+            {saving && (
+              <StatusBox tone="info">
+                <span className="text-brand shrink-0"><InfoIcon size={16} /></span>
+                <span>Supabase에 저장하고 저장 건수를 확인하고 있어요.</span>
+              </StatusBox>
+            )}
+            {error && (
+              <StatusBox tone="danger">
+                <span className="font-bold shrink-0">!</span>
+                <span>{error}</span>
+              </StatusBox>
+            )}
+            {notice && !error && (
+              <StatusBox tone="info">
+                <span className="text-brand shrink-0"><InfoIcon size={16} /></span>
+                <span>{notice}</span>
+              </StatusBox>
+            )}
             {ocrText && (
               <details className="mt-3 rounded-md border border-line bg-bg px-3 py-2">
                 <summary className="cursor-pointer text-caption font-semibold text-ink-700">
@@ -481,16 +505,30 @@ export function UploadModal({
         )}
 
         {step === 'manual' && (
-          <ManualBody
-            rows={manualRows}
-            year={defaultYear}
-            month={defaultMonth}
-            filled={manualFilled}
-            total={monthTotal}
-            onBack={onBack}
-            onChange={setManualRow}
-            onAppendRest={appendRemainingDays}
-          />
+          <>
+            <ManualBody
+              rows={manualRows}
+              year={defaultYear}
+              month={defaultMonth}
+              filled={manualFilled}
+              total={monthTotal}
+              onBack={onBack}
+              onChange={setManualRow}
+              onAppendRest={appendRemainingDays}
+            />
+            {saving && (
+              <StatusBox tone="info">
+                <span className="text-brand shrink-0"><InfoIcon size={16} /></span>
+                <span>Supabase에 저장하고 저장 건수를 확인하고 있어요.</span>
+              </StatusBox>
+            )}
+            {error && (
+              <StatusBox tone="danger">
+                <span className="font-bold shrink-0">!</span>
+                <span>{error}</span>
+              </StatusBox>
+            )}
+          </>
         )}
       </div>
 

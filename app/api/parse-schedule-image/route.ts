@@ -23,8 +23,17 @@ interface AiScheduleRow {
 }
 
 interface AiScheduleResult {
+  scheduleYear: number
+  scheduleMonth: number
+  periodSource: 'image' | 'fallback'
   rows: AiScheduleRow[]
   warnings: string[]
+}
+
+interface SchedulePeriod {
+  year: number
+  month: number
+  source: 'image' | 'fallback'
 }
 
 interface UsageStatus {
@@ -73,8 +82,21 @@ type AiUsageSupabase = SupabaseClient<AiUsageDatabase>
 const scheduleSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['rows', 'warnings'],
+  required: ['scheduleYear', 'scheduleMonth', 'periodSource', 'rows', 'warnings'],
   properties: {
+    scheduleYear: {
+      type: 'integer',
+      description: 'Four-digit schedule year. Read a visible year first; otherwise use the provided fallback year.',
+    },
+    scheduleMonth: {
+      type: 'integer',
+      description: 'Schedule month from 1 to 12. Read a visible month header first; otherwise use the provided fallback month.',
+    },
+    periodSource: {
+      type: 'string',
+      enum: ['image', 'fallback'],
+      description: 'Use image when the month was read from a visible screenshot label or calendar header.',
+    },
     rows: {
       type: 'array',
       items: {
@@ -250,7 +272,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '이미지 인식 결과 형식이 올바르지 않아요. 다시 시도해 주세요.' }, { status: 502 })
     }
 
-    const rows = normalizeRows(parsed.rows, defaultYear, defaultMonth)
+    const period = normalizeSchedulePeriod(parsed, defaultYear, defaultMonth)
+    const rows = normalizeRows(parsed.rows, period.year, period.month)
     if (!rows.length) {
       console.error('[parse-schedule-image] No usable rows extracted', {
         rowCount: parsed.rows?.length ?? 0,
@@ -268,6 +291,7 @@ export async function POST(req: NextRequest) {
       raw: parsed,
       model: MODEL,
       imageCount: files.length,
+      period,
       usage,
     })
   } catch (error) {
@@ -384,8 +408,10 @@ function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: numb
     'If screenshots overlap, merge duplicate dates and keep the clearest row.',
     'The source is often a calendar or roster screenshot. Scan every visible cell and row from top to bottom and left to right.',
     'Return JSON only according to the schema.',
-    `If the year/month are ambiguous, use ${defaultYear}-${String(defaultMonth).padStart(2, '0')}.`,
-    'If a date is shown only as a day number, convert it to a full YYYY-MM-DD date using the default year/month.',
+    'Read the schedule year and month from a visible title, calendar header, date range, or roster label before using a fallback.',
+    `Only if the schedule year/month are not visible or remain ambiguous, use fallback ${defaultYear}-${String(defaultMonth).padStart(2, '0')}.`,
+    'Set periodSource to "image" only when a visible image label establishes the schedule month. Otherwise use "fallback".',
+    'If a date is shown only as a day number, convert it to a full YYYY-MM-DD date using scheduleYear and scheduleMonth.',
     'Never return a date as only a day number, M/D, or YYYY-M-D.',
     'Extract one row per visible business date that has a duty/off entry.',
     'Include rows even when train numbers or times are unclear; leave unclear fields as empty strings.',
@@ -421,6 +447,9 @@ function parseAiScheduleResult(text: string): AiScheduleResult | null {
     const parsed = JSON.parse(text) as Partial<AiScheduleResult>
     if (!Array.isArray(parsed.rows)) return null
     return {
+      scheduleYear: typeof parsed.scheduleYear === 'number' ? parsed.scheduleYear : 0,
+      scheduleMonth: typeof parsed.scheduleMonth === 'number' ? parsed.scheduleMonth : 0,
+      periodSource: parsed.periodSource === 'image' ? 'image' : 'fallback',
       rows: parsed.rows.filter(isAiScheduleRow),
       warnings: Array.isArray(parsed.warnings)
         ? parsed.warnings.filter((warning): warning is string => typeof warning === 'string')
@@ -429,6 +458,23 @@ function parseAiScheduleResult(text: string): AiScheduleResult | null {
   } catch {
     return null
   }
+}
+
+function normalizeSchedulePeriod(
+  result: AiScheduleResult,
+  defaultYear: number,
+  defaultMonth: number,
+): SchedulePeriod {
+  const year = Number.isInteger(result.scheduleYear) && result.scheduleYear >= 2000 && result.scheduleYear <= 2100
+    ? result.scheduleYear
+    : defaultYear
+  const month = Number.isInteger(result.scheduleMonth) && result.scheduleMonth >= 1 && result.scheduleMonth <= 12
+    ? result.scheduleMonth
+    : defaultMonth
+  const source = year === result.scheduleYear && month === result.scheduleMonth
+    ? result.periodSource
+    : 'fallback'
+  return { year, month, source }
 }
 
 function isAiScheduleRow(value: unknown): value is AiScheduleRow {

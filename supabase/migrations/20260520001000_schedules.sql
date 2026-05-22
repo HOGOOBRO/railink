@@ -70,3 +70,89 @@ on public.schedules
 for delete
 to authenticated
 using (auth.uid() = user_id);
+
+create or replace function public.replace_schedule_months(entries jsonb)
+returns integer
+language plpgsql
+set search_path = public
+as $$
+declare
+  saved_count integer := 0;
+begin
+  if auth.uid() is null then
+    raise exception 'authentication required';
+  end if;
+
+  if jsonb_typeof(entries) is distinct from 'array' then
+    raise exception 'schedule entries must be an array';
+  end if;
+
+  if exists (
+    select 1
+    from jsonb_to_recordset(entries) as e(
+      user_id uuid,
+      work_date date,
+      dia_nr text,
+      train_nr text,
+      start_time text,
+      end_time text,
+      is_off boolean
+    )
+    where e.user_id is distinct from auth.uid()
+  ) then
+    raise exception 'cannot replace another user schedule';
+  end if;
+
+  delete from public.schedules s
+  using (
+    select distinct
+      e.user_id,
+      date_trunc('month', e.work_date)::date as month_start
+    from jsonb_to_recordset(entries) as e(
+      user_id uuid,
+      work_date date,
+      dia_nr text,
+      train_nr text,
+      start_time text,
+      end_time text,
+      is_off boolean
+    )
+  ) months
+  where s.user_id = months.user_id
+    and s.work_date >= months.month_start
+    and s.work_date < (months.month_start + interval '1 month');
+
+  insert into public.schedules (
+    user_id,
+    work_date,
+    dia_nr,
+    train_nr,
+    start_time,
+    end_time,
+    is_off
+  )
+  select
+    e.user_id,
+    e.work_date,
+    nullif(e.dia_nr, ''),
+    nullif(e.train_nr, ''),
+    nullif(e.start_time, ''),
+    nullif(e.end_time, ''),
+    coalesce(e.is_off, false)
+  from jsonb_to_recordset(entries) as e(
+    user_id uuid,
+    work_date date,
+    dia_nr text,
+    train_nr text,
+    start_time text,
+    end_time text,
+    is_off boolean
+  );
+
+  get diagnostics saved_count = row_count;
+  return saved_count;
+end;
+$$;
+
+revoke all on function public.replace_schedule_months(jsonb) from public;
+grant execute on function public.replace_schedule_months(jsonb) to authenticated;

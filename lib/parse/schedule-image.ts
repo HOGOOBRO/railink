@@ -11,7 +11,14 @@ export interface RecognizedScheduleImage {
   rows: ParsedScheduleRow[]
   text: string
   confidence: number
+  period?: SchedulePeriod
   usage?: AiUsageStatus
+}
+
+export interface SchedulePeriod {
+  year: number
+  month: number
+  source: 'image' | 'fallback'
 }
 
 export interface AiUsageStatus {
@@ -27,6 +34,7 @@ interface ParseImageResponse {
   raw?: unknown
   model?: string
   imageCount?: number
+  period?: SchedulePeriod
   usage?: AiUsageStatus
   error?: string
 }
@@ -109,6 +117,7 @@ export async function recognizeScheduleImage(
   const text = [
     payload.model ? `model: ${payload.model}` : '',
     payload.imageCount ? `images: ${payload.imageCount}` : '',
+    payload.period ? `period: ${payload.period.year}-${String(payload.period.month).padStart(2, '0')} (${payload.period.source})` : '',
     payload.warnings?.length ? `warnings:\n${payload.warnings.join('\n')}` : '',
     payload.raw ? JSON.stringify(payload.raw, null, 2) : '',
   ].filter(Boolean).join('\n\n')
@@ -118,6 +127,7 @@ export async function recognizeScheduleImage(
     rows: payload.rows,
     text,
     confidence: payload.warnings?.length ? 80 : 92,
+    period: payload.period,
     usage: payload.usage,
   }
 }

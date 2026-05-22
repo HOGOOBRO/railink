@@ -106,10 +106,11 @@ export async function replaceRemoteUserScheduleMonths(uid: string, entries: Sche
     is_off: entry.isOff,
   }))
 
-  const { error } = await supabase
-    .from('schedules')
-    .upsert(payload, { onConflict: 'user_id,work_date' })
+  const { data, error } = await supabase.rpc('replace_schedule_months', { entries: payload })
   if (error) throw new Error(formatScheduleStoreError(error.message))
+  if (data !== payload.length) {
+    throw new Error('Supabase 저장 결과를 확인하지 못했어요. 다시 저장해 주세요.')
+  }
 }
 
 function mapRemoteSchedule(row: RemoteScheduleRow): ScheduleEntry | null {
@@ -145,8 +146,8 @@ function monthRangeFromPrefix(prefix: string): { start: string; end: string } {
 }
 
 function formatScheduleStoreError(message: string): string {
-  if (/schedules|schema cache|relation|does not exist/i.test(message)) {
-    return 'Supabase schedules 테이블이 아직 적용되지 않아 근무표를 연동할 수 없어요.'
+  if (/replace_schedule_months|schedules|schema cache|relation|does not exist|could not find the function/i.test(message)) {
+    return 'Supabase 일정 저장 SQL이 아직 적용되지 않아 근무표를 연동할 수 없어요.'
   }
   if (/row-level security|permission denied|policy/i.test(message)) {
     return '근무표 저장 권한을 확인하지 못했어요. 다시 로그인한 뒤 저장해 주세요.'
