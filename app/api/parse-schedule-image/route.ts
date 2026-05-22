@@ -8,7 +8,7 @@ export const runtime = 'nodejs'
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 const MAX_IMAGES = 5
 // Keep multipart payloads below Vercel's request body ceiling after client-side compression.
-const MAX_TOTAL_IMAGE_BYTES = 4 * 1024 * 1024
+const MAX_TOTAL_IMAGE_BYTES = 3 * 1024 * 1024
 const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 const MONTHLY_AI_LIMIT = 5
 const MODEL = process.env.OPENAI_VISION_MODEL || 'gpt-4.1-mini'
@@ -118,6 +118,12 @@ const scheduleSchema = {
 
 export async function POST(req: NextRequest) {
   try {
+    const headerToken = getBearerToken(req)
+    console.info('[parse-schedule-image] Request received', {
+      contentLength: req.headers.get('content-length') ?? 'unknown',
+      hasHeaderToken: Boolean(headerToken),
+    })
+
     const apiKey = process.env.OPENAI_API_KEY
     if (!apiKey) {
       return NextResponse.json(
@@ -125,12 +131,17 @@ export async function POST(req: NextRequest) {
         { status: 500 },
       )
     }
-    const auth = await getAuthenticatedSupabase(req)
+    const form = await readScheduleForm(req)
+    const auth = await getAuthenticatedSupabase(headerToken || getFormAccessToken(form))
     if (!auth) {
+      console.info('[parse-schedule-image] Authentication rejected')
       return NextResponse.json(
         { error: 'AI 이미지 인식은 실제 로그인 계정에서만 사용할 수 있어요.' },
         { status: 401 },
       )
+    }
+    if (!form) {
+      return NextResponse.json({ error: '이미지 업로드 본문을 읽지 못했어요. 다시 시도해 주세요.' }, { status: 400 })
     }
 
     const usageMonth = getCurrentUsageMonth()
@@ -145,7 +156,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const form = await req.formData()
     const files = form.getAll('image').filter((file): file is File => file instanceof File)
     const defaultYear = Number(form.get('defaultYear')) || new Date().getFullYear()
     const defaultMonth = Number(form.get('defaultMonth')) || new Date().getMonth() + 1
@@ -158,7 +168,7 @@ export async function POST(req: NextRequest) {
     }
     const totalSize = files.reduce((sum, file) => sum + file.size, 0)
     if (totalSize > MAX_TOTAL_IMAGE_BYTES) {
-      return NextResponse.json({ error: '이미지는 총 4MB 이하로 올려주세요.' }, { status: 400 })
+      return NextResponse.json({ error: '이미지는 총 3MB 이하로 올려주세요.' }, { status: 400 })
     }
     for (const file of files) {
       if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
@@ -168,6 +178,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: '이미지는 장당 8MB 이하로 올려주세요.' }, { status: 400 })
       }
     }
+    console.info('[parse-schedule-image] Starting recognition', {
+      imageCount: files.length,
+      totalSize,
+      usageMonth,
+    })
 
     const imageContent = await Promise.all(
       files.map(async file => ({
@@ -266,11 +281,10 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function getAuthenticatedSupabase(req: NextRequest): Promise<{
+async function getAuthenticatedSupabase(token: string): Promise<{
   supabase: AiUsageSupabase
   userId: string
 } | null> {
-  const token = getBearerToken(req)
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!token || !url || !anonKey) return null
@@ -291,6 +305,22 @@ function getBearerToken(req: NextRequest): string {
   const header = req.headers.get('authorization') ?? ''
   const match = header.match(/^Bearer\s+(.+)$/i)
   return match?.[1] ?? ''
+}
+
+async function readScheduleForm(req: NextRequest): Promise<FormData | null> {
+  try {
+    return await req.formData()
+  } catch (error) {
+    console.error('[parse-schedule-image] Failed to read multipart form', {
+      message: error instanceof Error ? error.message : String(error),
+    })
+    return null
+  }
+}
+
+function getFormAccessToken(form: FormData | null): string {
+  const token = form?.get('accessToken')
+  return typeof token === 'string' ? token.trim() : ''
 }
 
 function getCurrentUsageMonth(): string {

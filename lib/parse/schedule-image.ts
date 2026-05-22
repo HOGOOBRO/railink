@@ -32,7 +32,7 @@ interface ParseImageResponse {
 
 const SUPABASE_JWT_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
 const MAX_RAW_IMAGE_BYTES = 12 * 1024 * 1024
-const MAX_UPLOAD_IMAGE_BYTES = 4 * 1024 * 1024
+const MAX_UPLOAD_IMAGE_BYTES = 3 * 1024 * 1024
 const IMAGE_EXT_RE = /\.(png|jpe?g|webp)$/i
 const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 const COMPRESSION_PLANS = [
@@ -76,12 +76,13 @@ export async function recognizeScheduleImage(
   form.append('defaultMonth', String(defaultMonth))
 
   const token = await getImageAuthToken()
+  form.append('accessToken', token)
 
   onProgress?.({
     status: files.length > 1 ? `이미지 ${files.length}장을 업로드하고 있어요` : '이미지를 업로드하고 있어요',
     progress: 0.15,
   })
-  const request = uploadImages(form, token)
+  const request = uploadImages(form)
 
   onProgress?.({
     status: files.length > 1 ? 'AI가 여러 스크린샷을 이어서 읽고 있어요' : 'AI가 근무표를 읽고 있어요',
@@ -138,8 +139,9 @@ function totalSize(files: File[]): number {
 async function compressImage(file: File, maxEdge: number, quality: number): Promise<File> {
   if (typeof window === 'undefined') return file
 
-  const url = URL.createObjectURL(file)
+  let url = ''
   try {
+    url = URL.createObjectURL(file)
     const image = await loadImage(url)
     const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth, image.naturalHeight))
     const width = Math.max(1, Math.round(image.naturalWidth * scale))
@@ -166,7 +168,7 @@ async function compressImage(file: File, maxEdge: number, quality: number): Prom
   } catch {
     return file
   } finally {
-    URL.revokeObjectURL(url)
+    if (url) URL.revokeObjectURL(url)
   }
 }
 
@@ -216,19 +218,21 @@ async function getImageAuthToken(): Promise<string> {
   }
 }
 
-async function uploadImages(form: FormData, token: string): Promise<Response> {
+async function uploadImages(form: FormData): Promise<Response> {
   try {
-    return await fetch('/api/parse-schedule-image', {
+    return await fetch(imageParseUrl(), {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
       body: form,
     })
   } catch {
     await supabase.auth.signOut().catch(() => undefined)
     throw new Error('이미지 업로드 요청을 만들지 못했어요. 다시 로그인한 뒤 시도해 주세요.')
   }
+}
+
+function imageParseUrl(): string {
+  if (typeof window === 'undefined') return '/api/parse-schedule-image'
+  return new URL('/api/parse-schedule-image', window.location.origin).toString()
 }
 
 async function readParseImageResponse(response: Response): Promise<ParseImageResponse> {
