@@ -406,6 +406,11 @@ export function UploadModal({
                     style={{ width: `${Math.round((ocr?.progress ?? 0) * 100)}%` }}
                   />
                 </div>
+                {ocr?.hint && (
+                  <p className="mt-2 text-ink-500">
+                    {ocr.hint}
+                  </p>
+                )}
               </div>
             )}
             {error && (

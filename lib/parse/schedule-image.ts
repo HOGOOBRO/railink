@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 export interface OcrProgress {
   status: string
   progress: number
+  hint?: string
 }
 
 export interface RecognizedScheduleImage {
@@ -87,6 +88,9 @@ export async function recognizeScheduleImage(
   onProgress?.({
     status: files.length > 1 ? 'AI가 여러 스크린샷을 이어서 읽고 있어요' : 'AI가 근무표를 읽고 있어요',
     progress: 0.55,
+    hint: files.length > 1
+      ? '여러 장은 보통 40-90초 정도 걸릴 수 있어요. 화면을 닫지 말고 잠시 기다려 주세요.'
+      : '보통 20-40초 정도 걸릴 수 있어요. 화면을 닫지 말고 잠시 기다려 주세요.',
   })
   const response = await request
   const payload = await readParseImageResponse(response)
