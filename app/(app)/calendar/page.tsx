@@ -237,25 +237,26 @@ export default function CalendarPage() {
     setReload(n => n + 1)
   }
 
-  async function handleUploadSave(rows: ParsedScheduleRow[]) {
+  function handleUploadSave(rows: ParsedScheduleRow[]) {
     if (!session) return
     const entries = rows.map(row => ({ ...row, uid: session.uid }))
     replaceUserScheduleMonths(session.uid, entries)
-    if (!session.isDemo) {
-      try {
-        await replaceRemoteUserScheduleMonths(session.uid, entries)
-      } catch (error) {
-        showToast(error instanceof Error ? error.message : '근무표는 이 기기에 저장됐지만 연동하지 못했어요.', 'danger')
-      }
-    }
     const first = entries[0]?.date
+    const savedYear = first ? Number(first.slice(0, 4)) : year
+    const savedMonth = first ? Number(first.slice(5, 7)) : month
     if (first) {
-      setYear(Number(first.slice(0, 4)))
-      setMonth(Number(first.slice(5, 7)))
+      setYear(savedYear)
+      setMonth(savedMonth)
     }
     setUploadOpen(false); setUploadStep('pick')
-    setReload(n => n + 1)
+    setMySched(getMonthSchedules(session.uid, savedYear, savedMonth))
     showToast(`${entries.length}건 등록 완료`, 'success')
+
+    if (!session.isDemo) {
+      void replaceRemoteUserScheduleMonths(session.uid, entries).catch(error => {
+        showToast(error instanceof Error ? error.message : '근무표는 이 기기에 저장됐지만 연동하지 못했어요.', 'danger')
+      })
+    }
   }
 
   async function handleLogout() {
