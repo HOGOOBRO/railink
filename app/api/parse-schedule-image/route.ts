@@ -11,7 +11,7 @@ const MAX_IMAGES = 5
 const MAX_TOTAL_IMAGE_BYTES = 3 * 1024 * 1024
 const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 const MONTHLY_AI_LIMIT = 5
-const MODEL = process.env.OPENAI_VISION_MODEL || 'gpt-4.1-mini'
+const MODEL = process.env.OPENAI_VISION_MODEL || 'gpt-4.1'
 
 interface AiScheduleRow {
   date: string
@@ -408,9 +408,11 @@ function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: numb
     'If screenshots overlap, merge duplicate dates and keep the clearest row.',
     'The source is often a calendar or roster screenshot. Scan every visible cell and row from top to bottom and left to right.',
     'Return JSON only according to the schema.',
-    'Read the schedule year and month from a visible title, calendar header, date range, or roster label before using a fallback.',
-    `Only if the schedule year/month are not visible or remain ambiguous, use fallback ${defaultYear}-${String(defaultMonth).padStart(2, '0')}.`,
-    'Set periodSource to "image" only when a visible image label establishes the schedule month. Otherwise use "fallback".',
+    'FIRST, find the schedule month and year before reading any rows. On this KORAIL crew roster the period is printed near the top as "YYYY년 MM월 현재" (for example "2026년 06월 현재"), and the two-digit month is often also shown as a large faint watermark digit behind the grid (for example "06").',
+    'Read that header/watermark exactly. The month is a two-digit number 01-12 — use it verbatim (e.g. 06 means June; do NOT substitute the current month).',
+    'Cross-check the layout: the "1일" cell sits under its weekday column, so the weekday of the 1st must be consistent with the month and year you read. If they disagree, re-read the header.',
+    `Use fallback ${defaultYear}-${String(defaultMonth).padStart(2, '0')} ONLY when no month label and no watermark digit are visible anywhere in the image.`,
+    'Set periodSource to "image" whenever you read the month from the header or watermark. Use "fallback" only when the image shows no month at all.',
     'If a date is shown only as a day number, convert it to a full YYYY-MM-DD date using scheduleYear and scheduleMonth.',
     'Never return a date as only a day number, M/D, or YYYY-M-D.',
     'Extract one row per visible business date that has a duty/off entry.',
