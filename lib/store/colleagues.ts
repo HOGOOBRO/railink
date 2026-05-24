@@ -60,6 +60,10 @@ async function getRemoteDirectory(currentUid: string): Promise<Colleague[] | nul
       .from('profiles')
       .select('id,name,employee_id,part,photo')
       .neq('id', currentUid)
+      // Admin (operations) accounts are hidden from the directory. RLS already
+      // blocks them; this explicit filter makes the intent visible and is a
+      // safety net if the policy is ever relaxed.
+      .eq('is_admin', false)
       .order('name', { ascending: true })
       .limit(200)
 
