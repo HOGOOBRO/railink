@@ -19,7 +19,8 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://railink.app'),
   title: SITE_TITLE,
   description: SITE_DESC,
-  // og:image is generated automatically from app/opengraph-image.tsx
+  // Static og:image (public/og-image.png) — a fixed, query-less URL that
+  // KakaoTalk's scraper reliably caches, unlike the dynamic next/og route.
   openGraph: {
     title: SITE_TITLE,
     description: SITE_DESC,
@@ -27,11 +28,13 @@ export const metadata: Metadata = {
     siteName: 'RaiLink',
     locale: 'ko_KR',
     type: 'website',
+    images: [{ url: '/og-image.png', width: 1200, height: 630, type: 'image/png', alt: 'RaiLink' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: SITE_TITLE,
     description: SITE_DESC,
+    images: ['/og-image.png'],
   },
 }
 
