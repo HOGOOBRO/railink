@@ -166,16 +166,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '이미지 업로드 본문을 읽지 못했어요. 다시 시도해 주세요.' }, { status: 400 })
     }
 
+    const unlimited = isUnlimitedEmail(auth.email)
     const usageMonth = getCurrentUsageMonth()
-    const usedThisMonth = await getImageUsageCount(auth.supabase, auth.userId, usageMonth)
-    if (usedThisMonth >= MONTHLY_AI_LIMIT) {
-      return NextResponse.json(
-        {
-          error: `이번 달 AI 이미지 인식 ${MONTHLY_AI_LIMIT}회 한도를 모두 사용했어요. 엑셀/CSV 또는 직접 입력을 사용해 주세요.`,
-          usage: buildUsageStatus(usedThisMonth, usageMonth),
-        },
-        { status: 429 },
-      )
+    let usedThisMonth = 0
+    if (!unlimited) {
+      usedThisMonth = await getImageUsageCount(auth.supabase, auth.userId, usageMonth)
+      if (usedThisMonth >= MONTHLY_AI_LIMIT) {
+        return NextResponse.json(
+          {
+            error: `이번 달 AI 이미지 인식 ${MONTHLY_AI_LIMIT}회 한도를 모두 사용했어요. 엑셀/CSV 또는 직접 입력을 사용해 주세요.`,
+            usage: buildUsageStatus(usedThisMonth, usageMonth),
+          },
+          { status: 429 },
+        )
+      }
     }
 
     const files = form.getAll('image').filter((file): file is File => file instanceof File)
@@ -204,6 +208,7 @@ export async function POST(req: NextRequest) {
       imageCount: files.length,
       totalSize,
       usageMonth,
+      unlimited,
     })
 
     const imageContent = await Promise.all(
@@ -256,8 +261,11 @@ export async function POST(req: NextRequest) {
         { status: response.status },
       )
     }
-    await recordImageUsage(auth.supabase, auth.userId, usageMonth, files.length)
-    const usage = buildUsageStatus(usedThisMonth + 1, usageMonth)
+    let usage: UsageStatus | undefined
+    if (!unlimited) {
+      await recordImageUsage(auth.supabase, auth.userId, usageMonth, files.length)
+      usage = buildUsageStatus(usedThisMonth + 1, usageMonth)
+    }
 
     const outputText = extractOutputText(payload)
     if (!outputText) {
@@ -308,6 +316,7 @@ export async function POST(req: NextRequest) {
 async function getAuthenticatedSupabase(token: string): Promise<{
   supabase: AiUsageSupabase
   userId: string
+  email: string
 } | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -322,7 +331,18 @@ async function getAuthenticatedSupabase(token: string): Promise<{
   })
   const { data, error } = await supabase.auth.getUser(token)
   if (error || !data.user) return null
-  return { supabase, userId: data.user.id }
+  return { supabase, userId: data.user.id, email: data.user.email ?? '' }
+}
+
+/** Test/admin accounts that bypass the monthly AI image limit.
+ * Set AI_IMAGE_UNLIMITED_EMAILS to a comma-separated list of account emails
+ * (server-side env, never exposed to the client). */
+function isUnlimitedEmail(email: string): boolean {
+  if (!email) return false
+  const raw = process.env.AI_IMAGE_UNLIMITED_EMAILS
+  if (!raw) return false
+  const allow = raw.split(',').map(entry => entry.trim().toLowerCase()).filter(Boolean)
+  return allow.includes(email.toLowerCase())
 }
 
 function getBearerToken(req: NextRequest): string {

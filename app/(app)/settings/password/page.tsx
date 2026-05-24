@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { ChevronLeftIcon, EyeIcon } from '@/components/ui/icons'
+import { changePassword } from '@/lib/auth'
 
 const PW_LABELS = ['', '약함', '보통', '좋음', '강함']
 
@@ -29,10 +30,11 @@ export default function PasswordChangePage() {
   const [pwc, setPwc] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [errors, setErrors] = useState<{ cur?: string; pw?: string; pwc?: string }>({})
+  const [loading, setLoading] = useState(false)
 
   const strength = pwStrength(pw)
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault()
     const errs: typeof errors = {}
     if (!cur) errs.cur = '현재 비밀번호를 입력해 주세요.'
@@ -42,10 +44,18 @@ export default function PasswordChangePage() {
     else if (pw === cur) errs.pw = '현재 비밀번호와 달라야 해요.'
     if (pwc !== pw) errs.pwc = '비밀번호가 일치하지 않아요.'
     setErrors(errs)
-    if (Object.keys(errs).length === 0) {
-      showToast('비밀번호를 변경했어요.', 'success')
-      router.push('/settings/info')
+    if (Object.keys(errs).length > 0) return
+
+    setLoading(true)
+    const res = await changePassword(cur, pw)
+    setLoading(false)
+    if (!res.ok) {
+      if (res.message?.includes('현재 비밀번호')) setErrors({ cur: res.message })
+      else showToast(res.message ?? '비밀번호 변경에 실패했어요.', 'danger')
+      return
     }
+    showToast('비밀번호를 변경했어요.', 'success')
+    router.push('/settings/info')
   }
 
   const eyeBtn = (
@@ -76,11 +86,9 @@ export default function PasswordChangePage() {
       </header>
 
       <form onSubmit={submit} className="flex-1 overflow-y-auto px-5 pt-5 pb-8" noValidate>
-        <div className="px-4 py-3.5 bg-surface border border-line rounded-md text-caption text-ink-700 leading-relaxed mb-4">
-          마지막 변경:{' '}
-          <strong className="font-en text-ink-900">2026.02.14</strong>
-          <span className="text-ink-300"> · 3개월 전</span>
-        </div>
+        <p className="text-callout text-ink-700 leading-relaxed mb-4">
+          현재 비밀번호를 확인한 뒤 새 비밀번호로 변경할 수 있어요.
+        </p>
 
         <div className="flex flex-col gap-3.5">
           <Input
@@ -145,7 +153,9 @@ export default function PasswordChangePage() {
         </div>
 
         <div className="h-2" />
-        <Button type="submit" block>비밀번호 변경</Button>
+        <Button type="submit" block disabled={loading}>
+          {loading ? '변경 중…' : '비밀번호 변경'}
+        </Button>
 
         <Link
           href="/find?mode=pw"

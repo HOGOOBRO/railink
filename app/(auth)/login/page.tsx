@@ -158,14 +158,7 @@ export default function LoginPage() {
           </Button>
         </Link>
 
-        <div className="flex items-center justify-center gap-3.5 my-3.5 text-[13px]">
-          <Link
-            href="/find?mode=id"
-            className="font-kr font-semibold text-ink-700 hover:text-brand transition-colors px-1.5 py-1"
-          >
-            아이디 찾기
-          </Link>
-          <span className="text-ink-300 select-none">·</span>
+        <div className="flex items-center justify-center my-3.5 text-[13px]">
           <Link
             href="/find?mode=pw"
             className="font-kr font-semibold text-ink-700 hover:text-brand transition-colors px-1.5 py-1"

@@ -9,7 +9,8 @@ import { useToast } from '@/components/ui/Toast'
 import {
   ChevronLeftIcon, ChevronRightIcon, EditIcon, KeyIcon, UploadIcon,
 } from '@/components/ui/icons'
-import { getCurrentSession, logout, type Session } from '@/lib/auth'
+import { getCurrentSession, logout, updateProfile, type Session } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 import { getMonthSchedules, getRemoteMonthSchedules } from '@/lib/store/schedules'
 import { getCompareList, COMPARE_KEY } from '@/lib/store/compare'
 import { COLLEAGUE_DIRECTORY_KEY, SAMPLE_DIRECTORY_SEEDED_KEY } from '@/lib/store/colleagues'
@@ -31,9 +32,8 @@ export default function SettingsInfoPage() {
   const [email, setEmail] = useState('')
 
   const [share, setShare] = useState(true)
-  const [empShare, setEmpShare] = useState(true)
-  const [notifyChange, setNotifyChange] = useState(true)
-  const [notifyAdd, setNotifyAdd] = useState(false)
+  const [baseShare, setBaseShare] = useState(true)
+  const [saving, setSaving] = useState(false)
 
   const [confirmOpen, setConfirmOpen] = useState(false)
 
@@ -60,17 +60,41 @@ export default function SettingsInfoPage() {
       setCompareCount(getCompareList(s.uid).length)
       setWorkDays(sched.length - off)
       setOffDays(off)
+
+      if (!s.isDemo) {
+        const { data: prof } = await supabase
+          .from('profiles').select('share_schedule').eq('id', s.uid).maybeSingle()
+        if (alive && prof && typeof prof.share_schedule === 'boolean') {
+          setShare(prof.share_schedule)
+          setBaseShare(prof.share_schedule)
+        }
+      }
     })()
     return () => { alive = false }
   }, [router])
 
   const dirty = useMemo(() => {
     if (!session) return false
-    return name !== session.name || part !== (session.part ?? '') || email !== session.email
-  }, [session, name, part, email])
+    return name !== session.name || part !== (session.part ?? '') || share !== baseShare
+  }, [session, name, part, share, baseShare])
 
-  function handleSave() {
-    if (!dirty) return
+  async function handleSave() {
+    if (!dirty || saving || !session) return
+    if (!name.trim()) { showToast('이름을 입력해 주세요.', 'danger'); return }
+    setSaving(true)
+    const res = await updateProfile({
+      name: name.trim(),
+      employeeId: session.employeeId,
+      part: part.trim() || undefined,
+      shareSchedule: share,
+    })
+    setSaving(false)
+    if (!res.ok) {
+      showToast(res.message ?? '저장에 실패했어요.', 'danger')
+      return
+    }
+    setBaseShare(share)
+    setSession({ ...session, name: name.trim(), part: part.trim() || undefined })
     showToast('변경 사항을 저장했어요.', 'success')
   }
 
@@ -110,11 +134,11 @@ export default function SettingsInfoPage() {
         <Button
           variant={dirty ? 'primary' : 'outline'}
           size="sm"
-          disabled={!dirty}
+          disabled={!dirty || saving}
           onClick={handleSave}
           className={dirty ? '' : 'opacity-50'}
         >
-          저장
+          {saving ? '저장 중…' : '저장'}
         </Button>
       </header>
 
@@ -155,8 +179,8 @@ export default function SettingsInfoPage() {
           <FieldRow label="소속 파트" hint="A · B · C 중에서 입력해 주세요.">
             <FlatInput value={part} onChange={setPart} placeholder="예: B" />
           </FieldRow>
-          <FieldRow label="이메일" last>
-            <FlatInput value={email} onChange={setEmail} mono />
+          <FieldRow label="이메일" lock last>
+            <FlatInput value={email} onChange={() => {}} mono readOnly />
           </FieldRow>
         </Section>
 
@@ -165,23 +189,17 @@ export default function SettingsInfoPage() {
           <LinkRow
             icon={<KeyIcon size={18} />}
             label="비밀번호 변경"
-            sub="마지막 변경: 2026.02.14"
             href="/settings/password"
             last
           />
         </Section>
 
         {/* 공개 범위 */}
-        <Section title="공개 범위" hint="비교 기능에서 다른 동료들이 볼 수 있는 정보예요.">
+        <Section title="공개 범위" hint="저장하면 바로 적용돼요.">
           <ToggleRow
             label="내 일정을 동료에게 공개"
-            sub="비교 추가된 동료가 내 다이·출퇴근 시간을 볼 수 있어요."
+            sub="끄면 동료가 내 근무표·다이·출퇴근 시간을 볼 수 없어요."
             on={share} onChange={setShare}
-          />
-          <ToggleRow
-            label="사번을 검색 결과에 노출"
-            sub="끄면 이름만 노출돼요."
-            on={empShare} onChange={setEmpShare}
             last
           />
         </Section>
@@ -191,11 +209,11 @@ export default function SettingsInfoPage() {
           <ToggleRow
             label="동료 일정이 바뀌면 알림"
             sub="비교 중인 동료의 근무표가 갱신됐을 때."
-            on={notifyChange} onChange={setNotifyChange}
+            on={false} onChange={() => {}} disabled
           />
           <ToggleRow
             label="내가 비교 대상으로 추가될 때 알림"
-            on={notifyAdd} onChange={setNotifyAdd}
+            on={false} onChange={() => {}} disabled
             last
           />
         </Section>
@@ -323,21 +341,30 @@ function LinkRow({
 }
 
 function ToggleRow({
-  label, sub, on, onChange, last,
-}: { label: string; sub?: string; on: boolean; onChange: (on: boolean) => void; last?: boolean }) {
+  label, sub, on, onChange, last, disabled,
+}: {
+  label: string; sub?: string; on: boolean
+  onChange: (on: boolean) => void; last?: boolean; disabled?: boolean
+}) {
   return (
-    <div className={`flex items-center gap-3 px-3.5 py-3.5 ${last ? '' : 'border-b border-line'}`}>
+    <div className={`flex items-center gap-3 px-3.5 py-3.5 ${last ? '' : 'border-b border-line'} ${disabled ? 'opacity-60' : ''}`}>
       <div className="flex-1 min-w-0">
-        <p className="text-callout font-medium text-ink-900">{label}</p>
+        <p className="flex items-center gap-1.5 text-callout font-medium text-ink-900">
+          {label}
+          {disabled && (
+            <span className="text-[10px] font-bold text-ink-500 bg-bg px-1.5 py-0.5 rounded-pill">준비 중</span>
+          )}
+        </p>
         {sub && <p className="mt-0.5 text-[11px] text-ink-500 leading-relaxed">{sub}</p>}
       </div>
       <button
-        onClick={() => onChange(!on)}
+        onClick={() => { if (!disabled) onChange(!on) }}
         role="switch"
         aria-checked={on}
+        disabled={disabled}
         className={`relative w-11 h-[26px] rounded-pill shrink-0 transition-colors duration-150 ${
           on ? 'bg-brand' : 'bg-line-2'
-        }`}
+        } ${disabled ? 'cursor-not-allowed' : ''}`}
       >
         <span
           className="absolute top-[3px] w-5 h-5 rounded-full bg-white shadow-sh1 transition-[left] duration-150"

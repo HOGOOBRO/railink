@@ -155,3 +155,92 @@ export async function logout(): Promise<void> {
   if (typeof window !== 'undefined') localStorage.removeItem(DEMO_SESSION_KEY)
   await supabase.auth.signOut()
 }
+
+/* ── Password change (logged-in, requires current password) ────────────────── */
+
+export async function changePassword(
+  currentPassword: string, newPassword: string,
+): Promise<{ ok: boolean; message?: string }> {
+  if (typeof window !== 'undefined' && localStorage.getItem(DEMO_SESSION_KEY)) {
+    return { ok: false, message: '데모 계정은 비밀번호를 변경할 수 없어요.' }
+  }
+  const { data } = await supabase.auth.getUser()
+  const email = data.user?.email
+  if (!email) {
+    return { ok: false, message: '로그인 상태를 확인하지 못했어요. 다시 로그인한 뒤 시도해 주세요.' }
+  }
+  // Re-authenticate with the current password before allowing the change.
+  const { error: reauthError } = await supabase.auth.signInWithPassword({ email, password: currentPassword })
+  if (reauthError) {
+    return { ok: false, message: '현재 비밀번호가 일치하지 않아요.' }
+  }
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) {
+    if (/different|same as|should be different/i.test(error.message)) {
+      return { ok: false, message: '현재 비밀번호와 다른 비밀번호를 입력해 주세요.' }
+    }
+    return { ok: false, message: '비밀번호 변경 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
+  }
+  return { ok: true }
+}
+
+/* ── Password reset (forgot password → email link) ─────────────────────────── */
+
+export async function requestPasswordReset(email: string): Promise<{ ok: boolean; message?: string }> {
+  const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/reset` : undefined
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+  if (error) {
+    if (/rate|too many|429/i.test(error.message)) {
+      return { ok: false, message: '요청이 많아요. 잠시 후 다시 시도해 주세요.' }
+    }
+    return { ok: false, message: '메일 발송 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
+  }
+  return { ok: true }
+}
+
+/** Set a new password during a recovery session (the /reset page). */
+export async function updatePassword(newPassword: string): Promise<{ ok: boolean; message?: string }> {
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) {
+    return { ok: false, message: '비밀번호 설정 중 문제가 생겼어요. 링크를 다시 요청해 주세요.' }
+  }
+  return { ok: true }
+}
+
+/* ── Profile update (name / part / share) ──────────────────────────────────── */
+
+export interface ProfileUpdate {
+  name: string
+  employeeId: string
+  part?: string
+  shareSchedule?: boolean
+}
+
+/** Writes user_metadata (what getCurrentSession reads) AND the profiles row
+ * (what colleague search reads). Not atomic — surfaces partial failure. */
+export async function updateProfile(input: ProfileUpdate): Promise<{ ok: boolean; message?: string }> {
+  if (typeof window !== 'undefined' && localStorage.getItem(DEMO_SESSION_KEY)) {
+    return { ok: false, message: '데모 계정은 정보를 변경할 수 없어요.' }
+  }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { ok: false, message: '로그인 상태를 확인하지 못했어요. 다시 로그인한 뒤 시도해 주세요.' }
+  }
+  const { error: metaError } = await supabase.auth.updateUser({
+    data: { name: input.name, part: input.part ?? null },
+  })
+  if (metaError) {
+    return { ok: false, message: '내 정보 저장 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
+  }
+  const { error: profileError } = await supabase.from('profiles').upsert({
+    id: user.id,
+    name: input.name,
+    employee_id: input.employeeId,
+    part: input.part ?? null,
+    ...(input.shareSchedule !== undefined ? { share_schedule: input.shareSchedule } : {}),
+  }, { onConflict: 'id' })
+  if (profileError) {
+    return { ok: false, message: '내 정보는 저장됐지만 동료 검색 반영이 잠시 늦어질 수 있어요.' }
+  }
+  return { ok: true }
+}
