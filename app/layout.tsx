@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Script from 'next/script'
 import { JetBrains_Mono } from 'next/font/google'
 import { ToastProvider } from '@/components/ui/Toast'
+import { SwRegister } from '@/components/SwRegister'
 import './globals.css'
 
 const GA_ID = 'G-N9EBNCQPP0'
@@ -36,6 +37,12 @@ export const metadata: Metadata = {
     description: SITE_DESC,
     images: ['/og-image.png'],
   },
+  // iOS "Add to Home Screen": full-screen standalone + short home-screen label.
+  appleWebApp: {
+    capable: true,
+    title: 'RaiLink',
+    statusBarStyle: 'default',
+  },
 }
 
 export const viewport = {
@@ -53,6 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ToastProvider>
           <div className="app-frame">{children}</div>
         </ToastProvider>
+        <SwRegister />
         {/* Google Analytics (gtag.js) */}
         <Script
           src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
