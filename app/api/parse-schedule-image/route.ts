@@ -439,10 +439,12 @@ function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: numb
     'Include rows even when train numbers or times are unclear; leave unclear fields as empty strings.',
     'Important fields:',
     '- date: YYYY-MM-DD.',
-    '- diaNr: duty code, usually H plus digits/letters, ~(Hxxxx), S, S(주휴), 휴무, 오프.',
-    '- trainNr: train numbers if visible, joined with " · ".',
-    '- startTime/endTime: HH:MM; if end is next day, allow 24+ hour notation such as 25:08.',
-    '- isOff: true for S, S(주휴), 휴무, 오프, off/rest days.',
+    '- diaNr: duty code, usually H plus digits/letters (e.g. H1055, H1G37, H1C27), ~(Hxxxx), S, S(주휴), 휴무, 오프.',
+    '- Cell layout: each duty cell shows the duty code with one or two train numbers on one line (e.g. "H1055 16 216"), and up to THREE clock times on the next line (e.g. "09:12 10:58 20:10").',
+    '- trainNr: the number(s) shown next to the duty code (e.g. "16 216", "245 294"). Join multiple with " · " (e.g. "16 · 216"). Do NOT confuse them with the clock times below.',
+    '- Times: the FIRST time is sign-on/start; the LAST time is sign-off/end; IGNORE any middle time. Set startTime = first time, endTime = last time (HH:MM).',
+    '- OVERNIGHT duty (박차 / 1박 / 야간): the end is on the NEXT day, so the last time is EARLIER than the first (e.g. start 10:30 → end 01:08; start 12:00 → end 11:49). Write such end times in 24+ hour notation: 01:08 → 25:08, 11:49 → 35:49.',
+    '- isOff: true for S, S(주휴), 휴무, 오프, off/rest days (these cells have no times).',
     'Do not hallucinate unclear times or train numbers. Use empty string when unclear.',
     'Ignore UI chrome, phone status bar, app navigation, and unrelated text.',
     'Korean text may appear; preserve Korean off labels when visible.',
@@ -546,7 +548,17 @@ function normalizeRows(
       const diaNr = normalizeDia(row.diaNr)
       const isOff = Boolean(row.isOff) || detectOff(diaNr)
       const startTime = isOff ? '' : normalizeTime(row.startTime)
-      const endTime = isOff ? '' : normalizeTime(row.endTime)
+      let endTime = isOff ? '' : normalizeTime(row.endTime)
+      // Overnight (박차): if end is earlier than start, it lands on the next
+      // day. Guarantee the +24h here in code so a missing "익일" hint from the
+      // model can't yield a negative-duration (broken) timeline box.
+      if (startTime && endTime) {
+        const [sh, sm] = startTime.split(':').map(Number)
+        const [eh, em] = endTime.split(':').map(Number)
+        if (eh < sh || (eh === sh && em <= sm)) {
+          endTime = `${String(eh + 24).padStart(2, '0')}:${String(em).padStart(2, '0')}`
+        }
+      }
       const normalizedRow: ParsedScheduleRow = {
         date,
         diaNr: diaNr || undefined,
@@ -639,7 +651,7 @@ function normalizeTime(value: string): string {
   const minute = Number(match[2])
   if (!Number.isFinite(hour) || minute < 0 || minute > 59) return ''
   const normalizedHour = nextDay && hour < 24 ? hour + 24 : hour
-  if (normalizedHour > 35) return ''
+  if (normalizedHour > 40) return ''
   return `${String(normalizedHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
 }
 

@@ -186,7 +186,8 @@ export default function CalendarPage() {
       out.push({
         color: BRAND, name: session.name, tag: '나', photo: session.photo,
         dia: mine.diaNr, trainNr: mine.trainNr,
-        start: hmToDecimal(mine.startTime), end: hmToDecimal(mine.endTime),
+        start: mine.startTime ? hmToDecimal(mine.startTime) : undefined,
+        end: mine.endTime ? hmToDecimal(mine.endTime) : undefined,
       })
     }
     for (const c of compares) {
@@ -195,7 +196,8 @@ export default function CalendarPage() {
         out.push({
           color: cssColor(c.color), name: c.name, photo: c.photo,
           dia: e.diaNr, trainNr: e.trainNr,
-          start: hmToDecimal(e.startTime), end: hmToDecimal(e.endTime),
+          start: e.startTime ? hmToDecimal(e.startTime) : undefined,
+          end: e.endTime ? hmToDecimal(e.endTime) : undefined,
         })
       }
     }
