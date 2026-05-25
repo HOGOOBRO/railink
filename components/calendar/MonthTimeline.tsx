@@ -1,7 +1,9 @@
 'use client'
-/* Continuous month timeline: one column per person (scroll sideways to see
- * everyone), a single vertical time axis running across the whole month so an
- * overnight (박차) shift is ONE card crossing the midnight day-divider. */
+/* Continuous month timeline: one column per person, a single vertical time axis
+ * running across the whole month so an overnight (박차) shift is ONE card crossing
+ * the midnight divider. The whole thing lives in ONE scroll area (both axes), and
+ * the time gutter is sticky-left — so you can scroll down while panned right to
+ * the colleagues on the far side. */
 import { fmtClock } from '@/lib/schedule-utils'
 import { toInitials } from '@/components/ui/Avatar'
 
@@ -20,13 +22,13 @@ export interface MonthPerson {
   shifts: MonthShift[]
 }
 
-const PXH = 12              // pixels per hour (compact so the month isn't endless)
+const PXH = 14              // pixels per hour
 export const DAY_PX = 24 * PXH
-const LABEL_W = 44
-const LANE_GAP = 6
+const LABEL_W = 46
 const MIN_COL = 116
 const MIN_CARD_H = 80
 const DOW = ['일', '월', '화', '수', '목', '금', '토']
+const HOUR_TICKS = [0, 3, 6, 9, 12, 15, 18, 21]   // a time mark every 3 hours
 
 export function MonthTimeline({
   people, year, month, today,
@@ -37,81 +39,89 @@ export function MonthTimeline({
   const todayDay = today.getFullYear() === year && today.getMonth() === month - 1 ? today.getDate() : -1
   const dayList = Array.from({ length: dim }, (_, i) => i + 1)
 
+  // flat list of {top, day, hour} marks
+  const marks = dayList.flatMap(d => HOUR_TICKS.map(h => ({ d, h, top: yOf((d - 1) * 24 + h) })))
+
   return (
-    <div className="relative" style={{ height: monthH }}>
-      {/* gridlines (right of the gutter so the date labels never collide with them) */}
-      {dayList.map(d => (
-        <div key={d}>
-          <div className="absolute border-t border-line-2" style={{ left: LABEL_W, right: 0, top: yOf((d - 1) * 24) }} />
-          <div className="absolute border-t border-dashed border-line" style={{ left: LABEL_W, right: 0, top: yOf((d - 1) * 24 + 12) }} />
-        </div>
-      ))}
-
-      {/* date labels in the gutter, vertically centred on each midnight line */}
-      {dayList.map(d => (
+    <div className="relative flex" style={{ height: monthH, minWidth: '100%' }}>
+      {/* gridlines (span all columns, behind the cards) */}
+      {marks.map(({ d, h, top }) => (
         <div
-          key={`l${d}`}
-          className={`absolute left-0 flex flex-col items-center leading-none font-en ${d === todayDay ? 'text-brand' : 'text-ink-500'}`}
-          style={{ width: LABEL_W, top: yOf((d - 1) * 24) - 9 }}
-        >
-          <span className="text-[13px] font-bold">{d}</span>
-          <span className="text-[10px] font-semibold">{DOW[new Date(year, month - 1, d).getDay()]}</span>
-        </div>
+          key={`grid-${d}-${h}`}
+          className={`absolute border-t ${h === 0 ? 'border-line-2' : 'border-dashed border-line'}`}
+          style={{ left: LABEL_W, right: 0, top }}
+        />
       ))}
 
-      {/* person columns — scroll sideways to reveal everyone */}
-      <div className="absolute top-0 bottom-0 right-0 overflow-x-auto" style={{ left: LABEL_W }}>
-        <div className="flex h-full" style={{ gap: LANE_GAP }}>
-          {people.map((p, pi) => (
-            <div key={pi} className="relative shrink-0" style={{ flex: `1 0 ${MIN_COL}px` }}>
-              {p.shifts.map((s, si) => {
-                const top = yOf((s.day - 1) * 24 + s.start)
-                const h = Math.max(MIN_CARD_H, yOf((s.day - 1) * 24 + s.end) - top)
-                return (
-                  <div
-                    key={si}
-                    className="absolute left-0 right-0 flex flex-col justify-between overflow-hidden leading-tight"
-                    style={{
-                      top, height: h,
-                      background: `color-mix(in oklab, ${p.color} 12%, white)`,
-                      boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${p.color} 30%, white)`,
-                      borderLeft: `3px solid ${p.color}`,
-                      borderRadius: 10,
-                      padding: '5px 6px 6px',
-                    }}
-                  >
-                    {/* top: who + dia + start (aligns near the card's top = start time) */}
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <div className="flex items-center gap-1 min-w-0">
-                        <Initial name={p.name} photo={p.photo} color={p.color} />
-                        <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
-                        {p.tag && (
-                          <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>
-                        )}
-                      </div>
-                      {s.dia && (
-                        <div className="font-en text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>
-                          {s.dia}
-                        </div>
-                      )}
-                      <span className="font-en text-[11px] font-bold text-ink-900">{fmtClock(s.start)}</span>
-                    </div>
-                    {/* bottom: end time + train (aligns near the card's bottom = end time) */}
-                    <div className="flex items-end justify-between gap-1 min-w-0">
-                      <span className="font-en text-[11px] font-bold text-ink-900">↓ {fmtClock(s.end)}</span>
-                      {s.trainNr && (
-                        <span className="font-en text-[10px] font-bold text-ink-700 px-1.5 py-0.5 bg-bg rounded-xs truncate">
-                          {prettyTrain(s.trainNr)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ))}
-        </div>
+      {/* sticky time gutter: date at midnight, an hour mark every 3h */}
+      <div className="sticky left-0 z-20 shrink-0 bg-surface" style={{ width: LABEL_W }}>
+        {marks.map(({ d, h, top }) => h === 0 ? (
+          <div
+            key={`lab-${d}-${h}`}
+            className={`absolute left-0 flex flex-col items-center leading-none font-en ${d === todayDay ? 'text-brand' : 'text-ink-500'}`}
+            style={{ width: LABEL_W, top: top - 9 }}
+          >
+            <span className="text-[13px] font-bold">{d}</span>
+            <span className="text-[10px] font-semibold">{DOW[new Date(year, month - 1, d).getDay()]}</span>
+          </div>
+        ) : (
+          <span
+            key={`lab-${d}-${h}`}
+            className="absolute left-0 text-center font-en text-[10px] text-ink-300"
+            style={{ width: LABEL_W, top: top - 6 }}
+          >
+            {String(h).padStart(2, '0')}:00
+          </span>
+        ))}
       </div>
+
+      {/* person columns — grow to fill, or stay MIN_COL and let the row scroll sideways */}
+      {people.map((p, pi) => (
+        <div key={pi} className="relative shrink-0" style={{ flex: `1 0 ${MIN_COL}px` }}>
+          {p.shifts.map((s, si) => {
+            const top = yOf((s.day - 1) * 24 + s.start)
+            const h = Math.max(MIN_CARD_H, yOf((s.day - 1) * 24 + s.end) - top)
+            return (
+              <div
+                key={si}
+                className="absolute left-0 right-0 flex flex-col justify-between overflow-hidden leading-tight"
+                style={{
+                  top, height: h,
+                  background: `color-mix(in oklab, ${p.color} 12%, white)`,
+                  boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${p.color} 30%, white)`,
+                  borderLeft: `3px solid ${p.color}`,
+                  borderRadius: 10,
+                  padding: '5px 6px 6px',
+                }}
+              >
+                <div className="flex flex-col gap-1 min-w-0">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <Initial name={p.name} photo={p.photo} color={p.color} />
+                    <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
+                    {p.tag && (
+                      <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>
+                    )}
+                  </div>
+                  {s.dia && (
+                    <div className="font-en text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>
+                      {s.dia}
+                    </div>
+                  )}
+                  <span className="font-en text-[11px] font-bold text-ink-900">{fmtClock(s.start)}</span>
+                </div>
+                <div className="flex items-end justify-between gap-1 min-w-0">
+                  <span className="font-en text-[11px] font-bold text-ink-900">↓ {fmtClock(s.end)}</span>
+                  {s.trainNr && (
+                    <span className="font-en text-[10px] font-bold text-ink-700 px-1.5 py-0.5 bg-bg rounded-xs truncate">
+                      {prettyTrain(s.trainNr)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ))}
     </div>
   )
 }
