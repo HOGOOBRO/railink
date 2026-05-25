@@ -42,6 +42,7 @@ export const metadata: Metadata = {
     capable: true,
     title: 'RaiLink',
     statusBarStyle: 'default',
+    startupImage: ['/apple-splash'],
   },
 }
 
