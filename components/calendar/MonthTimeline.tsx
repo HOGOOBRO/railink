@@ -13,7 +13,10 @@ export interface MonthShift {
   trainNr?: string
   start: number      // decimal hour within `day`
   end: number        // decimal hour; > 24 when the shift ends next day (박차)
+  noTime?: boolean   // a working day whose 출퇴근 times weren't read (OCR miss)
 }
+
+const NO_TIME_H = 54
 export interface MonthPerson {
   color: string
   name: string
@@ -25,6 +28,7 @@ export interface MonthPerson {
 const PXH = 14              // pixels per hour
 export const DAY_PX = 24 * PXH
 const LABEL_W = 46
+const LANE_GAP = 6
 const MIN_COL = 116
 const MIN_CARD_H = 80
 const DOW = ['일', '월', '화', '수', '목', '금', '토']
@@ -43,7 +47,7 @@ export function MonthTimeline({
   const marks = dayList.flatMap(d => HOUR_TICKS.map(h => ({ d, h, top: yOf((d - 1) * 24 + h) })))
 
   return (
-    <div className="relative flex" style={{ height: monthH, minWidth: '100%' }}>
+    <div className="relative flex" style={{ height: monthH, minWidth: '100%', gap: LANE_GAP }}>
       {/* gridlines (span all columns, behind the cards) */}
       {marks.map(({ d, h, top }) => (
         <div
@@ -79,6 +83,37 @@ export function MonthTimeline({
       {people.map((p, pi) => (
         <div key={pi} className="relative shrink-0" style={{ flex: `1 0 ${MIN_COL}px` }}>
           {p.shifts.map((s, si) => {
+            if (s.noTime) {
+              return (
+                <div
+                  key={si}
+                  className="absolute left-0 right-0 flex flex-col gap-1 overflow-hidden leading-tight"
+                  style={{
+                    top: yOf((s.day - 1) * 24), height: NO_TIME_H,
+                    background: 'var(--bg)',
+                    boxShadow: 'inset 0 0 0 1px var(--line-2)',
+                    borderLeft: `3px dashed ${p.color}`,
+                    borderRadius: 10,
+                    padding: '5px 6px',
+                  }}
+                >
+                  <div className="flex items-center gap-1 min-w-0">
+                    <Initial name={p.name} photo={p.photo} color={p.color} />
+                    <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
+                    {p.tag && (
+                      <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 min-w-0">
+                    {s.dia && <span className="font-en text-[11px] font-bold text-ink-500 truncate">{s.dia}</span>}
+                    <span
+                      className="text-[9px] font-bold px-1 rounded-pill text-ink-700 shrink-0 whitespace-nowrap"
+                      style={{ background: 'color-mix(in oklab, var(--warn) 38%, white)' }}
+                    >시간 미입력</span>
+                  </div>
+                </div>
+              )
+            }
             const top = yOf((s.day - 1) * 24 + s.start)
             const h = Math.max(MIN_CARD_H, yOf((s.day - 1) * 24 + s.end) - top)
             return (

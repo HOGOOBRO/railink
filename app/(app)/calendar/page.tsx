@@ -52,7 +52,12 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
   for (let d = 1; d <= dim; d++) {
     const e = entryOf(`${year}-${mm}-${String(d).padStart(2, '0')}`)
     if (!e || e.isOff || !e.diaNr || e.diaNr.startsWith('~(')) continue
-    if (!e.startTime || !e.endTime) continue
+    if (!e.startTime || !e.endTime) {
+      // A working day whose times weren't read (OCR miss / blank) — surface it
+      // as "시간 미입력" rather than dropping it silently.
+      out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: 0, end: 0, noTime: true })
+      continue
+    }
     const start = hmToDecimal(e.startTime)
     let end = hmToDecimal(e.endTime)
     if (end < start) end += 24
