@@ -112,7 +112,8 @@ export default function InstallGuidePage() {
         </div>
 
         {/* value-prop strip */}
-        <div className="mx-4 mt-3 mb-2 p-4 rounded-[14px] bg-brand-050 border border-brand-100">
+        {/* (no contact email — RaiLink is an independent app, not an official Korail service) */}
+        <div className="mx-4 mt-3 mb-8 p-4 rounded-[14px] bg-brand-050 border border-brand-100">
           <p className="text-[13px] font-bold text-brand-700 mb-2">설치하면 이렇게 달라져요</p>
           <ul className="flex flex-col gap-1.5 text-caption text-ink-700 leading-snug">
             {[
@@ -130,11 +131,6 @@ export default function InstallGuidePage() {
           </ul>
         </div>
 
-        <p className="px-6 pt-3.5 pb-8 text-center text-caption text-ink-500 leading-relaxed">
-          잘 안되시나요?{' '}
-          <a href="mailto:railink@korail.com" className="font-bold text-brand">railink@korail.com</a>
-          {' '}으로 알려주세요.
-        </p>
       </main>
     </div>
   )

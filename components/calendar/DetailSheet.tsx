@@ -18,6 +18,11 @@ export function DetailSheet({ date, items, onClose, onAddCompare, onEdit }: Deta
   const dow = DOW_KR[date.getDay()]
   const sheetH = workN === 0 ? '42dvh' : workN > 1 ? '82dvh' : '60dvh'
 
+  const now = new Date()
+  const isToday = date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate()
+
   return (
     <div className="flex flex-col pb-7" style={{ height: sheetH }}>
       <div className="flex items-start justify-between px-5 pt-2 pb-3">
@@ -54,7 +59,7 @@ export function DetailSheet({ date, items, onClose, onAddCompare, onEdit }: Deta
             <p className="text-[11px] font-bold text-ink-500 tracking-wider uppercase my-2 px-1">
               {workN === 1 ? '내 일정' : `비교 중 (${workN})`}
             </p>
-            <Timeline items={items} />
+            <Timeline items={items} isToday={isToday} />
             <div className="h-2.5" />
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={onEdit}>

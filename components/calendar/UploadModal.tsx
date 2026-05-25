@@ -8,6 +8,16 @@ import {
 } from '@/components/ui/icons'
 import { parseScheduleFile, type ParsedScheduleRow } from '@/lib/parse/schedule-file'
 import { recognizeScheduleImage, type OcrProgress } from '@/lib/parse/schedule-image'
+import { fmtClock, hmToDecimal, canonicalEnd, isOvernight } from '@/lib/schedule-utils'
+
+// Show overnight ends as a real next-day clock ("11:49") in the editable preview
+// instead of 24+ notation ("35:49"); the +24 is re-derived on save (see
+// normalizePreviewRows). Same-day ends are unchanged.
+function displayPreviewRows(rows: ParsedScheduleRow[]): ParsedScheduleRow[] {
+  return rows.map(r =>
+    !r.isOff && r.endTime ? { ...r, endTime: fmtClock(hmToDecimal(r.endTime)) } : r,
+  )
+}
 
 export type UploadMethod = 'file' | 'image' | 'manual'
 type Step = 'pick' | 'preview' | 'manual'
@@ -130,7 +140,9 @@ function normalizePreviewRows(rows: ParsedScheduleRow[]): ParsedScheduleRow[] {
           diaNr: row.diaNr?.trim() || undefined,
           trainNr: row.trainNr?.trim() || undefined,
           startTime: row.startTime?.trim() || undefined,
-          endTime: row.endTime?.trim() || undefined,
+          // Re-derive 24+ notation for overnight ends from the wrapped clock the
+          // user edited, so storage stays canonical even though the input showed "11:49".
+          endTime: canonicalEnd(row.startTime?.trim() || undefined, row.endTime?.trim() || undefined),
         }
 
     const filled = next.isOff || next.diaNr || next.trainNr || next.startTime || next.endTime
@@ -206,7 +218,7 @@ export function UploadModal({
 
     try {
       const parsed = await parseScheduleFile(file, defaultYear)
-      setRows(parsed)
+      setRows(displayPreviewRows(parsed))
       onPreview()
     } catch (err) {
       setError(err instanceof Error ? err.message : '파일을 읽는 중 문제가 생겼어요.')
@@ -234,7 +246,7 @@ export function UploadModal({
 
     try {
       const result = await recognizeScheduleImage(files, defaultYear, defaultMonth, setOcr)
-      setRows(result.rows)
+      setRows(displayPreviewRows(result.rows))
       setOcrText(result.text)
       const usageText = result.usage
         ? ` 이번 달 ${result.usage.used}/${result.usage.limit}회 사용.`
@@ -666,6 +678,12 @@ function PreviewBody({ rows, onChange, onRemove, onAppend }: PreviewBodyProps) {
                 className="font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
               />
             </div>
+
+            {!row.isOff && isOvernight(row.startTime, row.endTime) && (
+              <span className="mt-1.5 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-pill bg-brand-050 text-brand">
+                종료 시각은 다음날 (익일)
+              </span>
+            )}
           </div>
         ))}
       </div>

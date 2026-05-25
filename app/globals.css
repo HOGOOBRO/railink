@@ -77,6 +77,10 @@
     line-height: 24px;
     overscroll-behavior-y: none;
     min-height: 100dvh;
+    /* Korean wraps at word/phrase boundaries, not mid-syllable; overflow-wrap
+       still lets a too-long token (URL, email, code) break to avoid overflow. */
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
 
   ::selection {

@@ -20,8 +20,9 @@ type TimedItem = TimelineItem & { start: number; end: number }
 const ROW_H = 24
 const LANE_GAP = 6
 const LABEL_W = 44
+const MIN_CARD_H = 72
 
-export function Timeline({ items }: { items: TimelineItem[] }) {
+export function Timeline({ items, isToday = false }: { items: TimelineItem[]; isToday?: boolean }) {
   if (!items.length) return null
   const timed = items.filter((i): i is TimedItem => i.start != null && i.end != null)
   const untimed = items.filter(i => i.start == null || i.end == null)
@@ -29,7 +30,7 @@ export function Timeline({ items }: { items: TimelineItem[] }) {
 
   return (
     <div>
-      {timed.length > 0 && <TimedGrid items={timed} compact={compact} />}
+      {timed.length > 0 && <TimedGrid items={timed} compact={compact} isToday={isToday} />}
       {untimed.length > 0 && (
         <div className="mt-3 flex flex-col gap-2">
           {untimed.map((it, i) => (
@@ -41,13 +42,19 @@ export function Timeline({ items }: { items: TimelineItem[] }) {
   )
 }
 
-function TimedGrid({ items, compact }: { items: TimedItem[]; compact: boolean }) {
+function TimedGrid({ items, compact, isToday }: { items: TimedItem[]; compact: boolean; isToday: boolean }) {
   const minStart = Math.min(...items.map(i => i.start))
   const maxEnd = Math.max(...items.map(i => i.end))
   const minH = Math.max(0, Math.floor(minStart - 1))
   const maxH = Math.min(40, Math.ceil(maxEnd + 1))
   const totalH = (maxH - minH) * ROW_H
   const yOf = (h: number) => ((h - minH) / (maxH - minH)) * totalH
+  // A late-starting shift still renders MIN_CARD_H tall; grow the grid so the
+  // lowest card bottom stays inside it (otherwise cards spill onto the action row).
+  const gridH = Math.max(
+    totalH,
+    ...items.map(it => yOf(it.start) + Math.max(MIN_CARD_H, yOf(it.end) - yOf(it.start))),
+  )
 
   const span = maxH - minH
   const stepH = span <= 8 ? 2 : 3
@@ -56,13 +63,14 @@ function TimedGrid({ items, compact }: { items: TimedItem[]; compact: boolean })
 
   const now = new Date()
   const NOW = now.getHours() + now.getMinutes() / 60
-  const showNow = NOW >= minH && NOW <= maxH
+  // Only on today — a "now" marker is meaningless on a past/future day's sheet.
+  const showNow = isToday && NOW >= minH && NOW <= maxH
 
   const avatarPx = compact ? 16 : 18
   const padding = compact ? '5px 6px 6px' : '6px 8px 8px'
 
   return (
-    <div className="relative mt-1" style={{ height: totalH + 24, paddingLeft: LABEL_W }}>
+    <div className="relative mt-1" style={{ height: gridH + 24, paddingLeft: LABEL_W }}>
       {/* Hour grid + labels */}
       {hourTicks.map(h => (
         <div
@@ -83,7 +91,7 @@ function TimedGrid({ items, compact }: { items: TimedItem[]; compact: boolean })
       {showNow && (
         <div
           className="absolute right-0 border-t-[1.5px] border-brand opacity-50 pointer-events-none"
-          style={{ left: LABEL_W - 6, top: yOf(NOW), height: 0, zIndex: 1 }}
+          style={{ left: LABEL_W - 6, top: yOf(NOW), height: 0 }}
         >
           <span className="absolute w-2.5 h-2.5 rounded-full bg-brand" style={{ left: -6, top: -5 }} />
         </div>
@@ -93,7 +101,7 @@ function TimedGrid({ items, compact }: { items: TimedItem[]; compact: boolean })
       <div className="absolute right-0 top-0 flex" style={{ left: LABEL_W, bottom: 24, gap: LANE_GAP }}>
         {items.map((it, i) => {
           const top = yOf(it.start)
-          const h = Math.max(72, yOf(it.end) - top)
+          const h = Math.max(MIN_CARD_H, yOf(it.end) - top)
           return (
             <div key={i} className="flex-1 relative min-w-0">
               <div

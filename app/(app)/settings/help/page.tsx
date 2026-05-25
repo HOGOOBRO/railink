@@ -123,13 +123,12 @@ export default function HelpPage() {
           ))}
         </section>
 
-        {/* Contact */}
-        <section className="mt-4 px-4 py-4 rounded-lg bg-brand-050 border border-brand-100">
-          <p className="text-[13px] font-bold text-brand-700">문의가 있으신가요?</p>
-          <p className="mt-1 text-caption text-ink-700 leading-relaxed">
-            앱 개선 의견이나 오류 제보는 아래 이메일로 보내주세요.
+        {/* Independent-app disclaimer (RaiLink is not an official Korail service) */}
+        <section className="mt-4 px-4 py-4 rounded-lg bg-bg border border-line">
+          <p className="text-caption text-ink-500 leading-relaxed">
+            RaiLink는 KTX 승무팀이 자율적으로 쓰는 <strong className="text-ink-700 font-semibold">독립 앱</strong>이에요.
+            코레일의 공식 서비스가 아니며, 코레일과 제휴·후원 관계가 없어요.
           </p>
-          <p className="mt-1.5 font-en text-[13px] font-bold text-brand">railink@korail.com</p>
         </section>
       </div>
     </div>

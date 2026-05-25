@@ -15,11 +15,12 @@ export interface Colleague {
   photo?: string
 }
 
-/** Seeded "me" — the demo account (이서연). Profile email matches the
- * prototype's ME (`seoyeon.lee@korail.com`, shown in the menu sheet). */
+/** Seeded "me" — the demo account (이서연). Uses an @railink.app address:
+ * RaiLink is an independent app, so demo data must not imply a @korail.com
+ * (official Korail) identity. */
 export const DEMO_ME = {
   uid: 'demo-me-001',
-  email: 'seoyeon.lee@korail.com',
+  email: 'seoyeon.lee@railink.app',
   pw: 'demo1234',
   name: '이서연',
   employeeId: '110512',
@@ -31,24 +32,24 @@ export const DEMO_ME = {
  * These alias to the DEMO_ME account at sign-in (prototype parity:
  * the prototype's login card shows these, the menu shows the real email). */
 export const DEMO_LOGIN = {
-  email: 'demo.minjun@korail.demo',
+  email: 'demo.minjun@railink.app',
   pw: 'demo1234',
 } as const
 
 /** Demo colleagues (search directory). Half intentionally have no photo. */
 export const DEMO_COLLEAGUES: Colleague[] = [
-  { uid: 'u1',  name: '김민준', employeeId: '102204', office: '서울 · B',  email: 'demo.minjun@korail.demo', photo: '/avatars/avatar-1.svg' },
-  { uid: 'u2',  name: '박지호', employeeId: '108839', office: '서울 · A',  email: 'demo.jiho@korail.demo',   photo: '/avatars/avatar-6.svg' },
-  { uid: 'u3',  name: '최예진', employeeId: '113207', office: '광명 · B',  email: 'demo.yejin@korail.demo' },
-  { uid: 'u4',  name: '정도윤', employeeId: '105621', office: '서울 · C',  email: 'demo.doyoon@korail.demo', photo: '/avatars/avatar-4.svg' },
-  { uid: 'u5',  name: '한가람', employeeId: '120044', office: '부산 · B',  email: 'demo.garam@korail.demo' },
-  { uid: 'u6',  name: '오수빈', employeeId: '117788', office: '대전 · A',  email: 'demo.subin@korail.demo',  photo: '/avatars/avatar-9.svg' },
-  { uid: 'u7',  name: '윤하늘', employeeId: '123456', office: '동대구 · B', email: 'demo.haneul@korail.demo' },
-  { uid: 'u8',  name: '강예나', employeeId: '129002', office: '서울 · B',  email: 'demo.yena@korail.demo',   photo: '/avatars/avatar-8.svg' },
-  { uid: 'u9',  name: '문지원', employeeId: '104871', office: '광명 · A',  email: 'demo.jiwon@korail.demo' },
-  { uid: 'u10', name: '서가온', employeeId: '118330', office: '부산 · C',  email: 'demo.gaon@korail.demo',   photo: '/avatars/avatar-11.svg' },
-  { uid: 'u11', name: '장태리', employeeId: '127015', office: '대전 · B',  email: 'demo.taeri@korail.demo' },
-  { uid: 'u12', name: '임도하', employeeId: '116602', office: '서울 · A',  email: 'demo.doha@korail.demo',   photo: '/avatars/avatar-12.svg' },
+  { uid: 'u1',  name: '김민준', employeeId: '102204', office: '서울 · B',  email: 'demo.minjun@railink.app', photo: '/avatars/avatar-1.svg' },
+  { uid: 'u2',  name: '박지호', employeeId: '108839', office: '서울 · A',  email: 'demo.jiho@railink.app',   photo: '/avatars/avatar-6.svg' },
+  { uid: 'u3',  name: '최예진', employeeId: '113207', office: '광명 · B',  email: 'demo.yejin@railink.app' },
+  { uid: 'u4',  name: '정도윤', employeeId: '105621', office: '서울 · C',  email: 'demo.doyoon@railink.app', photo: '/avatars/avatar-4.svg' },
+  { uid: 'u5',  name: '한가람', employeeId: '120044', office: '부산 · B',  email: 'demo.garam@railink.app' },
+  { uid: 'u6',  name: '오수빈', employeeId: '117788', office: '대전 · A',  email: 'demo.subin@railink.app',  photo: '/avatars/avatar-9.svg' },
+  { uid: 'u7',  name: '윤하늘', employeeId: '123456', office: '동대구 · B', email: 'demo.haneul@railink.app' },
+  { uid: 'u8',  name: '강예나', employeeId: '129002', office: '서울 · B',  email: 'demo.yena@railink.app',   photo: '/avatars/avatar-8.svg' },
+  { uid: 'u9',  name: '문지원', employeeId: '104871', office: '광명 · A',  email: 'demo.jiwon@railink.app' },
+  { uid: 'u10', name: '서가온', employeeId: '118330', office: '부산 · C',  email: 'demo.gaon@railink.app',   photo: '/avatars/avatar-11.svg' },
+  { uid: 'u11', name: '장태리', employeeId: '127015', office: '대전 · B',  email: 'demo.taeri@railink.app' },
+  { uid: 'u12', name: '임도하', employeeId: '116602', office: '서울 · A',  email: 'demo.doha@railink.app',   photo: '/avatars/avatar-12.svg' },
 ]
 
 const DIAS = ['H1055', 'H1G37', 'H1130', 'H1091', 'H1048', 'H1007', 'H1082', 'H1071', 'H1095']

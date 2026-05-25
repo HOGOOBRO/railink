@@ -45,3 +45,27 @@ export function fmtClock(h: number): string {
   const mm = Math.round((dayH - hh) * 60)
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
 }
+
+/** Decimal hour → "HH:MM" WITHOUT wrapping (HH may exceed 24 = 익일 종료).
+ * The canonical storage form for an overnight end (e.g. 35.82 → "35:49"). */
+export function fmtHM(h: number): string {
+  const hh = Math.floor(h)
+  const mm = Math.round((h - hh) * 60)
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+}
+
+/** True when end lands on the next day (end clock earlier than start clock). */
+export function isOvernight(startTime?: string, endTime?: string): boolean {
+  if (!startTime || !endTime) return false
+  const e = hmToDecimal(endTime) % 24
+  return e < hmToDecimal(startTime) % 24
+}
+
+/** Canonical overnight-aware end string from possibly-wrapped user input:
+ * same-day → "HH:MM", 익일 → 24+ notation ("35:49"). */
+export function canonicalEnd(startTime?: string, endTime?: string): string | undefined {
+  if (!endTime) return undefined
+  const eBase = hmToDecimal(endTime) % 24
+  if (!startTime) return fmtHM(eBase)
+  return fmtHM(eBase < hmToDecimal(startTime) % 24 ? eBase + 24 : eBase)
+}
