@@ -14,7 +14,7 @@ import { DetailSheet } from '@/components/calendar/DetailSheet'
 import { MenuSheet } from '@/components/calendar/MenuSheet'
 import { SearchOverlay } from '@/components/calendar/SearchOverlay'
 import { UploadModal } from '@/components/calendar/UploadModal'
-import type { TimelineItem } from '@/components/calendar/Timeline'
+import type { MonthPerson, MonthShift } from '@/components/calendar/MonthTimeline'
 import { getCurrentSession, logout, type Session } from '@/lib/auth'
 import {
   getMonthSchedules,
@@ -41,23 +41,24 @@ import type { CompareEntry, CompareColor, ScheduleEntry } from '@/lib/types/sche
 const BRAND = 'var(--brand)'
 const cssColor = (c: CompareColor) => `var(--${c})`
 
-// Time-related TimelineItem fields from a schedule entry, handling overnight
-// (박차) shifts whether the end was stored as a next-day clock ("08:31") or 24+
-// notation ("32:31"). A continuation row (diaNr like "~(H1048)") is the morning
-// tail of yesterday's shift: place it from midnight to its real end and flag it
-// `continued` so the card reads "어제 21:38 → 11:49 종료 · 연속".
-function timeFields(e: ScheduleEntry): Partial<TimelineItem> {
-  const isCont = !!e.diaNr && e.diaNr.startsWith('~(')
-  const dia = isCont ? e.diaNr!.replace(/^~\(|\)$/g, '') : e.diaNr
-  const startD = e.startTime ? hmToDecimal(e.startTime) : undefined
-  let endD = e.endTime ? hmToDecimal(e.endTime) : undefined
-  // Overnight = end clock earlier than start ⇒ it lands on the next day.
-  if (startD != null && endD != null && endD < startD) endD += 24
-  if (isCont && startD != null && endD != null) {
-    const morningEnd = endD > 24 ? endD - 24 : endD
-    return { dia, trainNr: e.trainNr, start: 0, end: morningEnd, continued: true, contStart: startD }
+// One person's working shifts across the month, for the continuous timeline.
+// Overnight (박차) is normalized to a 24+ end (end clock earlier than start),
+// and continuation rows ("~(H1048)") are dropped — the start-day card spans the
+// midnight divider instead of being duplicated on the next day.
+function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: number, month: number): MonthShift[] {
+  const dim = new Date(year, month, 0).getDate()
+  const mm = String(month).padStart(2, '0')
+  const out: MonthShift[] = []
+  for (let d = 1; d <= dim; d++) {
+    const e = entryOf(`${year}-${mm}-${String(d).padStart(2, '0')}`)
+    if (!e || e.isOff || !e.diaNr || e.diaNr.startsWith('~(')) continue
+    if (!e.startTime || !e.endTime) continue
+    const start = hmToDecimal(e.startTime)
+    let end = hmToDecimal(e.endTime)
+    if (end < start) end += 24
+    out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start, end })
   }
-  return { dia, trainNr: e.trainNr, start: startD, end: endD }
+  return out
 }
 
 export default function CalendarPage() {
@@ -196,24 +197,22 @@ export default function CalendarPage() {
   }, [weeks, myByDate, compares, compareByDate])
 
   // Timeline items for the selected date.
-  // Items for any day — the detail sheet scrolls continuously through the month
-  // and calls this per day.
-  const itemsForDate = useCallback((d: Date): TimelineItem[] => {
+  // People (columns) with their month-long shifts — fed to the continuous
+  // timeline so overnight shifts span the midnight divider as one card.
+  const monthPeople = useMemo<MonthPerson[]>(() => {
     if (!session) return []
-    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    const out: TimelineItem[] = []
-    const mine = myByDate.get(iso)
-    if (mine && !mine.isOff) {
-      out.push({ color: BRAND, name: session.name, tag: '나', photo: session.photo, ...timeFields(mine) })
-    }
+    const ppl: MonthPerson[] = [{
+      color: BRAND, name: session.name, tag: '나', photo: session.photo,
+      shifts: monthShifts(iso => myByDate.get(iso), year, month),
+    }]
     for (const c of compares) {
-      const e = compareByDate.get(c.uid)?.get(iso)
-      if (e && !e.isOff) {
-        out.push({ color: cssColor(c.color), name: c.name, photo: c.photo, ...timeFields(e) })
-      }
+      ppl.push({
+        color: cssColor(c.color), name: c.name, photo: c.photo,
+        shifts: monthShifts(iso => compareByDate.get(c.uid)?.get(iso), year, month),
+      })
     }
-    return out
-  }, [session, compares, myByDate, compareByDate])
+    return ppl
+  }, [session, compares, myByDate, compareByDate, year, month])
 
   const closeOverlays = useCallback(() => {
     setDetailOpen(false); setSearchOpen(false); setUploadOpen(false); setMenuOpen(false)
@@ -467,7 +466,7 @@ export default function CalendarPage() {
             year={year}
             month={month}
             today={today}
-            itemsForDate={itemsForDate}
+            people={monthPeople}
             onClose={() => setDetailOpen(false)}
             onAddCompare={openSearch}
             onEdit={openManualEdit}
