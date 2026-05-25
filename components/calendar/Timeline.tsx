@@ -2,7 +2,6 @@
 /* Time-grid timeline with one column (LANE) per person, time on the vertical
  * axis. start/end are decimal hours; end may exceed 24 for 익일 종료. Items
  * without times render as separate "시간 미입력" cards below the grid. */
-import { useState } from 'react'
 import { toInitials } from '@/components/ui/Avatar'
 import { fmtClock } from '@/lib/schedule-utils'
 
@@ -24,10 +23,13 @@ type TimedItem = TimelineItem & { start: number; end: number }
 const ROW_H = 24
 const LANE_GAP = 6
 const LABEL_W = 44
-const MIN_CARD_H = 72
-// Side-by-side lanes get cramped fast; cap how many share the grid and move the
-// rest into a tap-to-expand list so diagram codes / times never truncate.
-const MAX_LANES = 4
+// Tall enough to hold the full card (name + dia + start/↓/end + train) without
+// clipping a short shift; lanes grow the grid to fit (see gridH).
+const MIN_CARD_H = 118
+// Each lane keeps a minimum width so diagram codes / times / train numbers never
+// truncate; when there are many people the lanes overflow and scroll sideways
+// (swipe right to see everyone).
+const MIN_LANE = 104
 
 // Train numbers arrive from OCR/files in mixed forms ("55 44", "55 · 44",
 // "55,44"); normalize to one " · "-joined form so every card reads the same.
@@ -36,32 +38,13 @@ function prettyTrain(s: string): string {
 }
 
 export function Timeline({ items, isToday = false }: { items: TimelineItem[]; isToday?: boolean }) {
-  const [showOverflow, setShowOverflow] = useState(false)
   if (!items.length) return null
   const timed = items.filter((i): i is TimedItem => i.start != null && i.end != null)
   const untimed = items.filter(i => i.start == null || i.end == null)
-  const laneTimed = timed.slice(0, MAX_LANES)
-  const overflow = timed.slice(MAX_LANES)
 
   return (
     <div>
-      {laneTimed.length > 0 && <TimedGrid items={laneTimed} compact={laneTimed.length > 1} isToday={isToday} />}
-
-      {overflow.length > 0 && (
-        <div className="mt-2.5">
-          <button
-            onClick={() => setShowOverflow(v => !v)}
-            className="w-full h-9 rounded-md bg-bg text-callout font-semibold text-ink-700 active:scale-[.99]"
-          >
-            {showOverflow ? '접기' : `+${overflow.length}명 더 보기`}
-          </button>
-          {showOverflow && (
-            <div className="mt-2 flex flex-col gap-2">
-              {overflow.map((it, i) => <CompactRow key={`o${i}`} item={it} />)}
-            </div>
-          )}
-        </div>
-      )}
+      {timed.length > 0 && <TimedGrid items={timed} compact={timed.length > 1} isToday={isToday} />}
 
       {untimed.length > 0 && (
         <div className="mt-3 flex flex-col gap-2">
@@ -129,15 +112,16 @@ function TimedGrid({ items, compact, isToday }: { items: TimedItem[]; compact: b
         </div>
       )}
 
-      {/* Lanes — one column per person (capped at MAX_LANES, so they fit width). */}
-      <div className="absolute right-0 top-0 flex" style={{ left: LABEL_W, bottom: 24, gap: LANE_GAP }}>
+      {/* Lanes — one column per person; many people overflow and scroll sideways
+          (swipe right to see everyone). */}
+      <div className="absolute right-0 top-0 flex overflow-x-auto" style={{ left: LABEL_W, bottom: 24, gap: LANE_GAP }}>
         {items.map((it, i) => {
           const top = yOf(it.start)
           const h = Math.max(MIN_CARD_H, yOf(it.end) - top)
           return (
-            <div key={i} className="flex-1 relative min-w-0">
+            <div key={i} className="relative min-w-0" style={{ flex: `1 0 ${MIN_LANE}px` }}>
               <div
-                className="absolute left-0 right-0 flex flex-col gap-1 overflow-hidden"
+                className="absolute left-0 right-0 flex flex-col gap-1 overflow-hidden leading-tight"
                 style={{
                   top,
                   height: h,
@@ -241,42 +225,6 @@ function UntimedCard({ item }: { item: TimelineItem }) {
         </span>
       )}
       <span className="ml-auto text-[11px] text-ink-500 shrink-0">시간 미입력</span>
-    </div>
-  )
-}
-
-// Compact one-line card for people beyond MAX_LANES (revealed by "+N명 더 보기").
-function CompactRow({ item }: { item: TimedItem }) {
-  const timeText = item.continued
-    ? `어제 ${fmtClock(item.contStart ?? 0)} → ${fmtClock(item.end)} 종료`
-    : `${fmtClock(item.start)}–${fmtClock(item.end)}${item.end > 24 ? ' 익일' : ''}`
-  return (
-    <div
-      className="flex items-center gap-2 rounded-[10px] px-3 py-2.5 min-w-0"
-      style={{
-        background: `color-mix(in oklab, ${item.color} 12%, white)`,
-        boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${item.color} 30%, white)`,
-        borderLeft: `3px solid ${item.color}`,
-      }}
-    >
-      <TinyAvatar name={item.name} photo={item.photo} color={item.color} px={18} />
-      <span className="font-bold text-[12px] text-ink-900 truncate">{item.name}</span>
-      {item.tag && (
-        <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{item.tag}</span>
-      )}
-      {item.continued && (
-        <span
-          className="text-[9px] font-bold px-1 rounded-pill text-ink-700 shrink-0 whitespace-nowrap"
-          style={{ background: 'color-mix(in oklab, var(--warn) 28%, white)' }}
-        >연속</span>
-      )}
-      {item.dia && (
-        <span
-          className="font-en text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs whitespace-nowrap shrink-0"
-          style={{ color: item.color }}
-        >{item.dia}</span>
-      )}
-      <span className="ml-auto font-en text-[11px] font-semibold text-ink-700 shrink-0 whitespace-nowrap">{timeText}</span>
     </div>
   )
 }

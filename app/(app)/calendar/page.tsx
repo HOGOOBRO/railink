@@ -41,25 +41,23 @@ import type { CompareEntry, CompareColor, ScheduleEntry } from '@/lib/types/sche
 const BRAND = 'var(--brand)'
 const cssColor = (c: CompareColor) => `var(--${c})`
 
-// Time-related TimelineItem fields from a schedule entry. An overnight
-// continuation row (diaNr like "~(H1048)") is the morning tail of yesterday's
-// shift, so place it from midnight to its real end (end−24) and flag it
-// `continued` so the card reads "어제부터 이어짐" instead of a bare "~(…)".
+// Time-related TimelineItem fields from a schedule entry, handling overnight
+// (박차) shifts whether the end was stored as a next-day clock ("08:31") or 24+
+// notation ("32:31"). A continuation row (diaNr like "~(H1048)") is the morning
+// tail of yesterday's shift: place it from midnight to its real end and flag it
+// `continued` so the card reads "어제 21:38 → 11:49 종료 · 연속".
 function timeFields(e: ScheduleEntry): Partial<TimelineItem> {
-  const startD = e.startTime ? hmToDecimal(e.startTime) : undefined
-  const endD = e.endTime ? hmToDecimal(e.endTime) : undefined
   const isCont = !!e.diaNr && e.diaNr.startsWith('~(')
-  if (isCont && startD != null && endD != null && endD > 24) {
-    return {
-      dia: e.diaNr!.replace(/^~\(|\)$/g, ''),
-      trainNr: e.trainNr,
-      start: 0,
-      end: endD - 24,
-      continued: true,
-      contStart: startD,
-    }
+  const dia = isCont ? e.diaNr!.replace(/^~\(|\)$/g, '') : e.diaNr
+  const startD = e.startTime ? hmToDecimal(e.startTime) : undefined
+  let endD = e.endTime ? hmToDecimal(e.endTime) : undefined
+  // Overnight = end clock earlier than start ⇒ it lands on the next day.
+  if (startD != null && endD != null && endD < startD) endD += 24
+  if (isCont && startD != null && endD != null) {
+    const morningEnd = endD > 24 ? endD - 24 : endD
+    return { dia, trainNr: e.trainNr, start: 0, end: morningEnd, continued: true, contStart: startD }
   }
-  return { dia: e.diaNr, trainNr: e.trainNr, start: startD, end: endD }
+  return { dia, trainNr: e.trainNr, start: startD, end: endD }
 }
 
 export default function CalendarPage() {
@@ -198,9 +196,11 @@ export default function CalendarPage() {
   }, [weeks, myByDate, compares, compareByDate])
 
   // Timeline items for the selected date.
-  const detailItems = useMemo<TimelineItem[]>(() => {
-    if (!selectedDate || !session) return []
-    const iso = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
+  // Items for any day — the detail sheet scrolls continuously through the month
+  // and calls this per day.
+  const itemsForDate = useCallback((d: Date): TimelineItem[] => {
+    if (!session) return []
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     const out: TimelineItem[] = []
     const mine = myByDate.get(iso)
     if (mine && !mine.isOff) {
@@ -213,7 +213,7 @@ export default function CalendarPage() {
       }
     }
     return out
-  }, [selectedDate, session, compares, myByDate, compareByDate])
+  }, [session, compares, myByDate, compareByDate])
 
   const closeOverlays = useCallback(() => {
     setDetailOpen(false); setSearchOpen(false); setUploadOpen(false); setMenuOpen(false)
@@ -230,22 +230,6 @@ export default function CalendarPage() {
     if (month === 12) { setYear(y => y + 1); setMonth(1) } else setMonth(m => m + 1)
   }
   function goToday() { setYear(today.getFullYear()); setMonth(today.getMonth() + 1) }
-
-  // Detail-sheet day navigation (swipe / chevrons). Capped to the visible month
-  // for now — crossing a month boundary would need that month's data loaded.
-  const daysThisMonth = new Date(year, month, 0).getDate()
-  const selDay = selectedDate?.getDate() ?? 0
-  const canPrevDay = !!selectedDate && selDay > 1
-  const canNextDay = !!selectedDate && selDay < daysThisMonth
-  function goRelativeDay(delta: number) {
-    if (!selectedDate) return
-    const d = selectedDate.getDate() + delta
-    if (d < 1 || d > daysThisMonth) {
-      showToast('이전·다음 달 일정은 달력에서 이동해 주세요.')
-      return
-    }
-    setSelectedDate(new Date(year, month - 1, d))
-  }
 
   function toggleCompare(uid: string) {
     if (!session) return
@@ -480,14 +464,13 @@ export default function CalendarPage() {
         {selectedDate && (
           <DetailSheet
             date={selectedDate}
-            items={detailItems}
+            year={year}
+            month={month}
+            today={today}
+            itemsForDate={itemsForDate}
             onClose={() => setDetailOpen(false)}
             onAddCompare={openSearch}
             onEdit={openManualEdit}
-            onPrevDay={() => goRelativeDay(-1)}
-            onNextDay={() => goRelativeDay(1)}
-            canPrevDay={canPrevDay}
-            canNextDay={canNextDay}
           />
         )}
       </BottomSheet>

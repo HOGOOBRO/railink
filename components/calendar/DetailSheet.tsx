@@ -1,128 +1,102 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/Button'
-import {
-  CloseIcon, PlusIcon, EditIcon, BrandMark, ChevronLeftIcon, ChevronRightIcon,
-} from '@/components/ui/icons'
+import { CloseIcon, PlusIcon, EditIcon } from '@/components/ui/icons'
 import { Timeline, type TimelineItem } from './Timeline'
 import { DOW_KR } from '@/lib/schedule-utils'
 
 interface DetailSheetProps {
-  date: Date
-  items: TimelineItem[]
+  date: Date                                  // day to open scrolled to
+  year: number
+  month: number                               // 1-12
+  today: Date
+  itemsForDate: (d: Date) => TimelineItem[]
   onClose: () => void
   onAddCompare: () => void
   onEdit: () => void
-  onPrevDay?: () => void
-  onNextDay?: () => void
-  canPrevDay?: boolean
-  canNextDay?: boolean
 }
 
+function sameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate()
+}
+
+// Continuous month view: every day stacks vertically and scrolls (swipe up/down
+// to move through days); within a day, lanes scroll sideways (swipe right to see
+// everyone). Opens scrolled to the tapped day.
 export function DetailSheet({
-  date, items, onClose, onAddCompare, onEdit,
-  onPrevDay, onNextDay, canPrevDay, canNextDay,
+  date, year, month, today, itemsForDate, onClose, onAddCompare, onEdit,
 }: DetailSheetProps) {
-  const workN = items.length
-  const dow = DOW_KR[date.getDay()]
-  const sheetH = workN === 0 ? '42dvh' : workN > 1 ? '82dvh' : '60dvh'
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const selectedRef = useRef<HTMLDivElement>(null)
 
-  const now = new Date()
-  const isToday = date.getFullYear() === now.getFullYear()
-    && date.getMonth() === now.getMonth()
-    && date.getDate() === now.getDate()
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      if (scrollRef.current && selectedRef.current) {
+        scrollRef.current.scrollTop = selectedRef.current.offsetTop
+      }
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [])
 
-  // Horizontal swipe → previous/next day. Decide on release: only act when the
-  // gesture is horizontal-dominant and past a threshold, so vertical scrolling
-  // through a long timeline isn't hijacked.
-  const swipeStart = useRef<{ x: number; y: number } | null>(null)
-  const onPointerDown = (e: React.PointerEvent) => { swipeStart.current = { x: e.clientX, y: e.clientY } }
-  const onPointerUp = (e: React.PointerEvent) => {
-    const s = swipeStart.current
-    swipeStart.current = null
-    if (!s) return
-    const dx = e.clientX - s.x
-    const dy = e.clientY - s.y
-    if (Math.abs(dx) < 60 || Math.abs(dx) <= Math.abs(dy)) return
-    if (dx < 0) onNextDay?.()
-    else onPrevDay?.()
-  }
+  const dim = new Date(year, month, 0).getDate()
+  const days = Array.from({ length: dim }, (_, i) => i + 1)
 
   return (
-    <div className="flex flex-col" style={{ height: sheetH }} onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
-      <div className="flex items-center justify-between px-3 pt-2 pb-3 shrink-0">
-        <div className="flex items-center gap-0.5 min-w-0">
-          <button
-            onClick={onPrevDay}
-            disabled={!canPrevDay}
-            aria-label="전날"
-            className="w-9 h-9 grid place-items-center rounded-full text-ink-700 disabled:opacity-25 shrink-0"
-          >
-            <ChevronLeftIcon size={20} />
-          </button>
-          <div className="min-w-0 px-1">
-            <h3 className="text-title font-bold tracking-tighter text-ink-900 whitespace-nowrap">
-              {date.getMonth() + 1}월 {date.getDate()}일{' '}
-              <span className="text-ink-500 font-medium">{dow}</span>
-            </h3>
-            <p className="text-caption text-ink-500 mt-0.5">근무 {workN}명</p>
-          </div>
-          <button
-            onClick={onNextDay}
-            disabled={!canNextDay}
-            aria-label="다음날"
-            className="w-9 h-9 grid place-items-center rounded-full text-ink-700 disabled:opacity-25 shrink-0"
-          >
-            <ChevronRightIcon size={20} />
-          </button>
-        </div>
+    <div className="flex flex-col" style={{ height: '88dvh' }}>
+      <div className="flex items-center justify-between px-5 pt-2 pb-2 shrink-0 border-b border-line">
+        <h3 className="text-title font-bold tracking-tighter text-ink-900">{month}월</h3>
         <button
           onClick={onClose}
           aria-label="닫기"
-          className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700 shrink-0"
+          className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
         >
           <CloseIcon size={18} />
         </button>
       </div>
 
-      <div className="px-4 pb-4 flex-1 overflow-y-auto">
-        {workN === 0 ? (
-          <div className="py-10 px-6 text-center text-callout text-ink-500">
-            <div className="w-12 h-12 rounded-lg bg-bg mx-auto mb-2.5 grid place-items-center text-ink-500">
-              <BrandMark size={20} />
+      <div ref={scrollRef} className="relative flex-1 overflow-y-auto">
+        {days.map(d => {
+          const dDate = new Date(year, month - 1, d)
+          const items = itemsForDate(dDate)
+          const selected = sameDay(dDate, date)
+          return (
+            <div key={d} ref={selected ? selectedRef : undefined}>
+              <div className="sticky top-0 z-10 flex items-baseline gap-2 px-5 py-2 border-b border-line bg-surface/95 backdrop-blur-sm">
+                <h4 className="text-[17px] font-bold tracking-tight text-ink-900">
+                  {month}월 {d}일{' '}
+                  <span className="text-ink-500 font-medium">{DOW_KR[dDate.getDay()]}</span>
+                </h4>
+                <span className="text-caption text-ink-500">
+                  {items.length ? `근무 ${items.length}명` : '근무 없음'}
+                </span>
+              </div>
+              <div className="px-4 py-3">
+                {items.length > 0
+                  ? <Timeline items={items} isToday={sameDay(dDate, today)} />
+                  : <p className="px-1 py-1.5 text-caption text-ink-300">등록된 근무가 없어요.</p>}
+              </div>
             </div>
-            이날 등록된 비교 동료의 일정이 없어요.
-            <div className="h-3" />
-            <Button variant="soft" size="sm" onClick={onAddCompare}>
-              <PlusIcon size={14} /> 동료 비교 추가
-            </Button>
-          </div>
-        ) : (
-          <>
-            <p className="text-[11px] font-bold text-ink-500 tracking-wider uppercase my-2 px-1">
-              {workN === 1 ? '내 일정' : `비교 중 (${workN})`}
-            </p>
-            <Timeline items={items} isToday={isToday} />
-          </>
-        )}
+          )
+        })}
+        <div className="h-4" />
       </div>
 
-      {/* Sticky action bar — pinned so timeline cards never overlap it */}
-      {workN > 0 && (
-        <div
-          className="shrink-0 flex items-center gap-2 px-4 pt-3 border-t border-line bg-surface"
-          style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}
-        >
-          <Button variant="outline" size="sm" onClick={onEdit}>
-            <EditIcon size={14} /> 일정 수정
-          </Button>
-          <div className="flex-1" />
-          <Button variant="soft" size="sm" onClick={onAddCompare}>
-            <PlusIcon size={14} /> 동료 비교 추가
-          </Button>
-        </div>
-      )}
+      {/* Sticky action bar */}
+      <div
+        className="shrink-0 flex items-center gap-2 px-4 pt-3 border-t border-line bg-surface"
+        style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}
+      >
+        <Button variant="outline" size="sm" onClick={onEdit}>
+          <EditIcon size={14} /> 일정 수정
+        </Button>
+        <div className="flex-1" />
+        <Button variant="soft" size="sm" onClick={onAddCompare}>
+          <PlusIcon size={14} /> 동료 비교 추가
+        </Button>
+      </div>
     </div>
   )
 }
