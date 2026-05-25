@@ -60,7 +60,7 @@ export function DetailSheet({
         </button>
       </div>
 
-      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto">
+      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto overscroll-y-contain">
         {people.some(p => p.shifts.length > 0)
           ? <MonthTimeline people={people} year={year} month={month} today={today} />
           : <p className="px-5 py-12 text-center text-callout text-ink-500">비교 중인 일정이 없어요.</p>}

@@ -20,12 +20,12 @@ export interface MonthPerson {
   shifts: MonthShift[]
 }
 
-const PXH = 18           // pixels per hour
+const PXH = 12              // pixels per hour (compact so the month isn't endless)
 export const DAY_PX = 24 * PXH
-const LABEL_W = 46
+const LABEL_W = 44
 const LANE_GAP = 6
 const MIN_COL = 116
-const MIN_CARD_H = 110
+const MIN_CARD_H = 80
 const DOW = ['일', '월', '화', '수', '목', '금', '토']
 
 export function MonthTimeline({
@@ -35,27 +35,27 @@ export function MonthTimeline({
   const monthH = dim * DAY_PX
   const yOf = (absHour: number) => absHour * PXH
   const todayDay = today.getFullYear() === year && today.getMonth() === month - 1 ? today.getDate() : -1
-
   const dayList = Array.from({ length: dim }, (_, i) => i + 1)
 
   return (
-    <div className="relative" style={{ height: monthH, paddingLeft: LABEL_W }}>
-      {/* midnight day-dividers + date label in the gutter */}
+    <div className="relative" style={{ height: monthH }}>
+      {/* gridlines (right of the gutter so the date labels never collide with them) */}
       {dayList.map(d => (
-        <div key={d} className="absolute left-0 right-0 border-t border-line-2" style={{ top: yOf((d - 1) * 24) }}>
-          <div
-            className={`absolute left-1 -top-1 leading-none font-en ${d === todayDay ? 'text-brand' : 'text-ink-500'}`}
-            style={{ width: LABEL_W - 8 }}
-          >
-            <div className="text-[13px] font-bold">{d}</div>
-            <div className="text-[10px] font-semibold">{DOW[new Date(year, month - 1, d).getDay()]}</div>
-          </div>
+        <div key={d}>
+          <div className="absolute border-t border-line-2" style={{ left: LABEL_W, right: 0, top: yOf((d - 1) * 24) }} />
+          <div className="absolute border-t border-dashed border-line" style={{ left: LABEL_W, right: 0, top: yOf((d - 1) * 24 + 12) }} />
         </div>
       ))}
-      {/* faint noon reference per day */}
+
+      {/* date labels in the gutter, vertically centred on each midnight line */}
       {dayList.map(d => (
-        <div key={`n${d}`} className="absolute left-0 right-0 border-t border-dashed border-line" style={{ top: yOf((d - 1) * 24 + 12) }}>
-          <span className="absolute left-1 -top-2 font-en text-[9px] text-ink-300">12:00</span>
+        <div
+          key={`l${d}`}
+          className={`absolute left-0 flex flex-col items-center leading-none font-en ${d === todayDay ? 'text-brand' : 'text-ink-500'}`}
+          style={{ width: LABEL_W, top: yOf((d - 1) * 24) - 9 }}
+        >
+          <span className="text-[13px] font-bold">{d}</span>
+          <span className="text-[10px] font-semibold">{DOW[new Date(year, month - 1, d).getDay()]}</span>
         </div>
       ))}
 
@@ -70,7 +70,7 @@ export function MonthTimeline({
                 return (
                   <div
                     key={si}
-                    className="absolute left-0 right-0 flex flex-col gap-1 overflow-hidden leading-tight"
+                    className="absolute left-0 right-0 flex flex-col justify-between overflow-hidden leading-tight"
                     style={{
                       top, height: h,
                       background: `color-mix(in oklab, ${p.color} 12%, white)`,
@@ -80,28 +80,31 @@ export function MonthTimeline({
                       padding: '5px 6px 6px',
                     }}
                   >
-                    <div className="flex items-center gap-1 min-w-0">
-                      <Initial name={p.name} photo={p.photo} color={p.color} />
-                      <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
-                      {p.tag && (
-                        <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>
+                    {/* top: who + dia + start (aligns near the card's top = start time) */}
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <Initial name={p.name} photo={p.photo} color={p.color} />
+                        <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
+                        {p.tag && (
+                          <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>
+                        )}
+                      </div>
+                      {s.dia && (
+                        <div className="font-en text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>
+                          {s.dia}
+                        </div>
+                      )}
+                      <span className="font-en text-[11px] font-bold text-ink-900">{fmtClock(s.start)}</span>
+                    </div>
+                    {/* bottom: end time + train (aligns near the card's bottom = end time) */}
+                    <div className="flex items-end justify-between gap-1 min-w-0">
+                      <span className="font-en text-[11px] font-bold text-ink-900">↓ {fmtClock(s.end)}</span>
+                      {s.trainNr && (
+                        <span className="font-en text-[10px] font-bold text-ink-700 px-1.5 py-0.5 bg-bg rounded-xs truncate">
+                          {prettyTrain(s.trainNr)}
+                        </span>
                       )}
                     </div>
-                    {s.dia && (
-                      <div className="font-en text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>
-                        {s.dia}
-                      </div>
-                    )}
-                    <div className="font-en text-[11px] font-semibold flex flex-col gap-px">
-                      <span className="text-ink-900 font-bold">{fmtClock(s.start)}</span>
-                      <span className="text-ink-500">↓</span>
-                      <span className="text-ink-900 font-bold">{fmtClock(s.end)}</span>
-                    </div>
-                    {s.trainNr && (
-                      <div className="mt-auto font-en text-[10px] font-bold text-ink-700 px-1.5 py-0.5 bg-bg rounded-xs self-start truncate max-w-full">
-                        {prettyTrain(s.trainNr)}
-                      </div>
-                    )}
                   </div>
                 )
               })}
