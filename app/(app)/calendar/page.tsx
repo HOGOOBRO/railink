@@ -231,6 +231,22 @@ export default function CalendarPage() {
   }
   function goToday() { setYear(today.getFullYear()); setMonth(today.getMonth() + 1) }
 
+  // Detail-sheet day navigation (swipe / chevrons). Capped to the visible month
+  // for now — crossing a month boundary would need that month's data loaded.
+  const daysThisMonth = new Date(year, month, 0).getDate()
+  const selDay = selectedDate?.getDate() ?? 0
+  const canPrevDay = !!selectedDate && selDay > 1
+  const canNextDay = !!selectedDate && selDay < daysThisMonth
+  function goRelativeDay(delta: number) {
+    if (!selectedDate) return
+    const d = selectedDate.getDate() + delta
+    if (d < 1 || d > daysThisMonth) {
+      showToast('이전·다음 달 일정은 달력에서 이동해 주세요.')
+      return
+    }
+    setSelectedDate(new Date(year, month - 1, d))
+  }
+
   function toggleCompare(uid: string) {
     if (!session) return
     const existing = compares.find(c => c.uid === uid)
@@ -468,6 +484,10 @@ export default function CalendarPage() {
             onClose={() => setDetailOpen(false)}
             onAddCompare={openSearch}
             onEdit={openManualEdit}
+            onPrevDay={() => goRelativeDay(-1)}
+            onNextDay={() => goRelativeDay(1)}
+            canPrevDay={canPrevDay}
+            canNextDay={canNextDay}
           />
         )}
       </BottomSheet>
