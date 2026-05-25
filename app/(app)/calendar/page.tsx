@@ -41,6 +41,27 @@ import type { CompareEntry, CompareColor, ScheduleEntry } from '@/lib/types/sche
 const BRAND = 'var(--brand)'
 const cssColor = (c: CompareColor) => `var(--${c})`
 
+// Time-related TimelineItem fields from a schedule entry. An overnight
+// continuation row (diaNr like "~(H1048)") is the morning tail of yesterday's
+// shift, so place it from midnight to its real end (end−24) and flag it
+// `continued` so the card reads "어제부터 이어짐" instead of a bare "~(…)".
+function timeFields(e: ScheduleEntry): Partial<TimelineItem> {
+  const startD = e.startTime ? hmToDecimal(e.startTime) : undefined
+  const endD = e.endTime ? hmToDecimal(e.endTime) : undefined
+  const isCont = !!e.diaNr && e.diaNr.startsWith('~(')
+  if (isCont && startD != null && endD != null && endD > 24) {
+    return {
+      dia: e.diaNr!.replace(/^~\(|\)$/g, ''),
+      trainNr: e.trainNr,
+      start: 0,
+      end: endD - 24,
+      continued: true,
+      contStart: startD,
+    }
+  }
+  return { dia: e.diaNr, trainNr: e.trainNr, start: startD, end: endD }
+}
+
 export default function CalendarPage() {
   const router = useRouter()
   const { showToast } = useToast()
@@ -183,22 +204,12 @@ export default function CalendarPage() {
     const out: TimelineItem[] = []
     const mine = myByDate.get(iso)
     if (mine && !mine.isOff) {
-      out.push({
-        color: BRAND, name: session.name, tag: '나', photo: session.photo,
-        dia: mine.diaNr, trainNr: mine.trainNr,
-        start: mine.startTime ? hmToDecimal(mine.startTime) : undefined,
-        end: mine.endTime ? hmToDecimal(mine.endTime) : undefined,
-      })
+      out.push({ color: BRAND, name: session.name, tag: '나', photo: session.photo, ...timeFields(mine) })
     }
     for (const c of compares) {
       const e = compareByDate.get(c.uid)?.get(iso)
       if (e && !e.isOff) {
-        out.push({
-          color: cssColor(c.color), name: c.name, photo: c.photo,
-          dia: e.diaNr, trainNr: e.trainNr,
-          start: e.startTime ? hmToDecimal(e.startTime) : undefined,
-          end: e.endTime ? hmToDecimal(e.endTime) : undefined,
-        })
+        out.push({ color: cssColor(c.color), name: c.name, photo: c.photo, ...timeFields(e) })
       }
     }
     return out

@@ -13,6 +13,8 @@ export interface TimelineItem {
   trainNr?: string
   start?: number     // decimal hour; undefined when the schedule has no time
   end?: number
+  continued?: boolean // morning tail of an overnight (박차) shift started yesterday
+  contStart?: number  // yesterday's start (decimal) — shown as "어제 HH:MM" on a continued card
 }
 
 type TimedItem = TimelineItem & { start: number; end: number }
@@ -21,6 +23,9 @@ const ROW_H = 24
 const LANE_GAP = 6
 const LABEL_W = 44
 const MIN_CARD_H = 72
+// Each lane keeps a minimum width so diagram codes / times / train numbers never
+// truncate; with many people the lanes overflow and scroll horizontally instead.
+const MIN_LANE = 104
 
 export function Timeline({ items, isToday = false }: { items: TimelineItem[]; isToday?: boolean }) {
   if (!items.length) return null
@@ -97,13 +102,14 @@ function TimedGrid({ items, compact, isToday }: { items: TimedItem[]; compact: b
         </div>
       )}
 
-      {/* Lanes — one column per person */}
-      <div className="absolute right-0 top-0 flex" style={{ left: LABEL_W, bottom: 24, gap: LANE_GAP }}>
+      {/* Lanes — one column per person. Fit the width up to MIN_LANE each; with
+          more people they keep MIN_LANE and the row scrolls horizontally. */}
+      <div className="absolute right-0 top-0 flex overflow-x-auto" style={{ left: LABEL_W, bottom: 24, gap: LANE_GAP }}>
         {items.map((it, i) => {
           const top = yOf(it.start)
           const h = Math.max(MIN_CARD_H, yOf(it.end) - top)
           return (
-            <div key={i} className="flex-1 relative min-w-0">
+            <div key={i} className="relative min-w-0" style={{ flex: `1 0 ${MIN_LANE}px` }}>
               <div
                 className="absolute left-0 right-0 flex flex-col gap-1 overflow-hidden"
                 style={{
@@ -127,6 +133,14 @@ function TimedGrid({ items, compact, isToday }: { items: TimedItem[]; compact: b
                       {it.tag}
                     </span>
                   )}
+                  {it.continued && (
+                    <span
+                      className="text-[9px] font-bold px-1 rounded-pill text-ink-700 shrink-0 whitespace-nowrap"
+                      style={{ background: 'color-mix(in oklab, var(--warn) 28%, white)' }}
+                    >
+                      연속
+                    </span>
+                  )}
                 </div>
                 {it.dia && (
                   <div
@@ -136,18 +150,26 @@ function TimedGrid({ items, compact, isToday }: { items: TimedItem[]; compact: b
                     {it.dia}
                   </div>
                 )}
-                <div className="font-en text-[11px] text-ink-700 font-semibold flex flex-col gap-px">
-                  <span className="text-ink-900 font-bold">{fmtClock(it.start)}</span>
-                  <span className="text-ink-500">↓</span>
-                  <span className="flex items-center gap-1 flex-wrap">
-                    <span className="text-ink-900 font-bold">{fmtClock(it.end)}</span>
-                    {it.end > 24 && (
-                      <span className="text-[8px] px-1 rounded-pill text-ink-700 shadow-[inset_0_0_0_1px_var(--line-2)]">
-                        익일
-                      </span>
-                    )}
-                  </span>
-                </div>
+                {it.continued ? (
+                  <div className="font-en text-[11px] font-semibold flex flex-col gap-px">
+                    <span className="text-ink-500">어제 {fmtClock(it.contStart ?? 0)}</span>
+                    <span className="text-ink-500">↓</span>
+                    <span className="text-ink-900 font-bold">{fmtClock(it.end)} 종료</span>
+                  </div>
+                ) : (
+                  <div className="font-en text-[11px] text-ink-700 font-semibold flex flex-col gap-px">
+                    <span className="text-ink-900 font-bold">{fmtClock(it.start)}</span>
+                    <span className="text-ink-500">↓</span>
+                    <span className="flex items-center gap-1 flex-wrap">
+                      <span className="text-ink-900 font-bold">{fmtClock(it.end)}</span>
+                      {it.end > 24 && (
+                        <span className="text-[8px] px-1 rounded-pill text-ink-700 shadow-[inset_0_0_0_1px_var(--line-2)]">
+                          익일
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )}
                 {it.trainNr && (
                   <div className="mt-auto font-en text-[10px] font-bold text-ink-700 px-1.5 py-0.5 bg-bg rounded-xs self-start truncate max-w-full">
                     {it.trainNr}
@@ -204,7 +226,7 @@ function TinyAvatar({ name, photo, color, px }: { name: string; photo?: string; 
   }
   return (
     <span
-      className="rounded-full grid place-items-center text-[8px] font-bold text-white shrink-0"
+      className="rounded-full grid place-items-center text-[8px] leading-none font-bold text-white shrink-0"
       style={{ width: px, height: px, background: color }}
     >
       {toInitials(name)}
