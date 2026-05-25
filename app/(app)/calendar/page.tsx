@@ -14,7 +14,6 @@ import { DetailSheet } from '@/components/calendar/DetailSheet'
 import { MenuSheet } from '@/components/calendar/MenuSheet'
 import { SearchOverlay } from '@/components/calendar/SearchOverlay'
 import { UploadModal } from '@/components/calendar/UploadModal'
-import { InstallBanner } from '@/components/InstallBanner'
 import type { TimelineItem } from '@/components/calendar/Timeline'
 import { getCurrentSession, logout, type Session } from '@/lib/auth'
 import {
@@ -417,7 +416,6 @@ export default function CalendarPage() {
               {' · '}휴무 {offDays}일 · 비교 동료 {compares.length}명
             </span>
           </div>
-          <InstallBanner />
         </div>
       )}
 

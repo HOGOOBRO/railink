@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { BrandMark, EyeIcon } from '@/components/ui/icons'
+import { InstallLoginBanner } from '@/components/InstallLoginBanner'
 import { login, getCurrentSession, resendConfirmation } from '@/lib/auth'
 import { DEMO_LOGIN } from '@/lib/demo-data'
 
@@ -66,6 +67,9 @@ export default function LoginPage() {
       className="flex flex-col min-h-[100dvh] bg-surface"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
+      {/* §18 install banner — mobile web, pre-install only (self-hides otherwise) */}
+      <InstallLoginBanner />
+
       {/* ── Hero — Bold Mono editorial ── */}
       <div className="relative px-6 pt-6 pb-9 shrink-0">
         <div className="flex items-center gap-2">

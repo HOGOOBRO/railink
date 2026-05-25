@@ -150,6 +150,43 @@ export function KeyIcon({ size = 18, className }: IconProps) {
   )
 }
 
+/** Phone outline — used in the install-banner tile. */
+export function PhoneIcon({ size = 20, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.8} {...base} className={className}>
+      <rect x="6" y="2" width="12" height="20" rx="3" /><path d="M11 18h2" />
+    </svg>
+  )
+}
+
+/** iOS Safari share glyph (square + up arrow) — inline in install steps. */
+export function ShareIosIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.8} {...base} className={className}>
+      <path d="M12 3v12" /><path d="m8 7 4-4 4 4" />
+      <path d="M6 12H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1" />
+    </svg>
+  )
+}
+
+/** Android Chrome overflow menu (three vertical dots) — inline in install steps. */
+export function DotsIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <circle cx="12" cy="5" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="12" cy="19" r="1.8" />
+    </svg>
+  )
+}
+
+/** Add-to-home-screen plus square — mirrors the OS "앱 설치" prompt glyph. */
+export function AddSquareIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.8} {...base} className={className}>
+      <rect x="3" y="3" width="18" height="18" rx="4" /><path d="M12 8v8M8 12h8" />
+    </svg>
+  )
+}
+
 /** RaiLink mark — two people (flat, brand color, no gradient/shadow). */
 export function BrandMark({ size = 18, className }: IconProps) {
   return (
