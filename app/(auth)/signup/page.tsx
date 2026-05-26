@@ -9,6 +9,12 @@ import { Checkbox } from '@/components/ui/Checkbox'
 import { BrandMark, ChevronLeftIcon, EyeIcon } from '@/components/ui/icons'
 import { useToast } from '@/components/ui/Toast'
 import { signup, getCurrentSession, resendConfirmation } from '@/lib/auth'
+import type { Visibility } from '@/lib/types/schedule'
+
+const VIS_OPTIONS: { value: Visibility; title: string; desc: string }[] = [
+  { value: 'public', title: '공개', desc: '이름·사업소·사진이 동료 검색에 떠요. 일정은 따로 수락이 필요해요.' },
+  { value: 'private', title: '비공개', desc: '검색에는 안 떠요. 사번을 정확히 아는 동료만 공유를 요청할 수 있어요.' },
+]
 
 interface FormErrors {
   email?: string
@@ -40,8 +46,9 @@ export default function SignupPage() {
     password: '', passwordConfirm: '',
   })
   const [terms, setTerms] = useState({
-    tos: false, privacy: false, share: false, marketing: false,
+    tos: false, privacy: false, marketing: false,
   })
+  const [visibility, setVisibility] = useState<Visibility | null>(null)
   const [errors, setErrors] = useState<FormErrors>({})
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -60,10 +67,10 @@ export default function SignupPage() {
     }
   }
 
-  const allRequired = terms.tos && terms.privacy && terms.share
+  const allRequired = terms.tos && terms.privacy
   const allAgrees = allRequired && terms.marketing
   function setAll(on: boolean) {
-    setTerms({ tos: on, privacy: on, share: on, marketing: on })
+    setTerms({ tos: on, privacy: on, marketing: on })
     if (on) setErrors(p => ({ ...p, terms: undefined }))
   }
   function toggle(k: keyof typeof terms) {
@@ -92,6 +99,7 @@ export default function SignupPage() {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
+    if (!visibility) return  // guarded by the disabled submit button
 
     setLoading(true)
     const result = await signup({
@@ -100,6 +108,7 @@ export default function SignupPage() {
       employeeId: form.employeeId,
       name: form.name,
       part: form.part || undefined,
+      visibility,
     })
     setLoading(false)
     if (!result.ok) {
@@ -267,10 +276,11 @@ export default function SignupPage() {
               label="개인정보 수집·이용에 동의합니다." badge="required"
               checked={terms.privacy} onChange={() => toggle('privacy')}
             />
-            <Checkbox
-              label="동료에게 내 사번·이름·스케줄 공개에 동의합니다." badge="required"
-              checked={terms.share} onChange={() => toggle('share')}
-            />
+            {/* The required "스케줄 공개 동의" checkbox was removed — schedules are
+                no longer auto-shared; visibility is the explicit radio below.
+                TODO(PR follow-up): the 약관 본문(app/(app)/settings/help/page.tsx)
+                still describes auto-sharing and needs rewording to the
+                consent-based model. Out of scope for PR-2. */}
             <Checkbox
               label="업데이트·이벤트 알림 수신에 동의합니다." badge="optional"
               checked={terms.marketing} onChange={() => toggle('marketing')}
@@ -283,8 +293,45 @@ export default function SignupPage() {
             )}
           </div>
 
+          {/* Visibility — search exposure only; separate from schedule sharing */}
+          <div className="border-t border-line pt-3.5 mt-1">
+            <p className="text-[15px] font-bold text-ink-900">내 계정을 동료가 검색할 수 있게 할까요?</p>
+            <p className="mt-1 text-caption text-ink-500 leading-relaxed">
+              이건 일정 공유와는 별개예요. 일정은 나중에 동료가 요청하고 내가 수락할 때만 공개돼요.
+            </p>
+            <div className="flex flex-col gap-2 mt-3">
+              {VIS_OPTIONS.map(opt => {
+                const active = visibility === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setVisibility(opt.value)}
+                    aria-pressed={active}
+                    className={`flex items-start gap-2.5 text-left rounded-md border-2 px-3.5 py-3 transition-colors ${
+                      active ? 'border-brand bg-brand-050' : 'border-line bg-surface'
+                    }`}
+                  >
+                    <span
+                      className={`mt-0.5 w-[18px] h-[18px] rounded-full border-2 grid place-items-center shrink-0 ${
+                        active ? 'border-brand' : 'border-line-2'
+                      }`}
+                    >
+                      {active && <span className="w-2.5 h-2.5 rounded-full bg-brand" />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[14px] font-bold text-ink-900">{opt.title}</span>
+                      <span className="block text-caption text-ink-500 mt-0.5 leading-relaxed">{opt.desc}</span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+            <p className="mt-2 text-[11px] text-ink-300">설정 → 공개 범위에서 언제든 바꿀 수 있어요.</p>
+          </div>
+
           <div className="h-1" />
-          <Button type="submit" block disabled={loading}>
+          <Button type="submit" block disabled={loading || !visibility}>
             {loading ? '가입 중…' : '가입하기'}
           </Button>
 

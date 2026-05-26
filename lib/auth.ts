@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import { DEMO_ME, DEMO_LOGIN } from './demo-data'
 import { seedDemo } from './demo-seed'
+import type { Visibility } from './types/schedule'
 
 export interface Session {
   uid: string
@@ -99,6 +100,7 @@ export interface SignupInput {
   employeeId: string
   name: string
   part?: string
+  visibility: Visibility
 }
 
 export type SignupResult =
@@ -117,6 +119,9 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
         employee_id: input.employeeId,
         name: input.name,
         part: input.part ?? null,
+        // Read by handle_new_user_profile() → profiles.visibility
+        // (see 20260526010000_signup_visibility_trigger.sql).
+        visibility: input.visibility,
       },
     },
   })
@@ -213,6 +218,9 @@ export interface ProfileUpdate {
   name: string
   employeeId: string
   part?: string
+  /** @deprecated No-op since the visibility/shares model (PR-2). The field is
+   *  tolerated so the settings page still compiles; both it and the legacy
+   *  share toggle are removed when settings is reworked in PR-3. */
   shareSchedule?: boolean
 }
 
@@ -232,15 +240,33 @@ export async function updateProfile(input: ProfileUpdate): Promise<{ ok: boolean
   if (metaError) {
     return { ok: false, message: '내 정보 저장 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
   }
+  // Visibility is no longer written here — it goes through setVisibility()
+  // (set_profile_visibility RPC). input.shareSchedule is intentionally ignored.
   const { error: profileError } = await supabase.from('profiles').upsert({
     id: user.id,
     name: input.name,
     employee_id: input.employeeId,
     part: input.part ?? null,
-    ...(input.shareSchedule !== undefined ? { share_schedule: input.shareSchedule } : {}),
   }, { onConflict: 'id' })
   if (profileError) {
     return { ok: false, message: '내 정보는 저장됐지만 동료 검색 반영이 잠시 늦어질 수 있어요.' }
+  }
+  return { ok: true }
+}
+
+/* ── Profile visibility (search exposure; separate from schedule sharing) ───── */
+
+/** Set whether my profile shows up in colleague search. Goes through the
+ *  set_profile_visibility RPC rather than writing the column directly. */
+export async function setVisibility(
+  visibility: Visibility,
+): Promise<{ ok: boolean; message?: string }> {
+  if (typeof window !== 'undefined' && localStorage.getItem(DEMO_SESSION_KEY)) {
+    return { ok: false, message: '데모 계정은 공개 범위를 바꿀 수 없어요.' }
+  }
+  const { error } = await supabase.rpc('set_profile_visibility', { new_visibility: visibility })
+  if (error) {
+    return { ok: false, message: '공개 범위 저장 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
   }
   return { ok: true }
 }
