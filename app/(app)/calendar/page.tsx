@@ -14,6 +14,8 @@ import { DetailSheet } from '@/components/calendar/DetailSheet'
 import { MenuSheet } from '@/components/calendar/MenuSheet'
 import { SearchOverlay } from '@/components/calendar/SearchOverlay'
 import { UploadModal } from '@/components/calendar/UploadModal'
+import { GroupTabs } from '@/components/calendar/GroupTabs'
+import { ManageGroupsSheet } from '@/components/calendar/ManageGroupsSheet'
 import type { MonthPerson, MonthShift } from '@/components/calendar/MonthTimeline'
 import { getCurrentSession, logout, type Session } from '@/lib/auth'
 import {
@@ -24,8 +26,10 @@ import {
   replaceUserScheduleMonths,
 } from '@/lib/store/schedules'
 import {
-  getCompareList, saveCompareList, addCompare, removeCompare, MAX_COMPARE,
-} from '@/lib/store/compare'
+  getGroupsState, saveGroupsState, activeGroupOf, allMemberUids,
+  addToActiveGroup, removeFromActiveGroup, setActiveGroup,
+  createGroup, renameGroup, deleteGroup, MAX_PER_GROUP,
+} from '@/lib/store/groups'
 import {
   findColleagueInDirectory,
   getColleagueDirectory,
@@ -36,7 +40,7 @@ import {
   MONTHS_EN, DOW_EN, buildMonthCells, hmToDecimal,
 } from '@/lib/schedule-utils'
 import type { ParsedScheduleRow } from '@/lib/parse/schedule-file'
-import type { CompareEntry, CompareColor, ScheduleEntry } from '@/lib/types/schedule'
+import type { CompareEntry, CompareColor, GroupsState, ScheduleEntry } from '@/lib/types/schedule'
 
 const BRAND = 'var(--brand)'
 const cssColor = (c: CompareColor) => `var(--${c})`
@@ -75,7 +79,7 @@ export default function CalendarPage() {
   const [month, setMonth] = useState(today.getMonth() + 1)
 
   const [session, setSession] = useState<Session | null>(null)
-  const [compares, setCompares] = useState<CompareEntry[]>([])
+  const [groupsState, setGroupsState] = useState<GroupsState>({ groups: [], activeGroupId: null })
   const [mySched, setMySched] = useState<ScheduleEntry[]>([])
   const [colSched, setColSched] = useState<Record<string, ScheduleEntry[]>>({})
   const [colleagues, setColleagues] = useState<Colleague[]>([])
@@ -89,6 +93,8 @@ export default function CalendarPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [uploadOpen, setUploadOpen] = useState(false)
   const [uploadStep, setUploadStep] = useState<'pick' | 'preview' | 'manual'>('pick')
+  const [manageOpen, setManageOpen] = useState(false)
+  const [manageStartCreate, setManageStartCreate] = useState(false)
 
   // Loader: resolve the session (demo localStorage OR Supabase), then read
   // the localStorage schedule/compare stores. setState runs after the await,
@@ -105,26 +111,41 @@ export default function CalendarPage() {
       }
       if (!alive) return
       if (!s) { router.replace('/login'); return }
-      const storedList = getCompareList(s.uid)
-      const list = s.isDemo ? storedList : storedList.filter(c => !isDemoColleagueUid(c.uid))
-      if (!s.isDemo && list.length !== storedList.length) saveCompareList(s.uid, list)
+      // Groups + members. Demo colleagues are hidden from real accounts — filter
+      // each group's members (same isolation rule the compare store had).
+      const st = getGroupsState(s.uid)
+      let groups = st.groups
+      if (!s.isDemo) {
+        let changed = false
+        groups = groups.map(g => {
+          const members = g.members.filter(m => !isDemoColleagueUid(m.uid))
+          if (members.length !== g.members.length) changed = true
+          return members.length === g.members.length ? g : { ...g, members }
+        })
+        if (changed) saveGroupsState(s.uid, { groups, activeGroupId: st.activeGroupId })
+      }
+      const activeGroupId = groups.some(g => g.id === st.activeGroupId)
+        ? st.activeGroupId : (groups[0]?.id ?? null)
+      const nextGroups: GroupsState = { groups, activeGroupId }
+      const memberUids = allMemberUids(nextGroups)
+
       let mine = getMonthSchedules(s.uid, year, month)
       let cols: Record<string, ScheduleEntry[]> = {}
 
       setSession(s)
-      setCompares(list)
+      setGroupsState(nextGroups)
       setMySched(mine)
       setColSched(cols)
 
       if (s.isDemo) {
-        for (const c of list) cols[c.uid] = getMonthSchedules(c.uid, year, month)
+        for (const uid of memberUids) cols[uid] = getMonthSchedules(uid, year, month)
         if (!alive) return
         setColSched(cols)
       } else {
         try {
           const [remoteMine, remoteCols] = await Promise.all([
             getRemoteMonthSchedules(s.uid, year, month),
-            getRemoteMonthSchedulesForUsers(list.map(c => c.uid), year, month),
+            getRemoteMonthSchedulesForUsers(memberUids, year, month),
           ])
           if (!alive) return
           if (!remoteMine.length && mine.length) {
@@ -154,6 +175,11 @@ export default function CalendarPage() {
     })()
     return () => { alive = false }
   }, [router, year, month, reload])
+
+  // The calendar reads from the active group only; switching tabs is a pure
+  // read-side swap (colSched already holds every group's members).
+  const activeGroup = useMemo(() => activeGroupOf(groupsState), [groupsState])
+  const compares = useMemo<CompareEntry[]>(() => activeGroup?.members ?? [], [activeGroup])
 
   // My schedule for the visible month, by ISO date.
   const myByDate = useMemo(() => {
@@ -220,12 +246,46 @@ export default function CalendarPage() {
   }, [session, compares, myByDate, compareByDate, year, month])
 
   const closeOverlays = useCallback(() => {
-    setDetailOpen(false); setSearchOpen(false); setUploadOpen(false); setMenuOpen(false)
+    setDetailOpen(false); setSearchOpen(false); setUploadOpen(false)
+    setMenuOpen(false); setManageOpen(false)
   }, [])
 
   const openSearch = () => { closeOverlays(); setSearchQuery(''); setSearchOpen(true) }
   const openUpload = () => { closeOverlays(); setUploadStep('pick'); setUploadOpen(true) }
   const openManualEdit = () => { closeOverlays(); setUploadStep('manual'); setUploadOpen(true) }
+  const openManage = (startCreate = false) => {
+    closeOverlays(); setManageStartCreate(startCreate); setManageOpen(true)
+  }
+
+  // Active-group switch — read-side only; close the detail sheet so it can't show
+  // a stale group's timeline.
+  function switchGroup(id: string) {
+    if (!session || id === groupsState.activeGroupId) return
+    setGroupsState(setActiveGroup(session.uid, id))
+    setDetailOpen(false)
+  }
+
+  function handleCreateGroup(): string | null {
+    if (!session) return null
+    const res = createGroup(session.uid)
+    if (!res) return null
+    setGroupsState({ ...res.state })
+    return res.id
+  }
+
+  function handleRenameGroup(id: string, name: string): 'duplicate' | null {
+    if (!session) return null
+    const res = renameGroup(session.uid, id, name)
+    setGroupsState({ ...res.state })
+    return res.error === 'duplicate' ? 'duplicate' : null
+  }
+
+  function handleDeleteGroup(id: string) {
+    if (!session) return
+    const next = deleteGroup(session.uid, id)
+    setGroupsState({ ...next })
+    setDetailOpen(false)
+  }
 
   function prevMonth() {
     if (month === 1) { setYear(y => y - 1); setMonth(12) } else setMonth(m => m - 1)
@@ -238,18 +298,22 @@ export default function CalendarPage() {
   function toggleCompare(uid: string) {
     if (!session) return
     const existing = compares.find(c => c.uid === uid)
-    const meta = findColleagueInDirectory(uid, colleagues)
     if (existing) {
-      removeCompare(session.uid, uid)
+      removeFromActiveGroup(session.uid, uid)
       showToast(`${existing.name} 님을 비교에서 제거했어요.`)
     } else {
-      if (compares.length >= MAX_COMPARE) {
+      const meta = findColleagueInDirectory(uid, colleagues)
+      if (!meta) return
+      const res = addToActiveGroup(session.uid, {
+        uid, name: meta.name, employeeId: meta.employeeId, photo: meta.photo, office: meta.office,
+      })
+      if (!res.entry && !res.alreadyIn) {
         showToast('비교 인원은 최대 10명까지 추가할 수 있어요.', 'danger')
         return
       }
-      if (!meta) return
-      addCompare(session.uid, uid, meta.name, meta.employeeId, { photo: meta.photo, office: meta.office })
-      showToast(`${meta.name} 님을 비교에 추가했어요.`, 'success')
+      if (!res.alreadyIn) {
+        showToast(`${meta.name} 님을 ${res.group.name} 그룹에 추가했어요.`, 'success')
+      }
     }
     setReload(n => n + 1)
   }
@@ -280,8 +344,11 @@ export default function CalendarPage() {
 
   if (!session) return <div className="min-h-[100dvh] bg-surface" />
 
-  const overlayOpen = detailOpen || searchOpen || uploadOpen || menuOpen
+  const overlayOpen = detailOpen || searchOpen || uploadOpen || menuOpen || manageOpen
   const compareColorOf = (c: CompareEntry) => cssColor(c.color)
+  const hasGroups = groupsState.groups.length > 0
+  const atCompareCap = compares.length >= MAX_PER_GROUP
+  const isEmptyGroup = hasGroups && compares.length === 0
 
   return (
     <div className="relative flex flex-col min-h-[100dvh] bg-bg">
@@ -318,24 +385,50 @@ export default function CalendarPage() {
         </div>
       </header>
 
-      {/* ── Compare strip ── */}
-      <section className="bg-surface border-b border-line pt-3 pb-3.5">
-        <div className="flex items-center justify-between px-4 mb-2">
-          <span className="text-[11px] font-bold text-ink-500 tracking-wider uppercase">
-            비교 중인 동료
-          </span>
-          <span className="font-en text-[11px] font-semibold text-ink-500">{compares.length}명</span>
-        </div>
-        <div className="flex gap-2.5 overflow-x-auto px-4 pt-0.5 pb-1" style={{ scrollbarWidth: 'none' }}>
+      {/* ── Compare-group tab zone + strip ── */}
+      <section className="bg-surface border-b border-line pb-3.5">
+        {hasGroups ? (
+          <GroupTabs
+            groups={groupsState.groups}
+            activeGroupId={groupsState.activeGroupId}
+            activeGroupName={activeGroup?.name ?? ''}
+            onSelect={switchGroup}
+            onAddGroup={() => openManage(true)}
+            onManage={() => openManage(false)}
+            showToast={showToast}
+          />
+        ) : (
+          <div className="flex items-center justify-between px-4 pt-3 mb-2">
+            <span className="text-[11px] font-bold text-ink-500 tracking-wider uppercase">
+              비교 중인 동료
+            </span>
+            <span className="font-en text-[11px] font-semibold text-ink-500">{compares.length}명</span>
+          </div>
+        )}
+
+        <div className="flex gap-2.5 overflow-x-auto px-4 pt-1 pb-1 items-start" style={{ scrollbarWidth: 'none' }}>
           <PersonPill name={session.name} photo={session.photo} ringColor={BRAND} avatarColor="brand" self />
-          {compares.map(c => (
-            <button key={c.uid} onClick={() => toggleCompare(c.uid)} aria-label={`${c.name} 비교 제거`}>
-              <PersonPill name={c.name} photo={c.photo} ringColor={compareColorOf(c)} avatarColor={c.color} />
-            </button>
-          ))}
+
+          {isEmptyGroup ? (
+            <div className="flex-1 self-stretch min-h-[60px] flex flex-col items-center justify-center gap-0.5 px-2">
+              <span className="text-[13px] text-ink-500">이 그룹에 동료를 추가해 보세요</span>
+              <button onClick={openSearch} className="text-[13px] font-semibold text-brand">
+                + 동료 찾기
+              </button>
+            </div>
+          ) : (
+            compares.map(c => (
+              <button key={c.uid} onClick={() => toggleCompare(c.uid)} aria-label={`${c.name} 비교 제거`}>
+                <PersonPill name={c.name} photo={c.photo} ringColor={compareColorOf(c)} avatarColor={c.color} />
+              </button>
+            ))
+          )}
+
           <button
-            onClick={openSearch}
-            className="shrink-0 flex flex-col items-center gap-1.5 w-14"
+            onClick={() => atCompareCap
+              ? showToast('비교 인원은 최대 10명까지 추가할 수 있어요.', 'danger')
+              : openSearch()}
+            className={`shrink-0 flex flex-col items-center gap-1.5 w-14 ${atCompareCap ? 'opacity-40' : ''}`}
             aria-label="비교 동료 추가"
           >
             <span className="w-12 h-12 rounded-full bg-brand-050 text-brand grid place-items-center shadow-[inset_0_0_0_1.5px_var(--brand-100)]">
@@ -497,10 +590,25 @@ export default function CalendarPage() {
           colleagues={colleagues}
           loading={colleagueLoading}
           comparedUids={new Set(compares.map(c => c.uid))}
+          activeGroupName={hasGroups ? activeGroup?.name ?? null : null}
+          onOpenManage={() => openManage(false)}
           onClose={() => setSearchOpen(false)}
           onToggle={toggleCompare}
         />
       )}
+
+      {/* ── Manage groups ── */}
+      <BottomSheet open={manageOpen} onClose={() => setManageOpen(false)}>
+        <ManageGroupsSheet
+          groups={groupsState.groups}
+          startCreate={manageStartCreate}
+          onClose={() => setManageOpen(false)}
+          onRename={handleRenameGroup}
+          onDelete={handleDeleteGroup}
+          onCreate={handleCreateGroup}
+          showToast={showToast}
+        />
+      </BottomSheet>
 
       {/* ── Upload modal ── */}
       {uploadOpen && (

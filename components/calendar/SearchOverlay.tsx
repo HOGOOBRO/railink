@@ -11,12 +11,16 @@ interface SearchOverlayProps {
   colleagues: Colleague[]
   loading?: boolean
   comparedUids: Set<string>
+  /** Active group name — when set, a "{name} 그룹에 추가" chip explains where adds land. */
+  activeGroupName?: string | null
+  onOpenManage?: () => void
   onClose: () => void
   onToggle: (uid: string) => void
 }
 
 export function SearchOverlay({
-  query, setQuery, colleagues, loading = false, comparedUids, onClose, onToggle,
+  query, setQuery, colleagues, loading = false, comparedUids,
+  activeGroupName, onOpenManage, onClose, onToggle,
 }: SearchOverlayProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { inputRef.current?.focus() }, [])
@@ -63,6 +67,18 @@ export function SearchOverlay({
           닫기
         </button>
       </div>
+
+      {/* Active-group target chip */}
+      {activeGroupName && (
+        <div className="shrink-0 px-4 pt-2.5">
+          <button
+            onClick={onOpenManage}
+            className="inline-flex items-center text-[12px] font-semibold text-brand bg-brand-050 px-2.5 py-1 rounded-xs"
+          >
+            {activeGroupName} 그룹에 추가
+          </button>
+        </div>
+      )}
 
       {/* List */}
       <div className="flex-1 overflow-y-auto px-3 pt-2 pb-6">
