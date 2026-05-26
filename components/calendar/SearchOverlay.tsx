@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useMemo, useState } from 'react'
 import { Avatar } from '@/components/ui/Avatar'
 import { SearchIcon, ArrowRightIcon } from '@/components/ui/icons'
 import type { Colleague } from '@/lib/demo-data'
@@ -224,6 +224,11 @@ export function SearchOverlay({
   )
 }
 
+const pillCls = (tone: 'brand' | 'muted') =>
+  `text-caption font-semibold px-3.5 py-2 rounded-pill shrink-0 ${
+    tone === 'brand' ? 'bg-brand-050 text-brand' : 'bg-bg text-ink-500'
+  }`
+
 function ResultRow({
   u, visibility, added, status, shareGated, onToggle, onRequest, onCancel,
 }: {
@@ -237,13 +242,13 @@ function ResultRow({
   onCancel: (uid: string) => void
 }) {
   const isPrivate = visibility === 'private'
-  return (
-    <div className="w-full flex items-center gap-3 px-2 py-3 rounded-md">
+  const info = (
+    <>
       <Avatar name={u.name} photo={u.photo} size="lg" color="brand" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="font-semibold text-callout text-ink-900 truncate">{u.name}</span>
-          {isPrivate && <LockIcon className="text-ink-400 shrink-0" />}
+          {isPrivate && <LockIcon className="text-ink-300 shrink-0" />}
           <span className="font-en text-caption text-ink-500">{u.employeeId}</span>
         </div>
         {isPrivate ? (
@@ -252,55 +257,33 @@ function ResultRow({
           <p className="text-caption text-ink-500 mt-px">{u.office}</p>
         )}
       </div>
-      <RowAction
-        uid={u.uid} added={added} status={status} shareGated={shareGated}
-        onToggle={onToggle} onRequest={onRequest} onCancel={onCancel}
-      />
-    </div>
+    </>
   )
-}
 
-function RowAction({
-  uid, added, status, shareGated, onToggle, onRequest, onCancel,
-}: {
-  uid: string
-  added: boolean
-  status: RowStatus
-  shareGated: boolean
-  onToggle: (uid: string) => void
-  onRequest: (uid: string) => void
-  onCancel: (uid: string) => void
-}) {
-  const compareLabel = added ? '✓ 비교 중' : '+ 추가'
-  if (!shareGated || status === 'accepted') {
-    return <Pill tone={added ? 'muted' : 'brand'} onClick={() => onToggle(uid)}>{compareLabel}</Pill>
-  }
-  if (status === 'pending') {
+  // Pending has two actions (요청 중 + 취소) → static row, not whole-row clickable.
+  if (shareGated && status === 'pending') {
     return (
-      <div className="flex items-center gap-2 shrink-0">
-        <Pill tone="muted" disabled>요청 중</Pill>
-        <button onClick={() => onCancel(uid)} className="text-[11px] font-semibold text-ink-500 underline">취소</button>
+      <div className="w-full flex items-center gap-3 px-2 py-3 rounded-md">
+        {info}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={`${pillCls('muted')} opacity-70`}>요청 중</span>
+          <button onClick={() => onCancel(u.uid)} className="text-[11px] font-semibold text-ink-500 underline">취소</button>
+        </div>
       </div>
     )
   }
-  return (
-    <Pill tone="brand" onClick={() => onRequest(uid)}>
-      {status === 'revoked' ? '다시 요청' : '요청'}
-    </Pill>
-  )
-}
 
-function Pill({
-  children, onClick, disabled, tone,
-}: { children: ReactNode; onClick?: () => void; disabled?: boolean; tone: 'brand' | 'muted' }) {
-  const toneCls = tone === 'brand' ? 'bg-brand-050 text-brand' : 'bg-bg text-ink-500'
+  // Single-action states (none / accepted / revoked, or demo) → whole row fires it.
+  const isCompare = !shareGated || status === 'accepted'
+  const label = isCompare ? (added ? '✓ 비교 중' : '+ 추가') : status === 'revoked' ? '다시 요청' : '요청'
+  const tone: 'brand' | 'muted' = isCompare && added ? 'muted' : 'brand'
   return (
     <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`text-caption font-semibold px-3.5 py-2 rounded-pill shrink-0 ${toneCls} ${disabled ? 'opacity-70' : ''}`}
+      onClick={() => (isCompare ? onToggle(u.uid) : onRequest(u.uid))}
+      className="w-full flex items-center gap-3 px-2 py-3 rounded-md text-left hover:bg-bg transition-colors"
     >
-      {children}
+      {info}
+      <span className={pillCls(tone)}>{label}</span>
     </button>
   )
 }

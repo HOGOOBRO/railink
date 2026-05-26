@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { useToast } from '@/components/ui/Toast'
 import {
-  BrandMark, SearchIcon, PlusIcon, ChevronLeftIcon, ChevronRightIcon, UploadIcon,
+  BrandMark, SearchIcon, PlusIcon, ChevronLeftIcon, ChevronRightIcon, UploadIcon, ArrowRightIcon,
 } from '@/components/ui/icons'
 import { CalCell, type CellBar } from '@/components/calendar/CalCell'
 import { DetailSheet } from '@/components/calendar/DetailSheet'
@@ -36,7 +36,7 @@ import {
   findProfileByEmployeeId,
   isDemoColleagueUid,
 } from '@/lib/store/colleagues'
-import { myViewerShareStatuses, requestShare, cancelShare } from '@/lib/store/shares'
+import { myViewerShareStatuses, requestShare, cancelShare, listShares } from '@/lib/store/shares'
 import type { Colleague } from '@/lib/demo-data'
 import {
   MONTHS_EN, DOW_EN, buildMonthCells, hmToDecimal,
@@ -46,6 +46,10 @@ import type { CompareEntry, CompareColor, GroupsState, ScheduleEntry, ShareStatu
 
 const BRAND = 'var(--brand)'
 const cssColor = (c: CompareColor) => `var(--${c})`
+
+// One-time migration notice (§6). Value 'skipped-new-user' permanently blocks it
+// for accounts that never had compares, so they never see the notice at all.
+const MIGRATION_KEY = 'rl.migrationNotice.dismissed'
 
 // One person's working shifts across the month, for the continuous timeline.
 // Overnight (박차) is normalized to a 24+ end (end clock earlier than start),
@@ -87,6 +91,8 @@ export default function CalendarPage() {
   const [colleagues, setColleagues] = useState<Colleague[]>([])
   const [colleagueLoading, setColleagueLoading] = useState(false)
   const [shareStatus, setShareStatus] = useState<Record<string, ShareStatus>>({})
+  const [pendingCount, setPendingCount] = useState(0)
+  const [migrationOpen, setMigrationOpen] = useState(false)
   const [reload, setReload] = useState(0)
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
@@ -177,15 +183,37 @@ export default function CalendarPage() {
       }
 
       // §4 — my viewer-side share status drives the search overlay's actions.
+      // §5 — pending requests where I'm the owner feed the inbox banner + badge.
       if (!s.isDemo) {
         try {
-          const statuses = await myViewerShareStatuses()
-          if (alive) setShareStatus(statuses)
-        } catch { /* search falls back to "요청" for everyone */ }
+          const [statuses, shares] = await Promise.all([myViewerShareStatuses(), listShares()])
+          if (!alive) return
+          setShareStatus(statuses)
+          setPendingCount(shares.incoming.length)
+        } catch { /* search falls back to "요청"; banner stays hidden */ }
+
+        // §6 — one-time migration notice. Shown only to accounts that already had
+        // compares (local groups/compare data); brand-new accounts are marked
+        // 'skipped-new-user' so they never see it.
+        if (alive && typeof window !== 'undefined' && !localStorage.getItem(MIGRATION_KEY)) {
+          let hadCompares = false
+          try {
+            const g = JSON.parse(localStorage.getItem('railink_groups_v1') ?? '{}')
+            const c = JSON.parse(localStorage.getItem('railink_compare_v4') ?? '{}')
+            hadCompares = (g[s.uid]?.groups?.length ?? 0) > 0 || (c[s.uid]?.length ?? 0) > 0
+          } catch { /* treat as new user */ }
+          if (hadCompares) setMigrationOpen(true)
+          else localStorage.setItem(MIGRATION_KEY, 'skipped-new-user')
+        }
       }
     })()
     return () => { alive = false }
   }, [router, year, month, reload])
+
+  function dismissMigration() {
+    if (typeof window !== 'undefined') localStorage.setItem(MIGRATION_KEY, 'dismissed')
+    setMigrationOpen(false)
+  }
 
   // The calendar reads from the active group only; switching tabs is a pure
   // read-side swap (colSched already holds every group's members).
@@ -410,10 +438,18 @@ export default function CalendarPage() {
           </button>
           <button
             onClick={() => { closeOverlays(); setMenuOpen(true) }}
-            aria-label="내 메뉴"
+            aria-label={pendingCount > 0 ? `내 메뉴 · 받은 공유 요청 ${pendingCount}개` : '내 메뉴'}
             className="w-10 grid place-items-center"
           >
-            <Avatar name={session.name} photo={session.photo} size="default" color="brand" />
+            <span className="relative">
+              <Avatar name={session.name} photo={session.photo} size="default" color="brand" />
+              {pendingCount > 0 && (
+                <span
+                  className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-brand border-2 border-white"
+                  aria-hidden="true"
+                />
+              )}
+            </span>
           </button>
         </div>
       </header>
@@ -471,6 +507,19 @@ export default function CalendarPage() {
           </button>
         </div>
       </section>
+
+      {/* ── Inbox banner (§5): pending requests where I'm the owner ── */}
+      {pendingCount > 0 && (
+        <button
+          onClick={() => router.push('/settings/info?focus=shares')}
+          className="w-full flex items-center gap-2 px-4 py-2.5 bg-brand-050 border-b border-line text-left"
+        >
+          <span className="flex-1 text-caption font-semibold text-ink-700">
+            받은 공유 요청 <span className="font-en">{pendingCount}</span>개
+          </span>
+          <span className="text-brand shrink-0"><ArrowRightIcon size={16} /></span>
+        </button>
+      )}
 
       {/* ── Month bar ── */}
       <div className="bg-surface flex flex-col">
@@ -610,6 +659,7 @@ export default function CalendarPage() {
         <MenuSheet
           session={session}
           compareCount={compares.length}
+          hasPending={pendingCount > 0}
           onManageSchedule={openUpload}
           onLogout={handleLogout}
         />
@@ -666,6 +716,22 @@ export default function CalendarPage() {
           onSave={handleUploadSave}
         />
       )}
+
+      {/* ── Migration notice (§6): one-time, dismissal persists ── */}
+      <BottomSheet open={migrationOpen} onClose={dismissMigration}>
+        <div className="px-5 pt-2 pb-8">
+          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">동료 공유 방식이 바뀌었어요</h3>
+          <p className="mt-2 text-callout text-ink-700 leading-relaxed">
+            이제 일정은 동료가 요청하고 내가 수락할 때만 공유돼요. 그동안 비교하던 동료를
+            다시 추가하면 공유 요청이 시작돼요.
+          </p>
+          <div className="mt-4">
+            <Button block onClick={() => { dismissMigration(); openSearch() }}>
+              캘린더에서 다시 추가하기
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
     </div>
   )
 }

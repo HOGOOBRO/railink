@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode, useEffect, useMemo, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/Avatar'
@@ -54,6 +54,20 @@ export default function SettingsInfoPage() {
   const [saving, setSaving] = useState(false)
 
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const sharesRef = useRef<HTMLDivElement>(null)
+
+  // Inbox banner / badge deep-link (§5): /settings/info?focus=shares scrolls to
+  // the 공유 중인 동료 section. Reads location directly (no useSearchParams) so
+  // the page stays statically prerendered.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (new URLSearchParams(window.location.search).get('focus') !== 'shares') return
+    const t = window.setTimeout(
+      () => sharesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      120,
+    )
+    return () => window.clearTimeout(t)
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -266,6 +280,7 @@ export default function SettingsInfoPage() {
         </section>
 
         {/* 공유 중인 동료 (Section B) */}
+        <div ref={sharesRef} style={{ scrollMarginTop: 12 }}>
         <Section title="공유 중인 동료">
           {shareRows.length === 0 ? (
             <p className="px-3.5 py-5 text-caption text-ink-500 leading-relaxed text-center">
@@ -287,6 +302,7 @@ export default function SettingsInfoPage() {
             ))
           )}
         </Section>
+        </div>
 
         {/* 알림 */}
         <Section title="알림">
