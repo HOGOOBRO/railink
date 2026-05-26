@@ -7,7 +7,7 @@
  * schedule_shares table under the shares_select_self RLS policy (rows where I'm
  * either party). */
 import { supabase } from '../supabase'
-import type { ShareStatus } from '../types/schedule'
+import type { ShareStatus, Visibility } from '../types/schedule'
 
 export interface ShareRow {
   ownerId: string
@@ -104,6 +104,68 @@ export async function listShares(): Promise<ShareLists> {
 
   const rows = (data as RawShareRow[]).map(toRow)
   const me = user.id
+  return {
+    incoming: rows.filter(r => r.status === 'pending' && r.ownerId === me),
+    outgoing: rows.filter(r => r.status === 'pending' && r.viewerId === me),
+    sharing: rows.filter(r => r.status === 'accepted' && r.ownerId === me),
+    viewing: rows.filter(r => r.status === 'accepted' && r.viewerId === me),
+  }
+}
+
+/* ── With counterparty profile (settings 공유 중인 동료) ───────────────────────
+ * Same four groups as listShares, but each row carries the *other* party's
+ * exposed profile fields — resolved via the list_my_shares_with_profile RPC,
+ * which (SECURITY DEFINER) can read profiles RLS would otherwise hide for
+ * pending/private counterparties. */
+export interface SharePerson {
+  id: string
+  name: string
+  employeeId: string
+  part: string | null
+  photo: string | null
+  visibility: Visibility
+}
+
+export interface ShareWithProfile extends ShareRow {
+  counterpart: SharePerson
+}
+
+export interface ShareListsWithProfile {
+  incoming: ShareWithProfile[]
+  outgoing: ShareWithProfile[]
+  sharing: ShareWithProfile[]
+  viewing: ShareWithProfile[]
+}
+
+interface RawShareWithProfile extends RawShareRow {
+  counterpart_id: string
+  counterpart_name: string
+  counterpart_employee_id: string
+  counterpart_part: string | null
+  counterpart_photo: string | null
+  counterpart_visibility: Visibility
+}
+
+export async function listSharesWithProfile(): Promise<ShareListsWithProfile> {
+  const empty: ShareListsWithProfile = { incoming: [], outgoing: [], sharing: [], viewing: [] }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return empty
+
+  const { data, error } = await supabase.rpc('list_my_shares_with_profile')
+  if (error || !data) return empty
+
+  const me = user.id
+  const rows: ShareWithProfile[] = (data as RawShareWithProfile[]).map(r => ({
+    ...toRow(r),
+    counterpart: {
+      id: r.counterpart_id,
+      name: r.counterpart_name,
+      employeeId: r.counterpart_employee_id,
+      part: r.counterpart_part,
+      photo: r.counterpart_photo,
+      visibility: r.counterpart_visibility,
+    },
+  }))
   return {
     incoming: rows.filter(r => r.status === 'pending' && r.ownerId === me),
     outgoing: rows.filter(r => r.status === 'pending' && r.viewerId === me),

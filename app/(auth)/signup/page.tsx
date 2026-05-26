@@ -9,9 +9,10 @@ import { Checkbox } from '@/components/ui/Checkbox'
 import { BrandMark, ChevronLeftIcon, EyeIcon } from '@/components/ui/icons'
 import { useToast } from '@/components/ui/Toast'
 import { signup, getCurrentSession, resendConfirmation } from '@/lib/auth'
+import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
 import type { Visibility } from '@/lib/types/schedule'
 
-const VIS_OPTIONS: { value: Visibility; title: string; desc: string }[] = [
+const VIS_OPTIONS: RadioOption<Visibility>[] = [
   { value: 'public', title: '공개', desc: '이름·사업소·사진이 동료 검색에 떠요. 일정은 따로 수락이 필요해요.' },
   { value: 'private', title: '비공개', desc: '검색에는 안 떠요. 사번을 정확히 아는 동료만 공유를 요청할 수 있어요.' },
 ]
@@ -299,34 +300,13 @@ export default function SignupPage() {
             <p className="mt-1 text-caption text-ink-500 leading-relaxed">
               이건 일정 공유와는 별개예요. 일정은 나중에 동료가 요청하고 내가 수락할 때만 공개돼요.
             </p>
-            <div className="flex flex-col gap-2 mt-3">
-              {VIS_OPTIONS.map(opt => {
-                const active = visibility === opt.value
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setVisibility(opt.value)}
-                    aria-pressed={active}
-                    className={`flex items-start gap-2.5 text-left rounded-md border-2 px-3.5 py-3 transition-colors ${
-                      active ? 'border-brand bg-brand-050' : 'border-line bg-surface'
-                    }`}
-                  >
-                    <span
-                      className={`mt-0.5 w-[18px] h-[18px] rounded-full border-2 grid place-items-center shrink-0 ${
-                        active ? 'border-brand' : 'border-line-2'
-                      }`}
-                    >
-                      {active && <span className="w-2.5 h-2.5 rounded-full bg-brand" />}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-[14px] font-bold text-ink-900">{opt.title}</span>
-                      <span className="block text-caption text-ink-500 mt-0.5 leading-relaxed">{opt.desc}</span>
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
+            <RadioGroup
+              options={VIS_OPTIONS}
+              value={visibility}
+              onChange={setVisibility}
+              ariaLabel="공개 범위"
+              className="flex flex-col gap-2 mt-3"
+            />
             <p className="mt-2 text-[11px] text-ink-300">설정 → 공개 범위에서 언제든 바꿀 수 있어요.</p>
           </div>
 
