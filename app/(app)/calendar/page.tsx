@@ -33,14 +33,16 @@ import {
 import {
   findColleagueInDirectory,
   getColleagueDirectory,
+  findProfileByEmployeeId,
   isDemoColleagueUid,
 } from '@/lib/store/colleagues'
+import { myViewerShareStatuses, requestShare, cancelShare } from '@/lib/store/shares'
 import type { Colleague } from '@/lib/demo-data'
 import {
   MONTHS_EN, DOW_EN, buildMonthCells, hmToDecimal,
 } from '@/lib/schedule-utils'
 import type { ParsedScheduleRow } from '@/lib/parse/schedule-file'
-import type { CompareEntry, CompareColor, GroupsState, ScheduleEntry } from '@/lib/types/schedule'
+import type { CompareEntry, CompareColor, GroupsState, ScheduleEntry, ShareStatus } from '@/lib/types/schedule'
 
 const BRAND = 'var(--brand)'
 const cssColor = (c: CompareColor) => `var(--${c})`
@@ -84,6 +86,7 @@ export default function CalendarPage() {
   const [colSched, setColSched] = useState<Record<string, ScheduleEntry[]>>({})
   const [colleagues, setColleagues] = useState<Colleague[]>([])
   const [colleagueLoading, setColleagueLoading] = useState(false)
+  const [shareStatus, setShareStatus] = useState<Record<string, ShareStatus>>({})
   const [reload, setReload] = useState(0)
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
@@ -172,6 +175,14 @@ export default function CalendarPage() {
       } finally {
         if (alive) setColleagueLoading(false)
       }
+
+      // §4 — my viewer-side share status drives the search overlay's actions.
+      if (!s.isDemo) {
+        try {
+          const statuses = await myViewerShareStatuses()
+          if (alive) setShareStatus(statuses)
+        } catch { /* search falls back to "요청" for everyone */ }
+      }
     })()
     return () => { alive = false }
   }, [router, year, month, reload])
@@ -250,7 +261,29 @@ export default function CalendarPage() {
     setMenuOpen(false); setManageOpen(false)
   }, [])
 
-  const openSearch = () => { closeOverlays(); setSearchQuery(''); setSearchOpen(true) }
+  const openSearch = () => { closeOverlays(); setSearchQuery(''); setSearchOpen(true); refreshShareStatus() }
+
+  function refreshShareStatus() {
+    if (session && !session.isDemo) myViewerShareStatuses().then(setShareStatus).catch(() => {})
+  }
+
+  // §4 search actions — gating lives here, not in groups.ts. onRequest/onCancel
+  // resolve a boolean so the overlay can roll back its optimistic row.
+  async function requestShareFor(uid: string): Promise<boolean> {
+    const r = await requestShare(uid)
+    if (!r.ok) { showToast(r.message, 'danger'); return false }
+    showToast('공유 요청을 보냈어요', 'success')
+    setShareStatus(s => ({ ...s, [uid]: 'pending' }))
+    return true
+  }
+  async function cancelShareFor(uid: string): Promise<boolean> {
+    const r = await cancelShare(uid)
+    if (!r.ok) { showToast(r.message, 'danger'); return false }
+    showToast('요청을 취소했어요', 'success')
+    setShareStatus(s => { const next = { ...s }; delete next[uid]; return next })
+    return true
+  }
+  const lookupSabun = useCallback((employeeId: string) => findProfileByEmployeeId(employeeId), [])
   const openUpload = () => { closeOverlays(); setUploadStep('pick'); setUploadOpen(true) }
   const openManualEdit = () => { closeOverlays(); setUploadStep('manual'); setUploadOpen(true) }
   const openManage = (startCreate = false) => {
@@ -594,6 +627,11 @@ export default function CalendarPage() {
           onOpenManage={() => openManage(false)}
           onClose={() => setSearchOpen(false)}
           onToggle={toggleCompare}
+          shareGated={!session.isDemo}
+          shareStatus={shareStatus}
+          onRequest={requestShareFor}
+          onCancelRequest={cancelShareFor}
+          lookupSabun={lookupSabun}
         />
       )}
 

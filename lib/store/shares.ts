@@ -112,6 +112,22 @@ export async function listShares(): Promise<ShareLists> {
   }
 }
 
+/** My share status as the *viewer*, keyed by owner uid: { ownerId → status }.
+ *  Used by the search overlay to pick each colleague's action (요청 / 요청 중 /
+ *  추가 / 다시 요청). Unlike listShares this keeps `revoked` rows. */
+export async function myViewerShareStatuses(): Promise<Record<string, ShareStatus>> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return {}
+  const { data, error } = await supabase
+    .from('schedule_shares')
+    .select('owner_id, status')
+    .eq('viewer_id', user.id)
+  if (error || !data) return {}
+  const map: Record<string, ShareStatus> = {}
+  for (const r of data as { owner_id: string; status: ShareStatus }[]) map[r.owner_id] = r.status
+  return map
+}
+
 /* ── With counterparty profile (settings 공유 중인 동료) ───────────────────────
  * Same four groups as listShares, but each row carries the *other* party's
  * exposed profile fields — resolved via the list_my_shares_with_profile RPC,
