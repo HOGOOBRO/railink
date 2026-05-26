@@ -47,7 +47,7 @@ export function MonthTimeline({
   const marks = dayList.flatMap(d => HOUR_TICKS.map(h => ({ d, h, top: yOf((d - 1) * 24 + h) })))
 
   return (
-    <div className="relative flex" style={{ height: monthH, minWidth: '100%', gap: LANE_GAP }}>
+    <div className="relative flex" style={{ height: monthH, width: 'max-content', minWidth: '100%', gap: LANE_GAP }}>
       {/* gridlines (span all columns, behind the cards) */}
       {marks.map(({ d, h, top }) => (
         <div
