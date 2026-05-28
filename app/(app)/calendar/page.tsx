@@ -62,7 +62,9 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
   const out: MonthShift[] = []
   for (let d = 1; d <= dim; d++) {
     const e = entryOf(`${year}-${mm}-${String(d).padStart(2, '0')}`)
-    if (!e || e.isOff || !e.diaNr || e.diaNr.startsWith('~(')) continue
+    // dia가 없는 row(일반 근무 직접입력)도 시간만 있으면 타임라인에 카드 표시.
+    // ~(H1048) 같은 연속 표기는 시작 행에서 카드를 그리니까 여기선 스킵.
+    if (!e || e.isOff || (e.diaNr && e.diaNr.startsWith('~('))) continue
     if (!e.startTime || !e.endTime) {
       // A working day whose times weren't read (OCR miss / blank) — surface it
       // as "시간 미입력" rather than dropping it silently.
