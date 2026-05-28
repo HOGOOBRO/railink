@@ -672,10 +672,10 @@ export default function CalendarPage() {
         ) : (
           <button
             onClick={openUpload}
-            className="w-full flex items-center gap-2 bg-bg px-3.5 py-2.5 rounded-md text-left"
+            className="w-full flex items-center gap-2 bg-brand-050 px-3.5 py-2.5 rounded-md text-left"
           >
             <span className="text-brand shrink-0"><UploadIcon size={14} /></span>
-            <span className="flex-1">이번 달 내 근무표가 없어요</span>
+            <span className="flex-1 text-ink-700 font-semibold">이번 달 내 근무표가 없어요</span>
             <span className="text-brand font-semibold shrink-0">등록하기 →</span>
           </button>
         )}
