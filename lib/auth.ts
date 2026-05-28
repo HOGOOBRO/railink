@@ -157,8 +157,22 @@ export async function updatePhoto(photo: string | null): Promise<{ ok: boolean; 
 /* ── Logout ────────────────────────────────────────────────────────────────── */
 
 export async function logout(): Promise<void> {
-  if (typeof window !== 'undefined') localStorage.removeItem(DEMO_SESSION_KEY)
-  await supabase.auth.signOut()
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(DEMO_SESSION_KEY)
+    // Defensive wipe: supabase-js usually stores the session under
+    // `sb-<projectRef>-auth-token`, but on some builds we observed signOut
+    // leaving stray sb-* keys behind. Anything that survives makes
+    // getCurrentSession() find a "ghost" session on /login and bounce the
+    // user right back to /calendar — the exact symptom users reported.
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i)
+      if (key && key.startsWith('sb-')) localStorage.removeItem(key)
+    }
+  }
+  // scope:'local' skips the server-side token-revoke roundtrip — that call
+  // can hang on a flaky network or dead origin. Local cleanup is what
+  // matters for the UI; the refresh token expires server-side on its own.
+  await supabase.auth.signOut({ scope: 'local' })
 }
 
 /* ── Password change (logged-in, requires current password) ────────────────── */

@@ -457,8 +457,19 @@ export default function CalendarPage() {
   }
 
   async function handleLogout() {
-    await logout()
-    router.replace('/login')
+    setMenuOpen(false)
+    try {
+      await logout()
+    } catch {
+      // signOut already best-effort-cleared storage; navigate anyway.
+    }
+    // Hard navigation rather than router.replace — defeats any in-memory
+    // session state the supabase client (or the prefetched /login bundle)
+    // might still be holding, which was causing the "/login → /calendar
+    // 튕겨나옴" bounce-back even after signOut cleared localStorage.
+    if (typeof window !== 'undefined') {
+      window.location.replace('/login')
+    }
   }
 
   if (!session) return <div className="min-h-[100dvh] bg-surface" />
