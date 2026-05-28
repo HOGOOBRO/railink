@@ -49,6 +49,9 @@ interface UploadModalProps {
   defaultMonth: number
   /** Existing rows for current month — used to pre-fill ManualBody on entry. */
   initialRows?: ParsedScheduleRow[]
+  /** Real-account full name; passed to AI image OCR so a team roster (여러 사람
+   *  row) can be filtered down to just the user's row. */
+  userName?: string
   onPreview: () => void
   onManual: () => void
   onBack: () => void
@@ -172,7 +175,7 @@ function nextPreviewDate(rows: ParsedScheduleRow[], year: number, month: number)
 }
 
 export function UploadModal({
-  step, defaultYear, defaultMonth, initialRows = [],
+  step, defaultYear, defaultMonth, initialRows = [], userName,
   onPreview, onManual, onBack, onClose, onSave,
 }: UploadModalProps) {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -282,7 +285,7 @@ export function UploadModal({
     setSourceLabel('이미지')
 
     try {
-      const result = await recognizeScheduleImage(files, defaultYear, defaultMonth, setOcr)
+      const result = await recognizeScheduleImage(files, defaultYear, defaultMonth, setOcr, userName)
       setRows(displayPreviewRows(result.rows))
       setOcrText(result.text)
       const usageText = result.usage

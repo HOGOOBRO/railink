@@ -790,6 +790,7 @@ export default function CalendarPage() {
           step={uploadStep}
           defaultYear={year}
           defaultMonth={month}
+          userName={session.isDemo ? undefined : session.name}
           initialRows={mySched.map(e => ({
             date: e.date, isOff: e.isOff,
             diaNr: e.diaNr, trainNr: e.trainNr,
