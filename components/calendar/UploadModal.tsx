@@ -195,7 +195,8 @@ export function UploadModal({
   const monthTotal = useMemo(
     () => daysInMonth(defaultYear, defaultMonth), [defaultYear, defaultMonth],
   )
-  const manualFilled = manualRows.filter(r => r.holiday || r.dia).length
+  // 일반 근무는 dia 없이 시간만 채울 수 있으니 st/et 도 filled로 인정.
+  const manualFilled = manualRows.filter(r => r.holiday || r.dia || r.st || r.et).length
 
   function setManualRow(i: number, patch: Partial<ManualRow>) {
     setManualRows(rs => rs.map((r, idx) => idx === i ? { ...r, ...patch } : r))
