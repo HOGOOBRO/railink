@@ -39,3 +39,19 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# === iCloud restoration shields ===
+
+# Finder duplicates (macOS Finder creates "foo 2.ts" on iCloud sync conflicts)
+* 2.ts
+* 2.tsx
+* 2.js
+* 2.jsx
+* 2.md
+* 2.sql
+* 2.json
+
+# Deprecated files iCloud keeps restoring (delete from iCloud separately to fully purge)
+/app/tltest/
+/components/InstallBanner.tsx
+/components/calendar/Timeline.tsx

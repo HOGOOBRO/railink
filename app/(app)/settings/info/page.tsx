@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode, useEffect, useMemo, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/Avatar'
@@ -9,13 +9,27 @@ import { useToast } from '@/components/ui/Toast'
 import {
   ChevronLeftIcon, ChevronRightIcon, EditIcon, KeyIcon, UploadIcon,
 } from '@/components/ui/icons'
-import { getCurrentSession, logout, updateProfile, type Session } from '@/lib/auth'
+import { getCurrentSession, logout, updateProfile, setVisibility as saveVisibility, type Session } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { getMonthSchedules, getRemoteMonthSchedules } from '@/lib/store/schedules'
 import { COMPARE_KEY } from '@/lib/store/compare'
 import { getGroupsState, allMemberUids, GROUPS_KEY } from '@/lib/store/groups'
 import { COLLEAGUE_DIRECTORY_KEY, SAMPLE_DIRECTORY_SEEDED_KEY } from '@/lib/store/colleagues'
+import {
+  listSharesWithProfile, respondShare, cancelShare,
+  type ShareListsWithProfile, type ShareWithProfile,
+} from '@/lib/store/shares'
 import { DangerConfirm } from '@/components/ui/DangerConfirm'
+import { BottomSheet } from '@/components/ui/BottomSheet'
+import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
+import type { Visibility } from '@/lib/types/schedule'
+
+const VIS_OPTIONS: RadioOption<Visibility>[] = [
+  { value: 'public', title: '공개', desc: '이름·사업소·사진이 동료 검색에 떠요. 일정은 따로 수락이 필요해요.' },
+  { value: 'private', title: '비공개', desc: '검색에는 안 떠요. 사번을 정확히 아는 동료만 공유를 요청할 수 있어요.' },
+]
+
+const EMPTY_SHARES: ShareListsWithProfile = { incoming: [], outgoing: [], sharing: [], viewing: [] }
 
 const SCHEDULES_KEY = 'railink_schedules_v3'
 const DEMO_SESSION_KEY = 'railink_demo_session_v3'
@@ -33,11 +47,27 @@ export default function SettingsInfoPage() {
   const [part, setPart] = useState('')
   const [email, setEmail] = useState('')
 
-  const [share, setShare] = useState(true)
-  const [baseShare, setBaseShare] = useState(true)
+  const [vis, setVis] = useState<Visibility>('public')
+  const [pendingPrivate, setPendingPrivate] = useState(false)
+  const [shares, setShares] = useState<ShareListsWithProfile>(EMPTY_SHARES)
+  const [shareBusy, setShareBusy] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const sharesRef = useRef<HTMLDivElement>(null)
+
+  // Inbox banner / badge deep-link (§5): /settings/info?focus=shares scrolls to
+  // the 공유 중인 동료 section. Reads location directly (no useSearchParams) so
+  // the page stays statically prerendered.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (new URLSearchParams(window.location.search).get('focus') !== 'shares') return
+    const t = window.setTimeout(
+      () => sharesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      120,
+    )
+    return () => window.clearTimeout(t)
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -65,20 +95,63 @@ export default function SettingsInfoPage() {
 
       if (!s.isDemo) {
         const { data: prof } = await supabase
-          .from('profiles').select('share_schedule').eq('id', s.uid).maybeSingle()
-        if (alive && prof && typeof prof.share_schedule === 'boolean') {
-          setShare(prof.share_schedule)
-          setBaseShare(prof.share_schedule)
+          .from('profiles').select('visibility').eq('id', s.uid).maybeSingle()
+        if (alive && (prof?.visibility === 'public' || prof?.visibility === 'private')) {
+          setVis(prof.visibility)
         }
+        const lists = await listSharesWithProfile()
+        if (alive) setShares(lists)
       }
     })()
     return () => { alive = false }
   }, [router])
 
+  async function reloadShares() {
+    setShares(await listSharesWithProfile())
+  }
+
+  // 공개 → applied immediately; 비공개 → confirm sheet first (spec §3).
+  function onVisibilityChange(next: Visibility) {
+    if (next === vis) return
+    if (next === 'private') setPendingPrivate(true)
+    else commitVisibility('public')
+  }
+
+  async function commitVisibility(next: Visibility) {
+    const prev = vis
+    setVis(next)
+    const res = await saveVisibility(next)
+    if (!res.ok) {
+      setVis(prev)
+      showToast(res.message ?? '공개 범위를 바꾸지 못했어요.', 'danger')
+      return
+    }
+    showToast('공개 범위를 바꿨어요', 'success')
+  }
+
+  // Share-row actions. Each disables the row controls while in flight, then
+  // reloads so the row moves to its new bucket (or disappears).
+  async function runShareAction(fn: () => Promise<{ ok: boolean; message?: string }>, okMsg: string) {
+    if (shareBusy) return
+    setShareBusy(true)
+    const res = await fn()
+    setShareBusy(false)
+    if (!res.ok) { showToast(res.message ?? '잠시 후 다시 시도해 주세요.', 'danger'); return }
+    showToast(okMsg, 'success')
+    reloadShares()
+  }
+
   const dirty = useMemo(() => {
     if (!session) return false
-    return name !== session.name || part !== (session.part ?? '') || share !== baseShare
-  }, [session, name, part, share, baseShare])
+    return name !== session.name || part !== (session.part ?? '')
+  }, [session, name, part])
+
+  // Section B rows in spec order: 요청 받음 → 내가 요청 중 → 공유 중.
+  const shareRows = useMemo(() => [
+    ...shares.incoming.map(s => ({ kind: 'incoming' as const, s })),
+    ...shares.outgoing.map(s => ({ kind: 'outgoing' as const, s })),
+    ...shares.sharing.map(s => ({ kind: 'sharing' as const, s })),
+  ], [shares])
 
   async function handleSave() {
     if (!dirty || saving || !session) return
@@ -88,14 +161,12 @@ export default function SettingsInfoPage() {
       name: name.trim(),
       employeeId: session.employeeId,
       part: part.trim() || undefined,
-      shareSchedule: share,
     })
     setSaving(false)
     if (!res.ok) {
       showToast(res.message ?? '저장에 실패했어요.', 'danger')
       return
     }
-    setBaseShare(share)
     setSession({ ...session, name: name.trim(), part: part.trim() || undefined })
     showToast('변경 사항을 저장했어요.', 'success')
   }
@@ -197,15 +268,41 @@ export default function SettingsInfoPage() {
           />
         </Section>
 
-        {/* 공개 범위 */}
-        <Section title="공개 범위" hint="저장하면 바로 적용돼요.">
-          <ToggleRow
-            label="내 일정을 동료에게 공개"
-            sub="끄면 동료가 내 근무표·다이·출퇴근 시간을 볼 수 없어요."
-            on={share} onChange={setShare}
-            last
+        {/* 공개 범위 (Section A) */}
+        <section className="mt-4">
+          <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">공개 범위</p>
+          <RadioGroup
+            options={VIS_OPTIONS}
+            value={vis}
+            onChange={onVisibilityChange}
+            ariaLabel="공개 범위"
           />
+        </section>
+
+        {/* 공유 중인 동료 (Section B) */}
+        <div ref={sharesRef} style={{ scrollMarginTop: 12 }}>
+        <Section title="공유 중인 동료">
+          {shareRows.length === 0 ? (
+            <p className="px-3.5 py-5 text-caption text-ink-500 leading-relaxed text-center">
+              아직 공유 중인 동료가 없어요. 캘린더에서 동료를 비교에 추가하면 공유 요청이 시작돼요.
+            </p>
+          ) : (
+            shareRows.map((r, i) => (
+              <ShareRow
+                key={`${r.kind}-${r.s.ownerId}-${r.s.viewerId}`}
+                kind={r.kind}
+                share={r.s}
+                busy={shareBusy}
+                last={i === shareRows.length - 1}
+                onAccept={() => runShareAction(() => respondShare(r.s.viewerId, true), `${r.s.counterpart.name}님과 일정을 공유해요`)}
+                onDecline={() => runShareAction(() => respondShare(r.s.viewerId, false), '요청을 거절했어요')}
+                onCancel={() => runShareAction(() => cancelShare(r.s.ownerId), '요청을 취소했어요')}
+                onStop={() => runShareAction(() => respondShare(r.s.viewerId, false), `${r.s.counterpart.name}님과의 공유를 중지했어요`)}
+              />
+            ))
+          )}
         </Section>
+        </div>
 
         {/* 알림 */}
         <Section title="알림">
@@ -241,6 +338,22 @@ export default function SettingsInfoPage() {
           RAILINK · V1.0 · BUILD 2026.05
         </p>
       </div>
+
+      {/* 비공개 전환 확인 시트 (spec §3) */}
+      <BottomSheet open={pendingPrivate} onClose={() => setPendingPrivate(false)}>
+        <div className="px-5 pt-2 pb-8">
+          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">비공개로 바꿀까요?</h3>
+          <p className="mt-2 text-callout text-ink-700 leading-relaxed">
+            이미 일정을 공유 중인 동료는 영향 없어요. 새로 나를 찾는 동료는 사번을 알아야 해요.
+          </p>
+          <div className="flex gap-2.5 mt-4">
+            <Button variant="outline" className="flex-1" onClick={() => setPendingPrivate(false)}>취소</Button>
+            <Button className="flex-1" onClick={() => { setPendingPrivate(false); commitVisibility('private') }}>
+              비공개로 바꾸기
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
 
       {confirmOpen && (
         <DangerConfirm
@@ -375,6 +488,63 @@ function ToggleRow({
         />
       </button>
     </div>
+  )
+}
+
+function ShareRow({
+  kind, share, busy, last, onAccept, onDecline, onCancel, onStop,
+}: {
+  kind: 'incoming' | 'outgoing' | 'sharing'
+  share: ShareWithProfile
+  busy: boolean
+  last: boolean
+  onAccept?: () => void
+  onDecline?: () => void
+  onCancel?: () => void
+  onStop?: () => void
+}) {
+  const p = share.counterpart
+  const caption = kind === 'incoming' ? '공유 요청을 받았어요'
+    : kind === 'outgoing' ? '수락 대기 중'
+    : '내 일정을 공유 중'
+  return (
+    <div className={`flex items-center gap-3 px-3.5 py-3 ${last ? '' : 'border-b border-line'}`}>
+      <Avatar name={p.name} photo={p.photo ?? undefined} size="lg" color="brand" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="font-semibold text-callout text-ink-900 truncate">{p.name}</span>
+          <span className="font-en text-caption text-ink-500">{p.employeeId}</span>
+        </div>
+        <p className="text-[11px] text-ink-500 mt-0.5">{caption}</p>
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        {kind === 'incoming' && (
+          <>
+            <PillBtn tone="brand" disabled={busy} onClick={onAccept}>수락</PillBtn>
+            <PillBtn tone="danger" disabled={busy} onClick={onDecline}>거절</PillBtn>
+          </>
+        )}
+        {kind === 'outgoing' && <PillBtn tone="muted" disabled={busy} onClick={onCancel}>요청 취소</PillBtn>}
+        {kind === 'sharing' && <PillBtn tone="danger" disabled={busy} onClick={onStop}>중지</PillBtn>}
+      </div>
+    </div>
+  )
+}
+
+function PillBtn({
+  children, onClick, disabled, tone,
+}: { children: ReactNode; onClick?: () => void; disabled?: boolean; tone: 'brand' | 'danger' | 'muted' }) {
+  const toneCls = tone === 'brand' ? 'bg-brand-050 text-brand'
+    : tone === 'danger' ? 'bg-danger-soft text-danger'
+    : 'bg-bg text-ink-500'
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`text-caption font-semibold px-3 py-1.5 rounded-pill ${toneCls} ${disabled ? 'opacity-50' : ''}`}
+    >
+      {children}
+    </button>
   )
 }
 

@@ -1,6 +1,12 @@
 import { supabase } from '@/lib/supabase'
 import { DEMO_COLLEAGUES, DEMO_ME, type Colleague } from '@/lib/demo-data'
 import type { Session } from '@/lib/auth'
+import type { Visibility } from '@/lib/types/schedule'
+
+/** A colleague resolved by exact 사번 lookup — carries visibility so the search
+ *  card can flag a 비공개 계정. Directory entries are always public (RLS hides
+ *  private profiles), so they don't need this. */
+export type ProfileLookup = Colleague & { visibility: Visibility }
 
 export const COLLEAGUE_DIRECTORY_KEY = 'railink_colleague_directory_v1'
 export const SAMPLE_DIRECTORY_SEEDED_KEY = 'railink_sample_directory_seeded_v1'
@@ -104,6 +110,29 @@ export async function getColleagueDirectory(session: Session): Promise<Colleague
 
 export function findColleagueInDirectory(uid: string, directory: Colleague[]): Colleague | undefined {
   return directory.find(u => u.uid === uid)
+}
+
+/** Exact-사번 lookup via the find_profile_by_employee_id RPC. Finds even private
+ *  accounts (which the directory hides) so the requester can send a share
+ *  request. Returns null when nothing matches. */
+export async function findProfileByEmployeeId(employeeId: string): Promise<ProfileLookup | null> {
+  const { data, error } = await supabase.rpc('find_profile_by_employee_id', {
+    target_employee_id: employeeId,
+  })
+  if (error || !Array.isArray(data) || data.length === 0) return null
+  const r = data[0] as {
+    id: string; name: string; employee_id: string
+    part: string | null; photo: string | null; visibility: Visibility
+  }
+  return {
+    uid: r.id,
+    name: r.name,
+    employeeId: r.employee_id,
+    office: officeFromPart(r.part ?? undefined),
+    email: '',
+    photo: r.photo ?? undefined,
+    visibility: r.visibility,
+  }
 }
 
 export function isDemoColleagueUid(uid: string): boolean {

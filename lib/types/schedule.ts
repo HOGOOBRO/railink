@@ -12,6 +12,13 @@ export type CompareColor =
   | 'c1' | 'c2' | 'c3' | 'c4' | 'c5'
   | 'c6' | 'c7' | 'c8' | 'c9' | 'c10'
 
+// Profile visibility (search/directory listing only — NOT schedule access,
+// which always goes through schedule_shares consent). See RaiLink_Sharing_Spec.
+export type Visibility = 'public' | 'private'
+
+// schedule_shares consent status.
+export type ShareStatus = 'pending' | 'accepted' | 'revoked'
+
 export interface CompareEntry {
   uid: string
   name: string
