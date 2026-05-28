@@ -190,6 +190,20 @@ export default function CalendarPage() {
           if (!alive) return
           setShareStatus(statuses)
           setPendingCount(shares.incoming.length)
+
+          // Reconciler: groups ≡ share intent. Any pending outgoing whose owner
+          // isn't in any of my groups (legacy / failed-cancel / cross-device drift)
+          // gets silently cleaned up. Fire-and-forget; next-mount catches retries.
+          const inGroup = new Set(allMemberUids(nextGroups))
+          const orphans = shares.outgoing.filter(o => !inGroup.has(o.ownerId)).map(o => o.ownerId)
+          if (orphans.length) {
+            setShareStatus(s2 => {
+              const out = { ...s2 }
+              for (const uid of orphans) delete out[uid]
+              return out
+            })
+            for (const uid of orphans) cancelShare(uid).catch(() => { /* retried next mount */ })
+          }
         } catch { /* search falls back to "요청"; banner stays hidden */ }
 
         // §6 — one-time migration notice. Shown only to accounts that already had
@@ -269,6 +283,8 @@ export default function CalendarPage() {
   // Timeline items for the selected date.
   // People (columns) with their month-long shifts — fed to the continuous
   // timeline so overnight shifts span the midnight divider as one card.
+  // Pending colleagues (share not yet accepted) get an empty-shifts column
+  // with a "수락 대기 중" notice rather than disappearing.
   const monthPeople = useMemo<MonthPerson[]>(() => {
     if (!session) return []
     const ppl: MonthPerson[] = [{
@@ -276,13 +292,15 @@ export default function CalendarPage() {
       shifts: monthShifts(iso => myByDate.get(iso), year, month),
     }]
     for (const c of compares) {
+      const pending = !session.isDemo && shareStatus[c.uid] === 'pending'
       ppl.push({
         color: cssColor(c.color), name: c.name, photo: c.photo,
-        shifts: monthShifts(iso => compareByDate.get(c.uid)?.get(iso), year, month),
+        shifts: pending ? [] : monthShifts(iso => compareByDate.get(c.uid)?.get(iso), year, month),
+        pending,
       })
     }
     return ppl
-  }, [session, compares, myByDate, compareByDate, year, month])
+  }, [session, compares, myByDate, compareByDate, year, month, shareStatus])
 
   const closeOverlays = useCallback(() => {
     setDetailOpen(false); setSearchOpen(false); setUploadOpen(false)
@@ -295,22 +313,6 @@ export default function CalendarPage() {
     if (session && !session.isDemo) myViewerShareStatuses().then(setShareStatus).catch(() => {})
   }
 
-  // §4 search actions — gating lives here, not in groups.ts. onRequest/onCancel
-  // resolve a boolean so the overlay can roll back its optimistic row.
-  async function requestShareFor(uid: string): Promise<boolean> {
-    const r = await requestShare(uid)
-    if (!r.ok) { showToast(r.message, 'danger'); return false }
-    showToast('공유 요청을 보냈어요', 'success')
-    setShareStatus(s => ({ ...s, [uid]: 'pending' }))
-    return true
-  }
-  async function cancelShareFor(uid: string): Promise<boolean> {
-    const r = await cancelShare(uid)
-    if (!r.ok) { showToast(r.message, 'danger'); return false }
-    showToast('요청을 취소했어요', 'success')
-    setShareStatus(s => { const next = { ...s }; delete next[uid]; return next })
-    return true
-  }
   const lookupSabun = useCallback((employeeId: string) => findProfileByEmployeeId(employeeId), [])
   const openUpload = () => { closeOverlays(); setUploadStep('pick'); setUploadOpen(true) }
   const openManualEdit = () => { closeOverlays(); setUploadStep('manual'); setUploadOpen(true) }
@@ -356,27 +358,74 @@ export default function CalendarPage() {
   }
   function goToday() { setYear(today.getFullYear()); setMonth(today.getMonth() + 1) }
 
-  function toggleCompare(uid: string) {
+  // Add/remove a colleague from the active compare group.
+  // For real accounts the group IS the share-intent surface: adding fires a
+  // share request when needed, removing from the last group cancels it.
+  async function toggleCompare(uid: string) {
     if (!session) return
     const existing = compares.find(c => c.uid === uid)
+
     if (existing) {
-      removeFromActiveGroup(session.uid, uid)
+      const next = removeFromActiveGroup(session.uid, uid)
+      setReload(n => n + 1)
       showToast(`${existing.name} 님을 비교에서 제거했어요.`)
-    } else {
-      const meta = findColleagueInDirectory(uid, colleagues)
-      if (!meta) return
-      const res = addToActiveGroup(session.uid, {
-        uid, name: meta.name, employeeId: meta.employeeId, photo: meta.photo, office: meta.office,
-      })
-      if (!res.entry && !res.alreadyIn) {
-        showToast('비교 인원은 최대 10명까지 추가할 수 있어요.', 'danger')
-        return
+
+      if (session.isDemo) return
+      // Only cancel if the colleague is gone from EVERY group — multi-group
+      // membership shouldn't silently nuke the share for the other tab.
+      const stillInAnyGroup = allMemberUids(next).includes(uid)
+      const status = shareStatus[uid]
+      if (!stillInAnyGroup && (status === 'pending' || status === 'accepted')) {
+        setShareStatus(s => { const n = { ...s }; delete n[uid]; return n })
+        cancelShare(uid).catch(() => { /* fail-quiet; reconciler picks it up next mount */ })
       }
-      if (!res.alreadyIn) {
-        showToast(`${meta.name} 님을 ${res.group.name} 그룹에 추가했어요.`, 'success')
-      }
+      return
+    }
+
+    const meta = findColleagueInDirectory(uid, colleagues)
+    if (!meta) return
+    const res = addToActiveGroup(session.uid, {
+      uid, name: meta.name, employeeId: meta.employeeId, photo: meta.photo, office: meta.office,
+    })
+    if (!res.entry && !res.alreadyIn) {
+      showToast('비교 인원은 최대 10명까지 추가할 수 있어요.', 'danger')
+      return
     }
     setReload(n => n + 1)
+    if (res.alreadyIn) return
+
+    if (session.isDemo) {
+      showToast(`${meta.name} 님을 ${res.group.name} 그룹에 추가했어요.`, 'success')
+      return
+    }
+
+    const status = shareStatus[uid]
+    if (status === 'accepted') {
+      showToast(`${meta.name} 님을 ${res.group.name} 그룹에 추가했어요.`, 'success')
+      return
+    }
+    if (status === 'pending') {
+      showToast(`${meta.name} 님을 추가했어요 · 수락을 기다리고 있어요`, 'success')
+      return
+    }
+
+    // none / revoked → send a share request in the background.
+    // On failure roll the group membership back so groups ≡ share intent stays true.
+    setShareStatus(s => ({ ...s, [uid]: 'pending' }))
+    const r = await requestShare(uid)
+    if (!r.ok) {
+      removeFromActiveGroup(session.uid, uid)
+      setShareStatus(s => { const n = { ...s }; delete n[uid]; return n })
+      setReload(n => n + 1)
+      showToast(r.message, 'danger')
+      return
+    }
+    // Re-assert: the setReload above re-fires the mount effect which fetches
+    // shareStatus from the server. If that fetch returned BEFORE this RPC
+    // committed (likely — same-tick race), it would have nulled the optimistic
+    // pending. Re-set it after the RPC actually succeeded.
+    setShareStatus(s => ({ ...s, [uid]: 'pending' }))
+    showToast(`${meta.name} 님께 공유 요청을 보냈어요`, 'success')
   }
 
   async function handleUploadSave(rows: ParsedScheduleRow[]) {
@@ -486,11 +535,20 @@ export default function CalendarPage() {
               </button>
             </div>
           ) : (
-            compares.map(c => (
-              <button key={c.uid} onClick={() => toggleCompare(c.uid)} aria-label={`${c.name} 비교 제거`}>
-                <PersonPill name={c.name} photo={c.photo} ringColor={compareColorOf(c)} avatarColor={c.color} />
-              </button>
-            ))
+            compares.map(c => {
+              const pending = !session.isDemo && shareStatus[c.uid] === 'pending'
+              return (
+                <button key={c.uid} onClick={() => toggleCompare(c.uid)} aria-label={`${c.name} 비교 제거`}>
+                  <PersonPill
+                    name={c.name}
+                    photo={c.photo}
+                    ringColor={compareColorOf(c)}
+                    avatarColor={c.color}
+                    pending={pending}
+                  />
+                </button>
+              )
+            })
           )}
 
           <button
@@ -679,8 +737,6 @@ export default function CalendarPage() {
           onToggle={toggleCompare}
           shareGated={!session.isDemo}
           shareStatus={shareStatus}
-          onRequest={requestShareFor}
-          onCancelRequest={cancelShareFor}
           lookupSabun={lookupSabun}
         />
       )}
@@ -736,24 +792,25 @@ export default function CalendarPage() {
   )
 }
 
-function PersonPill({ name, photo, ringColor, avatarColor, self }: {
+function PersonPill({ name, photo, ringColor, avatarColor, self, pending }: {
   name: string
   photo?: string
   ringColor: string
   avatarColor: 'brand' | CompareColor
   self?: boolean
+  pending?: boolean
 }) {
   return (
     <div className="shrink-0 flex flex-col items-center gap-1.5 w-14">
       <div
-        className="relative w-12 h-12 rounded-full bg-white grid place-items-center"
-        style={{ boxShadow: `inset 0 0 0 2px ${ringColor}` }}
+        className={`relative w-12 h-12 rounded-full bg-white grid place-items-center ${pending ? 'opacity-50' : ''}`}
+        style={{ boxShadow: `inset 0 0 0 2px ${pending ? 'var(--line-2)' : ringColor}` }}
       >
         {photo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={photo} alt="" className="w-[42px] h-[42px] rounded-full object-cover" />
+          <img src={photo} alt="" className={`w-[42px] h-[42px] rounded-full object-cover ${pending ? 'grayscale' : ''}`} />
         ) : (
-          <Avatar name={name} size="lg" className="!w-[42px] !h-[42px]" color={avatarColor} />
+          <Avatar name={name} size="lg" className="!w-[42px] !h-[42px]" color={pending ? 'brand' : avatarColor} />
         )}
         {self && (
           <span className="absolute -right-1 -bottom-0.5 bg-brand text-ink-on-brand text-[9px] font-bold px-1.5 rounded-pill shadow-[0_0_0_2px_#fff]">
@@ -761,9 +818,14 @@ function PersonPill({ name, photo, ringColor, avatarColor, self }: {
           </span>
         )}
       </div>
-      <span className="text-[11px] font-semibold text-ink-900 max-w-[56px] truncate text-center">
+      <span className={`text-[11px] font-semibold max-w-[56px] truncate text-center ${pending ? 'text-ink-500' : 'text-ink-900'}`}>
         {name}
       </span>
+      {pending && (
+        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-pill bg-bg text-ink-500 leading-none -mt-1">
+          수락 대기 중
+        </span>
+      )}
     </div>
   )
 }

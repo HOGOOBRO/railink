@@ -23,6 +23,8 @@ export interface MonthPerson {
   tag?: string
   photo?: string
   shifts: MonthShift[]
+  /** Share request still pending — render an empty column with a notice. */
+  pending?: boolean
 }
 
 const PXH = 14              // pixels per hour
@@ -82,6 +84,30 @@ export function MonthTimeline({
       {/* person columns — grow to fill, or stay MIN_COL and let the row scroll sideways */}
       {people.map((p, pi) => (
         <div key={pi} className="relative shrink-0" style={{ flex: `1 0 ${MIN_COL}px` }}>
+          {p.pending && (
+            <div
+              className="absolute left-1 right-1 flex flex-col gap-1.5 px-2 py-2.5 rounded-md"
+              style={{
+                top: 8,
+                background: 'var(--bg)',
+                border: '1px dashed var(--line-2)',
+                borderLeftWidth: 3,
+                borderLeftStyle: 'dashed',
+                borderLeftColor: p.color,
+              }}
+            >
+              <div className="flex items-center gap-1 min-w-0">
+                <Initial name={p.name} photo={p.photo} color={p.color} />
+                <span className="font-bold text-[11px] text-ink-500 truncate">{p.name}</span>
+              </div>
+              <span
+                className="text-[9px] font-bold px-1.5 py-0.5 rounded-pill text-ink-500 self-start whitespace-nowrap"
+                style={{ background: 'white', boxShadow: 'inset 0 0 0 1px var(--line-2)' }}
+              >
+                수락 대기 중
+              </span>
+            </div>
+          )}
           {p.shifts.map((s, si) => {
             if (s.noTime) {
               return (

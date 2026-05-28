@@ -7,8 +7,6 @@ import type { Colleague } from '@/lib/demo-data'
 import type { ProfileLookup } from '@/lib/store/colleagues'
 import type { ShareStatus, Visibility } from '@/lib/types/schedule'
 
-type RowStatus = ShareStatus | 'none'
-
 interface SearchOverlayProps {
   query: string
   setQuery: (q: string) => void
@@ -19,16 +17,12 @@ interface SearchOverlayProps {
   activeGroupName?: string | null
   onOpenManage?: () => void
   onClose: () => void
-  /** Add/remove an accepted colleague to/from the active compare group. */
+  /** Add/remove a colleague. For real accounts, add also fires a share request. */
   onToggle: (uid: string) => void
-  /** False on demo: skip the share flow entirely — every row shows "추가". */
+  /** False on demo: skip the pending indicator entirely (no shares in demo). */
   shareGated: boolean
-  /** My viewer-side share status per owner uid. */
+  /** My viewer-side share status per owner uid — used only for the "수락 대기 중" hint. */
   shareStatus: Record<string, ShareStatus>
-  /** Send / re-send a share request. Resolves false on failure (row rolls back). */
-  onRequest: (uid: string) => Promise<boolean>
-  /** Cancel my pending request. Resolves false on failure (row rolls back). */
-  onCancelRequest: (uid: string) => Promise<boolean>
   /** Exact-사번 lookup (real accounts only). */
   lookupSabun: (employeeId: string) => Promise<ProfileLookup | null>
 }
@@ -36,7 +30,7 @@ interface SearchOverlayProps {
 export function SearchOverlay({
   query, setQuery, colleagues, loading = false, comparedUids,
   activeGroupName, onOpenManage, onClose, onToggle,
-  shareGated, shareStatus, onRequest, onCancelRequest, lookupSabun,
+  shareGated, shareStatus, lookupSabun,
 }: SearchOverlayProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { inputRef.current?.focus() }, [])
@@ -45,21 +39,6 @@ export function SearchOverlay({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
-
-  // Optimistic per-row status overrides (request/cancel flip instantly, roll back on failure).
-  const [override, setOverride] = useState<Record<string, RowStatus>>({})
-  const statusOf = (uid: string): RowStatus => override[uid] ?? shareStatus[uid] ?? 'none'
-
-  async function doRequest(uid: string) {
-    const prev = statusOf(uid)
-    setOverride(o => ({ ...o, [uid]: 'pending' }))
-    if (!(await onRequest(uid))) setOverride(o => ({ ...o, [uid]: prev }))
-  }
-  async function doCancel(uid: string) {
-    const prev = statusOf(uid)
-    setOverride(o => ({ ...o, [uid]: 'none' }))
-    if (!(await onCancelRequest(uid))) setOverride(o => ({ ...o, [uid]: prev }))
-  }
 
   const raw = query.trim()
   const q = raw.toLowerCase()
@@ -95,6 +74,7 @@ export function SearchOverlay({
   const sabunDup = sabunResult != null && filtered.some(u => u.uid === sabunResult.uid)
 
   const count = comparedUids.size
+  const pendingOf = (uid: string) => shareGated && shareStatus[uid] === 'pending'
 
   return (
     <div
@@ -161,11 +141,8 @@ export function SearchOverlay({
               key={u.uid}
               u={u}
               added={comparedUids.has(u.uid)}
-              status={statusOf(u.uid)}
-              shareGated={shareGated}
+              pending={pendingOf(u.uid)}
               onToggle={onToggle}
-              onRequest={doRequest}
-              onCancel={doCancel}
             />
           ))
         )}
@@ -183,11 +160,8 @@ export function SearchOverlay({
                 u={sabunResult}
                 visibility={sabunResult.visibility}
                 added={comparedUids.has(sabunResult.uid)}
-                status={statusOf(sabunResult.uid)}
-                shareGated={shareGated}
+                pending={pendingOf(sabunResult.uid)}
                 onToggle={onToggle}
-                onRequest={doRequest}
-                onCancel={doCancel}
               />
             ) : sabunResult ? null : (
               <p className="py-6 px-4 text-center text-caption text-ink-500">그 사번으로 등록된 동료가 없어요</p>
@@ -230,20 +204,22 @@ const pillCls = (tone: 'brand' | 'muted') =>
   }`
 
 function ResultRow({
-  u, visibility, added, status, shareGated, onToggle, onRequest, onCancel,
+  u, visibility, added, pending, onToggle,
 }: {
   u: Colleague
   visibility?: Visibility
   added: boolean
-  status: RowStatus
-  shareGated: boolean
+  pending: boolean
   onToggle: (uid: string) => void
-  onRequest: (uid: string) => void
-  onCancel: (uid: string) => void
 }) {
   const isPrivate = visibility === 'private'
-  const info = (
-    <>
+  const label = added ? '✓ 비교 중' : '+ 추가'
+  const tone: 'brand' | 'muted' = added ? 'muted' : 'brand'
+  return (
+    <button
+      onClick={() => onToggle(u.uid)}
+      className="w-full flex items-center gap-3 px-2 py-3 rounded-md text-left hover:bg-bg transition-colors"
+    >
       <Avatar name={u.name} photo={u.photo} size="lg" color="brand" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
@@ -252,37 +228,16 @@ function ResultRow({
           <span className="font-en text-caption text-ink-500">{u.employeeId}</span>
         </div>
         {isPrivate ? (
-          <p className="text-[11px] text-ink-500 mt-0.5">비공개 계정 · 사번이 일치할 때만 요청할 수 있어요</p>
+          <p className="text-[11px] text-ink-500 mt-0.5">비공개 계정 · 사번이 정확히 일치해야 추가할 수 있어요</p>
+        ) : pending ? (
+          <p className="text-[11px] text-ink-500 mt-px">
+            <span className="font-semibold">수락 대기 중</span>
+            {u.office ? <span className="text-ink-300"> · {u.office}</span> : null}
+          </p>
         ) : (
           <p className="text-caption text-ink-500 mt-px">{u.office}</p>
         )}
       </div>
-    </>
-  )
-
-  // Pending has two actions (요청 중 + 취소) → static row, not whole-row clickable.
-  if (shareGated && status === 'pending') {
-    return (
-      <div className="w-full flex items-center gap-3 px-2 py-3 rounded-md">
-        {info}
-        <div className="flex items-center gap-2 shrink-0">
-          <span className={`${pillCls('muted')} opacity-70`}>요청 중</span>
-          <button onClick={() => onCancel(u.uid)} className="text-[11px] font-semibold text-ink-500 underline">취소</button>
-        </div>
-      </div>
-    )
-  }
-
-  // Single-action states (none / accepted / revoked, or demo) → whole row fires it.
-  const isCompare = !shareGated || status === 'accepted'
-  const label = isCompare ? (added ? '✓ 비교 중' : '+ 추가') : status === 'revoked' ? '다시 요청' : '요청'
-  const tone: 'brand' | 'muted' = isCompare && added ? 'muted' : 'brand'
-  return (
-    <button
-      onClick={() => (isCompare ? onToggle(u.uid) : onRequest(u.uid))}
-      className="w-full flex items-center gap-3 px-2 py-3 rounded-md text-left hover:bg-bg transition-colors"
-    >
-      {info}
       <span className={pillCls(tone)}>{label}</span>
     </button>
   )
