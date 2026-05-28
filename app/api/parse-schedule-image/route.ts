@@ -300,6 +300,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: message, warnings }, { status: 422 })
     }
 
+    // Sanity check (team-roster only): the model can mis-read every small
+    // single-letter cell as the same default token and still emit a full
+    // month. If 5+ rows all carry the same diaNr (and no times were set),
+    // that's almost certainly a guess — reject so the user goes to direct
+    // input instead of saving wrong data.
+    if (userName && rows.length >= 5) {
+      const codes = new Set<string>()
+      let hasExplicitTime = false
+      for (const r of rows) {
+        if (r.diaNr) codes.add(r.diaNr)
+        if (r.startTime || r.endTime) {
+          // KTX layout fills startTime/endTime directly from the image, so
+          // the diversity check would false-positive there. If any explicit
+          // time slipped in, treat the result as a single-user layout and
+          // skip the guard.
+          hasExplicitTime = true
+          break
+        }
+      }
+      if (!hasExplicitTime && codes.size <= 1) {
+        console.error('[parse-schedule-image] Low diversity — likely a guess', {
+          rowCount: rows.length,
+          singleCode: [...codes][0] ?? '<none>',
+        })
+        return NextResponse.json(
+          {
+            error: '표를 또렷이 읽지 못했어요. 사진을 더 크고 선명하게 다시 찍거나, 직접 입력으로 등록해 주세요.',
+            warnings: ['low_diversity_suspicion', ...(parsed.warnings ?? [])],
+          },
+          { status: 422 },
+        )
+      }
+    }
+
     return NextResponse.json({
       rows,
       warnings: parsed.warnings ?? [],
@@ -477,6 +511,11 @@ function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: numb
       '- isOff: true only when the code is D / DO / 연 / 연차.',
       '- If a cell is blank, whitespace-only, or its letter is genuinely unreadable, SKIP that day (do not emit a row, do not guess).',
       '- Sanity check: count the codes you emitted. If a sub-table to the right of the main table shows per-person totals (e.g. "D 9, N 0, A 11, B 9, 연 1"), use it to verify your per-code counts; if your count for a code differs by more than 1, re-read that code\'s cells.',
+      '',
+      '### CRITICAL confidence rule',
+      '- If you cannot READ the cells with confidence (image too small/blurry/cropped, you would have to guess each letter), return rows: [] and warning "row_unreadable". An empty result is correct.',
+      '- NEVER fill an entire month with the same code (e.g. 30 days of "N") — that pattern means you guessed a default token instead of reading. Real shift rosters have a mix of codes; one-code-fits-all is the signature of an OCR failure.',
+      '- If after careful reading every cell would resolve to the same single code, you almost certainly mis-read — return rows: [] + "row_unreadable" instead.',
     )
   } else {
     lines.push(
