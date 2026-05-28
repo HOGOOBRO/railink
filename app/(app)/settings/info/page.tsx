@@ -16,7 +16,7 @@ import { COMPARE_KEY } from '@/lib/store/compare'
 import { getGroupsState, allMemberUids, GROUPS_KEY } from '@/lib/store/groups'
 import { COLLEAGUE_DIRECTORY_KEY, SAMPLE_DIRECTORY_SEEDED_KEY } from '@/lib/store/colleagues'
 import {
-  listSharesWithProfile, respondShare, cancelShare,
+  listSharesWithProfile, respondShare,
   type ShareListsWithProfile, type ShareWithProfile,
 } from '@/lib/store/shares'
 import { DangerConfirm } from '@/components/ui/DangerConfirm'
@@ -146,10 +146,10 @@ export default function SettingsInfoPage() {
     return name !== session.name || part !== (session.part ?? '')
   }, [session, name, part])
 
-  // Section B rows in spec order: 요청 받음 → 내가 요청 중 → 공유 중.
+  // Section B rows: 요청 받음 → 공유 중. "내가 요청 중"은 캘린더 비교 그룹이
+  // 단일 진실 출처이므로 여기엔 노출하지 않는다 — 그룹에서 빼는 동작이 곧 취소다.
   const shareRows = useMemo(() => [
     ...shares.incoming.map(s => ({ kind: 'incoming' as const, s })),
-    ...shares.outgoing.map(s => ({ kind: 'outgoing' as const, s })),
     ...shares.sharing.map(s => ({ kind: 'sharing' as const, s })),
   ], [shares])
 
@@ -296,7 +296,6 @@ export default function SettingsInfoPage() {
                 last={i === shareRows.length - 1}
                 onAccept={() => runShareAction(() => respondShare(r.s.viewerId, true), `${r.s.counterpart.name}님과 일정을 공유해요`)}
                 onDecline={() => runShareAction(() => respondShare(r.s.viewerId, false), '요청을 거절했어요')}
-                onCancel={() => runShareAction(() => cancelShare(r.s.ownerId), '요청을 취소했어요')}
                 onStop={() => runShareAction(() => respondShare(r.s.viewerId, false), `${r.s.counterpart.name}님과의 공유를 중지했어요`)}
               />
             ))
@@ -492,21 +491,18 @@ function ToggleRow({
 }
 
 function ShareRow({
-  kind, share, busy, last, onAccept, onDecline, onCancel, onStop,
+  kind, share, busy, last, onAccept, onDecline, onStop,
 }: {
-  kind: 'incoming' | 'outgoing' | 'sharing'
+  kind: 'incoming' | 'sharing'
   share: ShareWithProfile
   busy: boolean
   last: boolean
   onAccept?: () => void
   onDecline?: () => void
-  onCancel?: () => void
   onStop?: () => void
 }) {
   const p = share.counterpart
-  const caption = kind === 'incoming' ? '공유 요청을 받았어요'
-    : kind === 'outgoing' ? '수락 대기 중'
-    : '내 일정을 공유 중'
+  const caption = kind === 'incoming' ? '공유 요청을 받았어요' : '내 일정을 공유 중'
   return (
     <div className={`flex items-center gap-3 px-3.5 py-3 ${last ? '' : 'border-b border-line'}`}>
       <Avatar name={p.name} photo={p.photo ?? undefined} size="lg" color="brand" />
@@ -518,14 +514,14 @@ function ShareRow({
         <p className="text-[11px] text-ink-500 mt-0.5">{caption}</p>
       </div>
       <div className="flex items-center gap-1.5 shrink-0">
-        {kind === 'incoming' && (
+        {kind === 'incoming' ? (
           <>
             <PillBtn tone="brand" disabled={busy} onClick={onAccept}>수락</PillBtn>
             <PillBtn tone="danger" disabled={busy} onClick={onDecline}>거절</PillBtn>
           </>
+        ) : (
+          <PillBtn tone="danger" disabled={busy} onClick={onStop}>중지</PillBtn>
         )}
-        {kind === 'outgoing' && <PillBtn tone="muted" disabled={busy} onClick={onCancel}>요청 취소</PillBtn>}
-        {kind === 'sharing' && <PillBtn tone="danger" disabled={busy} onClick={onStop}>중지</PillBtn>}
       </div>
     </div>
   )
@@ -533,10 +529,8 @@ function ShareRow({
 
 function PillBtn({
   children, onClick, disabled, tone,
-}: { children: ReactNode; onClick?: () => void; disabled?: boolean; tone: 'brand' | 'danger' | 'muted' }) {
-  const toneCls = tone === 'brand' ? 'bg-brand-050 text-brand'
-    : tone === 'danger' ? 'bg-danger-soft text-danger'
-    : 'bg-bg text-ink-500'
+}: { children: ReactNode; onClick?: () => void; disabled?: boolean; tone: 'brand' | 'danger' }) {
+  const toneCls = tone === 'brand' ? 'bg-brand-050 text-brand' : 'bg-danger-soft text-danger'
   return (
     <button
       onClick={onClick}
