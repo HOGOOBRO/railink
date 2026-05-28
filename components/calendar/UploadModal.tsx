@@ -1,6 +1,6 @@
 'use client'
 
-import { ChangeEvent, ReactNode, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, CSSProperties, ReactNode, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import {
   CloseIcon, FileIcon, ImageIcon, EditIcon, ChevronLeftIcon,
@@ -21,6 +21,27 @@ function displayPreviewRows(rows: ParsedScheduleRow[]): ParsedScheduleRow[] {
 
 export type UploadMethod = 'file' | 'image' | 'manual'
 type Step = 'pick' | 'preview' | 'manual'
+type ManualCategory = 'ktx' | 'general'
+
+// Inline glyphs from the upload handoff — kept local to this file because
+// they only appear here. SparkleGlyph signals AI assist, CameraGlyph drives
+// the primary hero tile.
+function SparkleGlyph({ size = 14, className, style }: { size?: number; className?: string; style?: CSSProperties }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} style={style} aria-hidden="true">
+      <path d="M12 2.5l1.7 5.3 5.3 1.7-5.3 1.7L12 16.5 10.3 11.2 5 9.5l5.3-1.7L12 2.5z" />
+      <path d="M19 16.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8z" />
+    </svg>
+  )
+}
+function CameraGlyph({ size = 22, className }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d="M3 7h3l2-2.5h8L18 7h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z" />
+      <circle cx="12" cy="13" r="4" />
+    </svg>
+  )
+}
 
 interface UploadModalProps {
   step: Step
@@ -34,19 +55,6 @@ interface UploadModalProps {
   onClose: () => void
   onSave: (rows: ParsedScheduleRow[]) => Promise<void> | void
 }
-
-const OPTIONS: {
-  key: UploadMethod
-  icon: ReactNode
-  label: string
-  sub: string
-  meta: string
-  primary?: boolean
-}[] = [
-  { key: 'file',   icon: <FileIcon size={22} />,  label: '엑셀 / CSV', sub: '회사 시스템에서 받은 표를 그대로 올리기', meta: '.xlsx · .xls · .csv', primary: true },
-  { key: 'image',  icon: <ImageIcon size={22} />, label: '이미지',      sub: '스크린샷을 AI로 읽어서 등록',           meta: '.png · .jpg · .webp · 여러 장 가능' },
-  { key: 'manual', icon: <EditIcon size={22} />,  label: '직접 입력',   sub: '날짜별로 빈 표를 채워서 등록',          meta: '이번 달 전체 30일 폼' },
-]
 
 const DOW_KR = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -183,6 +191,7 @@ export function UploadModal({
   const [manualRows, setManualRows] = useState<ManualRow[]>(
     () => buildInitialManualRows(defaultYear, defaultMonth, initialRows),
   )
+  const [manualCategory, setManualCategory] = useState<ManualCategory>('ktx')
   const monthTotal = useMemo(
     () => daysInMonth(defaultYear, defaultMonth), [defaultYear, defaultMonth],
   )
@@ -324,7 +333,7 @@ export function UploadModal({
 
   const footerStatus =
     saving ? 'Supabase에 저장하고 확인 중'
-    : step === 'pick' ? '엑셀/CSV 파일을 선택해 주세요'
+    : step === 'pick' ? '입력 방식을 골라 주세요'
     : step === 'manual' ? '직접 입력 중'
     : `총 ${rows.length}건`
 
@@ -365,49 +374,64 @@ export function UploadModal({
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-6">
         {step === 'pick' && (
           <>
-            <p className="text-callout text-ink-700 leading-relaxed mb-3.5">
-              어떻게 등록할까요? 회사에서 받은{' '}
-              <strong className="text-ink-900">엑셀 또는 CSV 파일</strong>을 올리면
-              날짜·다이번호·열번·출퇴근시각을 자동으로 읽어요.
+            <h4 className="text-[22px] font-bold tracking-tight text-ink-900 leading-tight mb-1.5">
+              근무표 사진을 올려 주세요
+            </h4>
+            <p className="text-[13.5px] text-ink-500 leading-relaxed mb-4">
+              AI가 날짜·다이·출퇴근 시각을 읽어서 자동으로 채워 드려요.
             </p>
-            <div className="grid gap-2.5">
-              {OPTIONS.map(o => (
-                <button
-                  key={o.key}
-                  onClick={() => handleOption(o.key)}
-                  disabled={!!busy}
-                  className={`flex items-center gap-3.5 p-3.5 rounded-lg text-left border-[1.5px] ${
-                    o.primary
-                      ? 'border-brand bg-brand-050 shadow-sh1'
-                      : 'border-line bg-surface'
-                  } ${busy ? 'opacity-70 cursor-wait' : ''}`}
-                >
-                  <div
-                    className={`w-11 h-11 rounded-md grid place-items-center shrink-0 ${
-                      o.primary ? 'bg-brand text-ink-on-brand' : 'bg-bg text-ink-700'
-                    }`}
-                  >
-                    {o.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="font-bold text-callout text-ink-900">{o.label}</span>
-                      {o.primary && (
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-pill bg-brand-050 text-brand">
-                          추천
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-caption text-ink-500 mt-0.5 leading-snug">{o.sub}</p>
-                    <p className={`font-en text-[11px] font-semibold mt-1 ${o.primary ? 'text-brand' : 'text-ink-500'}`}>
-                      {o.meta}
-                    </p>
-                  </div>
-                  <span className={o.primary ? 'text-brand' : 'text-ink-500'}>
-                    <ChevronRightIcon size={16} />
-                  </span>
-                </button>
-              ))}
+
+            {/* Primary hero — image (AI). Card color = brand-500 (사용자 요청: 0.5 톤). */}
+            <button
+              onClick={() => handleOption('image')}
+              disabled={!!busy}
+              className={`w-full flex items-center gap-3 p-[18px] rounded-[16px] bg-brand-500 text-ink-on-brand text-left ${
+                busy ? 'opacity-70 cursor-wait' : 'active:scale-[.99]'
+              }`}
+            >
+              <span
+                className="w-12 h-12 rounded-[14px] grid place-items-center shrink-0"
+                style={{ background: 'rgba(255,255,255,0.16)' }}
+              >
+                <CameraGlyph size={22} />
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="flex items-center gap-1.5">
+                  <SparkleGlyph size={14} className="shrink-0" style={{ color: '#FFD9B8' }} />
+                  <span className="text-[16px] font-bold leading-none">사진으로 등록</span>
+                </span>
+                <span className="block mt-1 text-[12px] leading-snug" style={{ color: 'rgba(255,255,255,0.78)' }}>
+                  AI가 자동으로 채워드려요 · 촬영·앨범 모두 가능
+                </span>
+              </span>
+              <span style={{ color: 'rgba(255,255,255,0.7)' }} className="shrink-0">
+                <ChevronRightIcon size={18} />
+              </span>
+            </button>
+
+            {/* "또는" divider */}
+            <div className="my-5 flex items-center gap-2.5">
+              <span className="flex-1 h-px bg-line" />
+              <span className="text-[11px] font-semibold tracking-wider text-ink-300">또는</span>
+              <span className="flex-1 h-px bg-line" />
+            </div>
+
+            {/* Secondary methods */}
+            <div className="grid gap-2">
+              <SecondaryMethod
+                icon={<FileIcon size={18} />}
+                label="엑셀 / CSV 파일"
+                sub="회사에서 받은 .xlsx · .csv 업로드"
+                onClick={() => handleOption('file')}
+                disabled={!!busy}
+              />
+              <SecondaryMethod
+                icon={<EditIcon size={18} />}
+                label="직접 입력"
+                sub="KTX 승무 · 일반 근무 모두 가능"
+                onClick={() => handleOption('manual')}
+                disabled={!!busy}
+              />
             </div>
 
             {busy === 'file' && (
@@ -447,12 +471,6 @@ export function UploadModal({
               <StatusBox tone="info">
                 <span className="text-brand shrink-0"><InfoIcon size={16} /></span>
                 <span>{notice}</span>
-              </StatusBox>
-            )}
-            {!busy && !error && !notice && (
-              <StatusBox tone="info">
-                <span className="text-brand shrink-0"><InfoIcon size={16} /></span>
-                <span>엑셀/CSV는 컬럼을 읽고, 이미지는 AI가 캘린더 내용을 해석해 근무 행을 찾아요.</span>
               </StatusBox>
             )}
           </>
@@ -524,6 +542,8 @@ export function UploadModal({
               month={defaultMonth}
               filled={manualFilled}
               total={monthTotal}
+              category={manualCategory}
+              onCategoryChange={setManualCategory}
               onBack={onBack}
               onChange={setManualRow}
               onAppendRest={appendRemainingDays}
@@ -561,6 +581,29 @@ export function UploadModal({
   )
 }
 
+function SecondaryMethod({
+  icon, label, sub, onClick, disabled,
+}: { icon: ReactNode; label: string; sub: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-[12px] border border-line bg-surface text-left ${
+        disabled ? 'opacity-60 cursor-wait' : 'active:bg-bg'
+      }`}
+    >
+      <span className="w-9 h-9 rounded-[10px] bg-bg text-ink-700 grid place-items-center shrink-0">
+        {icon}
+      </span>
+      <span className="flex-1 min-w-0">
+        <span className="block text-[14px] font-semibold text-ink-900 leading-none">{label}</span>
+        <span className="block mt-1 text-[11px] text-ink-300 leading-snug">{sub}</span>
+      </span>
+      <span className="text-ink-300 shrink-0"><ChevronRightIcon size={16} /></span>
+    </button>
+  )
+}
+
 function StatusBox({ tone, children }: { tone: 'info' | 'danger'; children: ReactNode }) {
   return (
     <div
@@ -581,6 +624,8 @@ interface ManualBodyProps {
   month: number
   filled: number
   total: number
+  category: ManualCategory
+  onCategoryChange: (next: ManualCategory) => void
   onBack: () => void
   onChange: (i: number, patch: Partial<ManualRow>) => void
   onAppendRest: () => void
@@ -692,8 +737,10 @@ function PreviewBody({ rows, onChange, onRemove, onAppend }: PreviewBodyProps) {
 }
 
 function ManualBody({
-  rows, year, month, filled, total, onBack, onChange, onAppendRest,
+  rows, year, month, filled, total, category, onCategoryChange,
+  onBack, onChange, onAppendRest,
 }: ManualBodyProps) {
+  const headerLabel = category === 'ktx' ? '다이 · 출근 · 퇴근' : '출근 · 퇴근'
   return (
     <>
       <button
@@ -707,7 +754,7 @@ function ManualBody({
         </span>
       </button>
 
-      <div className="flex items-center justify-between px-3 py-2.5 rounded-md bg-brand-050 text-brand-700 text-caption mb-2.5">
+      <div className="flex items-center justify-between px-3 py-2.5 rounded-[12px] bg-brand-050 text-brand-700 text-caption mb-3">
         <div className="flex items-center gap-2">
           <span className="text-brand shrink-0"><EditIcon size={14} /></span>
           <span>
@@ -717,9 +764,26 @@ function ManualBody({
         </div>
       </div>
 
-      <div className="border border-line rounded-md overflow-hidden">
+      {/* Category picker — 직군. */}
+      <p className="px-1 pb-1.5 text-[11px] font-semibold tracking-wider uppercase text-ink-300">직군</p>
+      <div className="grid grid-cols-2 gap-1.5 mb-3">
+        <CategoryChip
+          active={category === 'ktx'}
+          title="KTX 승무"
+          sub="다이 + 출퇴근"
+          onClick={() => onCategoryChange('ktx')}
+        />
+        <CategoryChip
+          active={category === 'general'}
+          title="일반 근무"
+          sub="출퇴근만"
+          onClick={() => onCategoryChange('general')}
+        />
+      </div>
+
+      <div className="border border-line rounded-[12px] overflow-hidden">
         <div className="grid grid-cols-[64px_1fr] bg-bg px-3 py-2 text-[10px] font-bold text-ink-500 tracking-wide uppercase border-b border-line">
-          <span>날짜</span><span>다이 · 출근 · 퇴근</span>
+          <span>날짜</span><span>{headerLabel}</span>
         </div>
         {rows.map((r, i) => {
           const dowColor =
@@ -746,7 +810,7 @@ function ManualBody({
                     휴무
                   </span>
                   <span className="text-caption text-ink-500 font-en">
-                    {r.sun ? 'S(주휴)' : 'S'}
+                    {category === 'ktx' ? (r.sun ? 'S(주휴)' : 'S') : '오프'}
                   </span>
                   <div className="flex-1" />
                   <button
@@ -758,33 +822,35 @@ function ManualBody({
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5">
-                  <input
-                    value={r.dia ?? ''}
-                    placeholder="H----"
-                    onChange={e => onChange(i, { dia: e.target.value })}
-                    className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
-                      r.dia ? 'border-line-2 bg-surface' : 'border-line bg-bg'
-                    }`}
-                    style={{ width: 84 }}
-                  />
+                  {category === 'ktx' && (
+                    <input
+                      value={r.dia ?? ''}
+                      placeholder="H----"
+                      onChange={e => onChange(i, { dia: e.target.value })}
+                      className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
+                        r.dia ? 'border-line-2 bg-surface' : 'border-line bg-bg'
+                      }`}
+                      style={{ width: 84 }}
+                    />
+                  )}
                   <input
                     value={r.st ?? ''}
-                    placeholder="시작"
+                    placeholder={category === 'general' ? '09:00' : '시작'}
                     onChange={e => onChange(i, { st: e.target.value })}
                     className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
                       r.st ? 'border-line-2 bg-surface' : 'border-line bg-bg'
                     }`}
-                    style={{ width: 62 }}
+                    style={{ width: category === 'general' ? 72 : 62 }}
                   />
                   <span className="text-ink-300 font-en">→</span>
                   <input
                     value={r.et ?? ''}
-                    placeholder="종료"
+                    placeholder={category === 'general' ? '18:00' : '종료'}
                     onChange={e => onChange(i, { et: e.target.value })}
                     className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
                       r.et ? 'border-line-2 bg-surface' : 'border-line bg-bg'
                     }`}
-                    style={{ width: 62 }}
+                    style={{ width: category === 'general' ? 72 : 62 }}
                   />
                   <div className="flex-1" />
                   <button
@@ -803,12 +869,35 @@ function ManualBody({
       {rows.length < total && (
         <button
           onClick={onAppendRest}
-          className="mt-2.5 w-full flex items-center justify-center gap-1.5 px-3 py-3 rounded-md border border-dashed border-line-2 bg-surface text-callout font-semibold text-ink-700"
+          className="mt-2.5 w-full flex items-center justify-center gap-1.5 px-3 py-3 rounded-[12px] border border-dashed border-line-2 bg-surface text-callout font-semibold text-ink-700"
         >
           <PlusIcon size={14} />
           {rows.length + 1}일~{total}일 추가하기
         </button>
       )}
     </>
+  )
+}
+
+function CategoryChip({
+  active, title, sub, onClick,
+}: { active: boolean; title: string; sub: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex flex-col items-start gap-0.5 px-3 py-2 rounded-[10px] text-left ${
+        active
+          ? 'border-[1.5px] border-brand bg-brand-050 text-brand-700'
+          : 'border border-line bg-surface text-ink-500'
+      }`}
+    >
+      <span className={`text-[13px] ${active ? 'font-bold' : 'font-semibold text-ink-900'}`}>
+        {title}
+      </span>
+      <span className={`text-[10px] ${active ? 'text-brand' : 'text-ink-300'}`}>
+        {sub}
+      </span>
+    </button>
   )
 }
