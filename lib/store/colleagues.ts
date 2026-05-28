@@ -73,13 +73,27 @@ async function getRemoteDirectory(currentUid: string): Promise<Colleague[] | nul
       .order('name', { ascending: true })
       .limit(200)
 
-    if (error) return null
+    if (error) {
+      // Surface the supabase error — without this it was being swallowed and
+      // an empty directory looked identical to a real RLS/permission failure.
+      console.error('[colleagues] directory query failed', error)
+      return null
+    }
     if (!Array.isArray(data)) return []
+
+    if (data.length === 0) {
+      // RLS-filtered to zero rows. This is the canonical case behind "검색이
+      // 안 돼" reports: other accounts exist but their visibility is 'private'
+      // (e.g. legacy share_schedule=false rows auto-migrated to private), or
+      // no other accounts have been created yet.
+      console.warn('[colleagues] directory returned 0 rows — RLS hid every other profile (likely visibility=private)')
+    }
 
     return data
       .map(profile => mapProfile(profile as RemoteProfile))
       .filter((profile): profile is Colleague => Boolean(profile))
-  } catch {
+  } catch (e) {
+    console.error('[colleagues] directory query threw', e)
     return null
   }
 }
@@ -119,7 +133,14 @@ export async function findProfileByEmployeeId(employeeId: string): Promise<Profi
   const { data, error } = await supabase.rpc('find_profile_by_employee_id', {
     target_employee_id: employeeId,
   })
-  if (error || !Array.isArray(data) || data.length === 0) return null
+  if (error) {
+    console.error('[colleagues] sabun RPC failed', error)
+    return null
+  }
+  if (!Array.isArray(data) || data.length === 0) {
+    console.warn('[colleagues] sabun RPC returned 0 rows for', employeeId)
+    return null
+  }
   const r = data[0] as {
     id: string; name: string; employee_id: string
     part: string | null; photo: string | null; visibility: Visibility
