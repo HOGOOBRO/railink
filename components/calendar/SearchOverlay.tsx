@@ -131,6 +131,18 @@ export function SearchOverlay({
           <p className="py-16 px-4 text-center text-callout text-ink-500">
             검색 가능한 동료를 확인하고 있어요.
           </p>
+        ) : colleagues.length === 0 && !showSabun ? (
+          // Directory 자체가 비어있음 — 다른 가입자가 없거나, 가입은 했지만 모두
+          // 공개 범위 = 비공개라 RLS가 가린 경우. (옛 share_schedule=false 사용자가
+          // 마이그레이션으로 자동 private이 된 케이스가 흔함.)
+          <div className="py-12 px-4 text-center text-callout text-ink-500 leading-relaxed">
+            <p>아직 검색할 수 있는 동료가 없어요.</p>
+            <p className="mt-2 text-caption text-ink-300">
+              동료가 RaiLink에 가입한 뒤<br />
+              <span className="text-ink-500">내 메뉴 → 내 정보 → 공개 범위</span>에서<br />
+              <span className="text-ink-500 font-semibold">‘공개’</span>로 설정해야 검색에 나타나요.
+            </p>
+          </div>
         ) : filtered.length === 0 && !showSabun ? (
           <p className="py-16 px-4 text-center text-callout text-ink-500">
             검색 결과가 없어요. 이름이나 사번을 다시 확인해 주세요.
@@ -164,7 +176,12 @@ export function SearchOverlay({
                 onToggle={onToggle}
               />
             ) : sabunResult ? null : (
-              <p className="py-6 px-4 text-center text-caption text-ink-500">그 사번으로 등록된 동료가 없어요</p>
+              <div className="py-6 px-4 text-center text-caption text-ink-500 leading-relaxed">
+                <p>그 사번으로 등록된 동료가 없어요.</p>
+                <p className="mt-1.5 text-[11px] text-ink-300">
+                  사번이 정확한지, 그 동료가 RaiLink에 가입했는지 확인해 주세요.
+                </p>
+              </div>
             )}
           </>
         )}
