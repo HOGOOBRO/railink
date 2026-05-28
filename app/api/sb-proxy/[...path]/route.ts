@@ -12,13 +12,24 @@ export const dynamic = 'force-dynamic'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 
-// Hop-by-hop and request-scoped headers that must NOT be forwarded as-is.
-const STRIPPED_REQ_HEADERS = new Set([
-  'host',
-  'connection',
-  'content-length',
-  'transfer-encoding',
-  'accept-encoding',
+// Allowlist of request headers to forward. supabase-js + standard browser
+// fetch send these; everything else (Vercel's `x-vercel-*`, `x-forwarded-*`,
+// `x-real-ip`, Cloudflare's `cf-*`, browser `sec-fetch-*`, `user-agent`, etc.)
+// is dropped. Without this filter, accumulated Vercel/CF/browser headers
+// pushed the upstream request over PostgREST/nginx's header-size ceiling and
+// every call came back HTTP 494 "Request Header Too Large".
+const ALLOWED_REQ_HEADERS = new Set([
+  'apikey',
+  'authorization',
+  'content-type',
+  'accept',
+  'accept-profile',
+  'content-profile',
+  'prefer',
+  'range',
+  'range-unit',
+  'x-client-info',
+  'x-supabase-api-version',
 ])
 
 // Response headers that confuse the browser if forwarded verbatim through
@@ -40,7 +51,7 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
 
   const headers = new Headers()
   req.headers.forEach((value, key) => {
-    if (!STRIPPED_REQ_HEADERS.has(key.toLowerCase())) headers.set(key, value)
+    if (ALLOWED_REQ_HEADERS.has(key.toLowerCase())) headers.set(key, value)
   })
 
   const hasBody = !['GET', 'HEAD'].includes(req.method)
