@@ -187,6 +187,19 @@ export default function CalendarPage() {
         // and (c) actual empty pool. The polled call is a separate, light
         // probe — it does NOT replace the directory shown to the user.
         if (!s.isDemo && directory.length === 0) {
+          // PR-24/25 diagnostic: raw fetch to bypass the supabase client and
+          // localize the failure layer.
+          const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+          showToast(`url=${url?.slice(8, 28) ?? '∅'}`, 'success')
+          try {
+            const res = await fetch(`${url}/auth/v1/health`, {
+              method: 'GET',
+              headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' },
+            })
+            showToast(`raw st=${res.status} ok=${res.ok}`, res.ok ? 'success' : 'danger')
+          } catch (e) {
+            showToast(`raw threw: ${(e as Error)?.message?.slice(0, 60)}`, 'danger')
+          }
           try {
             const { data: { user } } = await supabase.auth.getUser()
             const { count, error, status } = await supabase
@@ -195,11 +208,11 @@ export default function CalendarPage() {
               .neq('id', s.uid)
               .eq('is_admin', false)
             showToast(
-              `dir uid=${user?.id?.slice(0, 8) ?? '∅'} st=${status} n=${count ?? 'null'} err=${error?.message?.slice(0, 30) ?? '-'}`,
+              `sb uid=${user?.id?.slice(0, 8) ?? '∅'} st=${status} n=${count ?? 'null'} err=${error?.message?.slice(0, 30) ?? '-'}`,
               error ? 'danger' : 'success',
             )
           } catch (e) {
-            showToast(`dir probe threw: ${(e as Error)?.message?.slice(0, 60)}`, 'danger')
+            showToast(`sb probe threw: ${(e as Error)?.message?.slice(0, 60)}`, 'danger')
           }
         }
       } catch {
