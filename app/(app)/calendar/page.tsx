@@ -683,8 +683,8 @@ export default function CalendarPage() {
 
       <div className="flex-1" />
 
-      {/* ── FAB ── */}
-      {!overlayOpen && (
+      {/* ── FAB ── 빈 상태에선 footer 인라인 링크가 단일 진입점이라 숨김. */}
+      {!overlayOpen && hasMySchedule && (
         <button
           onClick={openUpload}
           aria-label="근무표 등록"
