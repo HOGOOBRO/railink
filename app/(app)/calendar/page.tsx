@@ -19,6 +19,7 @@ import { ManageGroupsSheet } from '@/components/calendar/ManageGroupsSheet'
 import { CompareMemberSheet } from '@/components/calendar/CompareMemberSheet'
 import type { MonthPerson, MonthShift } from '@/components/calendar/MonthTimeline'
 import { getCurrentSession, logout, type Session } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 import {
   getMonthSchedules,
   getRemoteMonthSchedules,
@@ -180,6 +181,27 @@ export default function CalendarPage() {
         const directory = await getColleagueDirectory(s)
         if (!alive) return
         setColleagues(directory)
+        // Diagnostic (PR-24): when directory is empty for a real account,
+        // surface the underlying supabase response so we can tell apart
+        // (a) auth-not-applied (status 200 anon-style 0 rows), (b) RLS-error,
+        // and (c) actual empty pool. The polled call is a separate, light
+        // probe — it does NOT replace the directory shown to the user.
+        if (!s.isDemo && directory.length === 0) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser()
+            const { count, error, status } = await supabase
+              .from('profiles')
+              .select('id', { count: 'exact', head: true })
+              .neq('id', s.uid)
+              .eq('is_admin', false)
+            showToast(
+              `dir uid=${user?.id?.slice(0, 8) ?? '∅'} st=${status} n=${count ?? 'null'} err=${error?.message?.slice(0, 30) ?? '-'}`,
+              error ? 'danger' : 'success',
+            )
+          } catch (e) {
+            showToast(`dir probe threw: ${(e as Error)?.message?.slice(0, 60)}`, 'danger')
+          }
+        }
       } catch {
         if (alive) setColleagues([])
       } finally {
