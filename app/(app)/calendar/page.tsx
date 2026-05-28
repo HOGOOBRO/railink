@@ -29,7 +29,7 @@ import {
 import {
   getGroupsState, saveGroupsState, activeGroupOf, allMemberUids,
   addToActiveGroup, removeFromActiveGroup, setActiveGroup,
-  createGroup, renameGroup, deleteGroup, MAX_PER_GROUP,
+  createGroup, renameGroup, deleteGroup, reorderGroups, MAX_PER_GROUP,
 } from '@/lib/store/groups'
 import {
   findColleagueInDirectory,
@@ -354,6 +354,11 @@ export default function CalendarPage() {
     setDetailOpen(false)
   }
 
+  function handleReorderGroups(orderedIds: string[]) {
+    if (!session) return
+    setGroupsState({ ...reorderGroups(session.uid, orderedIds) })
+  }
+
   function prevMonth() {
     if (month === 1) { setYear(y => y - 1); setMonth(12) } else setMonth(m => m - 1)
   }
@@ -517,6 +522,7 @@ export default function CalendarPage() {
             onSelect={switchGroup}
             onAddGroup={() => openManage(true)}
             onManage={() => openManage(false)}
+            onReorder={handleReorderGroups}
             showToast={showToast}
           />
         ) : (
