@@ -39,7 +39,7 @@ import {
 import { myViewerShareStatuses, requestShare, cancelShare, listShares } from '@/lib/store/shares'
 import type { Colleague } from '@/lib/demo-data'
 import {
-  MONTHS_EN, DOW_EN, buildMonthCells, hmToDecimal,
+  DOW_KR, buildMonthCells, hmToDecimal,
 } from '@/lib/schedule-utils'
 import type { ParsedScheduleRow } from '@/lib/parse/schedule-file'
 import type { CompareEntry, CompareColor, GroupsState, ScheduleEntry, ShareStatus } from '@/lib/types/schedule'
@@ -590,8 +590,8 @@ export default function CalendarPage() {
             <ChevronLeftIcon size={20} />
           </button>
           <div className="flex flex-col items-center gap-1">
-            <span className="font-en text-title font-[400] tracking-tighter text-ink-900">
-              {MONTHS_EN[month - 1]} {year}
+            <span className="font-kr text-title font-bold tracking-tight text-ink-900">
+              {year}년 {month}월
             </span>
             {!isCurrentMonth && (
               <button
@@ -613,8 +613,13 @@ export default function CalendarPage() {
 
         {/* DOW row */}
         <div className="grid grid-cols-7 border-b-2 border-divider">
-          {DOW_EN.map(d => (
-            <div key={d} className="text-center font-en text-[13px] font-bold text-ink-700 py-1">
+          {DOW_KR.map((d, i) => (
+            <div
+              key={d}
+              className={`text-center font-kr text-[13px] font-bold py-1 ${
+                i === 0 ? 'text-danger' : i === 6 ? 'text-brand' : 'text-ink-700'
+              }`}
+            >
               {d}
             </div>
           ))}
@@ -653,9 +658,9 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* ── Footer ── */}
-      {hasMySchedule && (
-        <div className="px-4 pt-3 pb-6 text-caption text-ink-500">
+      {/* ── Footer ── 근무표 유무 양쪽 모두 한 줄 인라인. 없을 땐 등록 진입점, 있을 땐 카운터. */}
+      <div className="px-4 pt-3 pb-6 text-caption text-ink-500">
+        {hasMySchedule ? (
           <div className="flex items-center gap-2 bg-bg px-3.5 py-2.5 rounded-md">
             <span className="text-brand shrink-0"><UploadIcon size={14} /></span>
             <span>
@@ -664,25 +669,19 @@ export default function CalendarPage() {
               {' · '}휴무 {offDays}일 · 비교 동료 {compares.length}명
             </span>
           </div>
-        </div>
-      )}
+        ) : (
+          <button
+            onClick={openUpload}
+            className="w-full flex items-center gap-2 bg-bg px-3.5 py-2.5 rounded-md text-left"
+          >
+            <span className="text-brand shrink-0"><UploadIcon size={14} /></span>
+            <span className="flex-1">이번 달 내 근무표가 없어요</span>
+            <span className="text-brand font-semibold shrink-0">등록하기 →</span>
+          </button>
+        )}
+      </div>
 
       <div className="flex-1" />
-
-      {/* ── Empty-state card ── */}
-      {!hasMySchedule && (
-        <div
-          className="absolute left-4 right-4 bg-surface rounded-lg border border-line px-4 py-5 text-center shadow-sh3"
-          style={{ bottom: 'calc(100px + env(safe-area-inset-bottom))' }}
-        >
-          <div className="w-12 h-12 rounded-lg bg-brand-050 text-brand grid place-items-center mx-auto mb-2.5">
-            <UploadIcon size={22} />
-          </div>
-          <p className="font-bold text-[15px] text-ink-900 mb-1">이번 달 근무표가 아직 없어요</p>
-          <p className="text-caption text-ink-500 mb-3">아래 버튼을 눌러 시작해 주세요.</p>
-          <Button block size="sm" onClick={openUpload}>근무표 등록하기</Button>
-        </div>
-      )}
 
       {/* ── FAB ── */}
       {!overlayOpen && (
