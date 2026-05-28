@@ -56,6 +56,9 @@ export async function recognizeScheduleImage(
   defaultYear: number,
   defaultMonth: number,
   onProgress?: (progress: OcrProgress) => void,
+  /** 팀 표(여러 사람 row)에서 자기 행을 골라내기 위해 보내는 본인 풀네임.
+   *  KTX 단일 표는 무시됨. 빈 문자열이면 팀 표 인식을 비활성화. */
+  userName?: string,
 ): Promise<RecognizedScheduleImage> {
   const files = Array.isArray(input) ? input : [input]
   if (!files.length) {
@@ -83,6 +86,7 @@ export async function recognizeScheduleImage(
   uploadFiles.forEach(file => form.append('image', file))
   form.append('defaultYear', String(defaultYear))
   form.append('defaultMonth', String(defaultMonth))
+  if (userName?.trim()) form.append('userName', userName.trim())
 
   const token = await getImageAuthToken()
   form.append('accessToken', token)

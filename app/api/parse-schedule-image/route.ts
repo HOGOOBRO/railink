@@ -185,6 +185,7 @@ export async function POST(req: NextRequest) {
     const files = form.getAll('image').filter((file): file is File => file instanceof File)
     const defaultYear = Number(form.get('defaultYear')) || new Date().getFullYear()
     const defaultMonth = Number(form.get('defaultMonth')) || new Date().getMonth() + 1
+    const userName = String(form.get('userName') ?? '').trim()
 
     if (!files.length) {
       return NextResponse.json({ error: '이미지 파일이 필요해요.' }, { status: 400 })
@@ -232,7 +233,7 @@ export async function POST(req: NextRequest) {
             content: [
               {
                 type: 'input_text',
-                text: buildPrompt(defaultYear, defaultMonth, files.length),
+                text: buildPrompt(defaultYear, defaultMonth, files.length, userName),
               },
               ...imageContent,
             ],
@@ -286,11 +287,17 @@ export async function POST(req: NextRequest) {
       console.error('[parse-schedule-image] No usable rows extracted', {
         rowCount: parsed.rows?.length ?? 0,
         warnings: parsed.warnings ?? [],
+        userName: userName || '<none>',
       })
-      return NextResponse.json(
-        { error: '이미지에서 저장 가능한 근무 행을 찾지 못했어요.', warnings: parsed.warnings ?? [] },
-        { status: 422 },
-      )
+      const warnings = parsed.warnings ?? []
+      const nameNotFound = warnings.some(w => /name_not_found/i.test(w))
+      const teamNeedsName = warnings.some(w => /team_roster_needs_username/i.test(w))
+      const message = nameNotFound
+        ? `팀 표에서 "${userName}" 이름을 찾지 못했어요. 표에 적힌 이름과 내 정보의 이름이 정확히 일치하는지 확인해 주세요.`
+        : teamNeedsName
+          ? '팀 표는 내 이름이 등록돼 있어야 인식할 수 있어요. 설정 → 내 정보에서 이름을 먼저 채워 주세요.'
+          : '이미지에서 저장 가능한 근무 행을 찾지 못했어요.'
+      return NextResponse.json({ error: message, warnings }, { status: 422 })
     }
 
     return NextResponse.json({
@@ -419,36 +426,63 @@ function formatUsageStoreError(message: string): string {
   return message || 'AI 사용량을 확인할 수 없어요.'
 }
 
-function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: number): string {
-  return [
-    'You are extracting a KTX crew monthly work schedule from a screenshot.',
+function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: number, userName: string): string {
+  const lines: string[] = [
+    'You are extracting a monthly work schedule from a screenshot.',
+    'The image may be one of two layouts — recognize which and proceed accordingly:',
+    '  (A) Single-user KORAIL/KTX crew roster — one person\'s month-long calendar grid. Each cell holds a duty code (e.g. H1055), 1-2 train numbers, and up to 3 clock times.',
+    '  (B) Team shift-roster spreadsheet — a row per person. The leftmost column is a Korean name; subsequent columns are dates 1..31, each cell containing a SHORT code letter (D, N, A, B, 출장, 연) and NO clock times.',
     imageCount > 1
       ? `There are ${imageCount} screenshots. Treat them as cropped pieces of the same monthly schedule, in upload order.`
       : 'There is one screenshot.',
     'If screenshots overlap, merge duplicate dates and keep the clearest row.',
-    'The source is often a calendar or roster screenshot. Scan every visible cell and row from top to bottom and left to right.',
+    'Scan every visible cell and row from top to bottom and left to right.',
     'Return JSON only according to the schema.',
-    'FIRST, find the schedule month and year before reading any rows. On this KORAIL crew roster the period is printed near the top as "YYYY년 MM월 현재" (for example "2026년 06월 현재"), and the two-digit month is often also shown as a large faint watermark digit behind the grid (for example "06").',
-    'Read that header/watermark exactly. The month is a two-digit number 01-12 — use it verbatim (e.g. 06 means June; do NOT substitute the current month).',
-    'Cross-check the layout: the "1일" cell sits under its weekday column, so the weekday of the 1st must be consistent with the month and year you read. If they disagree, re-read the header.',
-    `Use fallback ${defaultYear}-${String(defaultMonth).padStart(2, '0')} ONLY when no month label and no watermark digit are visible anywhere in the image.`,
-    'Set periodSource to "image" whenever you read the month from the header or watermark. Use "fallback" only when the image shows no month at all.',
+    '',
+    '## Period (year + month)',
+    'On layout (A), the period is printed near the top as "YYYY년 MM월 현재" (e.g. "2026년 06월 현재"), and the two-digit month is often shown as a large faint watermark digit behind the grid (e.g. "06").',
+    'On layout (B), look for a sheet tab/title like "2026.06" or "6월" near the top of the screenshot — the column headers are usually plain day numbers 1..31.',
+    'Read that header/watermark/tab exactly. The month is 01-12 — use it verbatim.',
+    'Cross-check: the weekday of day 1 must be consistent with the year and month you read.',
+    `Use fallback ${defaultYear}-${String(defaultMonth).padStart(2, '0')} ONLY when no month label is visible anywhere.`,
+    'Set periodSource to "image" when you read the month from the screenshot, otherwise "fallback".',
+    '',
+    '## Layout (A) — single-user KTX roster',
+    '- diaNr: duty code, usually H plus digits/letters (e.g. H1055, H1G37, H1C27), ~(Hxxxx), S, S(주휴), 휴무, 오프.',
+    '- Cell layout: code + 1-2 train numbers on one line, up to THREE clock times on the next.',
+    '- trainNr: the number(s) shown next to the duty code (e.g. "16 216"). Join with " · ". Do NOT confuse them with clock times.',
+    '- Times: FIRST time = startTime, LAST = endTime, IGNORE the middle one. HH:MM.',
+    '- OVERNIGHT (박차/1박/야간): end < start ⇒ next day. Write end in 24+ hour notation (01:08 → 25:08, 11:49 → 35:49).',
+    '- isOff: true for S, S(주휴), 휴무, 오프 (these cells have no times).',
+  ]
+  if (userName) {
+    lines.push(
+      '',
+      '## Layout (B) — team shift-roster (CRITICAL when this layout is detected)',
+      `- The user\'s name is: "${userName}". The name column lists multiple Korean names; **extract ONLY the row whose name exactly equals (or matches ignoring spaces) "${userName}"**.`,
+      '- If no row in the table matches that name, return rows: [] and add the warning string "name_not_found".',
+      `- For the matched row, walk left→right across the day columns. For each cell, output one row with: date (YYYY-MM-DD using the period above), diaNr = the cell\'s code letter EXACTLY as printed (single letter "D"/"N"/"A"/"B", or the Korean string "출장"/"연"/"연차"). Leave trainNr empty. Leave startTime / endTime empty — the server fills them from the code.`,
+      '- isOff: true only if the code itself denotes an off-day (D, DO, 연, 연차). The server will also fill startTime/endTime based on the code, so do NOT guess hours from the image.',
+      '- If a cell is blank or holds a code you do not recognize, skip that day (do not emit a row).',
+    )
+  } else {
+    lines.push(
+      '',
+      '## Layout (B) — team shift-roster',
+      '- No user name was provided; you cannot pick a row. If the screenshot is a team roster, return rows: [] and warning "team_roster_needs_username".',
+    )
+  }
+  lines.push(
+    '',
+    '## Common rules',
     'If a date is shown only as a day number, convert it to a full YYYY-MM-DD date using scheduleYear and scheduleMonth.',
     'Never return a date as only a day number, M/D, or YYYY-M-D.',
-    'Extract one row per visible business date that has a duty/off entry.',
-    'Include rows even when train numbers or times are unclear; leave unclear fields as empty strings.',
-    'Important fields:',
-    '- date: YYYY-MM-DD.',
-    '- diaNr: duty code, usually H plus digits/letters (e.g. H1055, H1G37, H1C27), ~(Hxxxx), S, S(주휴), 휴무, 오프.',
-    '- Cell layout: each duty cell shows the duty code with one or two train numbers on one line (e.g. "H1055 16 216"), and up to THREE clock times on the next line (e.g. "09:12 10:58 20:10").',
-    '- trainNr: the number(s) shown next to the duty code (e.g. "16 216", "245 294"). Join multiple with " · " (e.g. "16 · 216"). Do NOT confuse them with the clock times below.',
-    '- Times: the FIRST time is sign-on/start; the LAST time is sign-off/end; IGNORE any middle time. Set startTime = first time, endTime = last time (HH:MM).',
-    '- OVERNIGHT duty (박차 / 1박 / 야간): the end is on the NEXT day, so the last time is EARLIER than the first (e.g. start 10:30 → end 01:08; start 12:00 → end 11:49). Write such end times in 24+ hour notation: 01:08 → 25:08, 11:49 → 35:49.',
-    '- isOff: true for S, S(주휴), 휴무, 오프, off/rest days (these cells have no times).',
-    'Do not hallucinate unclear times or train numbers. Use empty string when unclear.',
-    'Ignore UI chrome, phone status bar, app navigation, and unrelated text.',
-    'Korean text may appear; preserve Korean off labels when visible.',
-  ].join('\n')
+    'Include rows even when fields are unclear; leave unclear fields as empty strings.',
+    'Do not hallucinate unclear times or train numbers. Empty string when unclear.',
+    'Ignore UI chrome, phone status bar, app navigation, sheet toolbars, and unrelated text.',
+    'Korean text may appear; preserve Korean labels exactly when visible.',
+  )
+  return lines.join('\n')
 }
 
 async function readJson(response: Response): Promise<unknown> {
@@ -536,6 +570,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+/** Shift-code → fixed-hours mapping for shift-roster team tables (e.g. 항공사).
+ * AI는 이런 표에선 다이 셀의 코드(D/N/A/B/출장/연 등)만 추출하고 시간은 비울 때가
+ * 많아서, 서버가 코드별 기본 시간으로 채워준다. AI가 명시한 시간이 이미 있으면
+ * 그게 우선. */
+const SHIFT_CODE_MAP: Record<string, { start?: string; end?: string; off?: boolean }> = {
+  D:    { off: true },
+  DO:   { off: true },
+  '연': { off: true },
+  '연차': { off: true },
+  N:    { start: '08:00', end: '17:00' },
+  A:    { start: '05:30', end: '14:30' },
+  B:    { start: '13:30', end: '22:30' },
+  '출장': { start: '08:00', end: '11:00' },
+}
+
 function normalizeRows(
   rows: AiScheduleRow[] = [],
   defaultYear: number,
@@ -546,9 +595,10 @@ function normalizeRows(
       const date = normalizeDate(row.date, defaultYear, defaultMonth)
       if (!date) return null
       const diaNr = normalizeDia(row.diaNr)
-      const isOff = Boolean(row.isOff) || detectOff(diaNr)
-      const startTime = isOff ? '' : normalizeTime(row.startTime)
-      let endTime = isOff ? '' : normalizeTime(row.endTime)
+      const codeMap = SHIFT_CODE_MAP[diaNr.toUpperCase()] ?? SHIFT_CODE_MAP[diaNr]
+      const isOff = Boolean(row.isOff) || detectOff(diaNr) || (codeMap?.off ?? false)
+      const startTime = isOff ? '' : (normalizeTime(row.startTime) || codeMap?.start || '')
+      let endTime = isOff ? '' : (normalizeTime(row.endTime) || codeMap?.end || '')
       // Overnight (박차): if end is earlier than start, it lands on the next
       // day. Guarantee the +24h here in code so a missing "익일" hint from the
       // model can't yield a negative-duration (broken) timeline box.
