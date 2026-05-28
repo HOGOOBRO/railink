@@ -158,7 +158,11 @@ export async function updatePhoto(photo: string | null): Promise<{ ok: boolean; 
 
 export async function logout(): Promise<void> {
   if (typeof window !== 'undefined') localStorage.removeItem(DEMO_SESSION_KEY)
-  await supabase.auth.signOut()
+  // scope:'local' skips the server-side token-revoke roundtrip — that call can
+  // hang on a flaky network or dead origin, leaving the menu open and the user
+  // stranded ("로그아웃이 아무 일도 안 일어남"). Clearing local storage is
+  // enough for the UI; the refresh token expires server-side on its own.
+  await supabase.auth.signOut({ scope: 'local' })
 }
 
 /* ── Password change (logged-in, requires current password) ────────────────── */

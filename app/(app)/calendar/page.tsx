@@ -457,7 +457,16 @@ export default function CalendarPage() {
   }
 
   async function handleLogout() {
-    await logout()
+    // Close the menu first so the user gets immediate feedback even if logout()
+    // hangs or throws — without this the sheet stayed open and the tap looked
+    // ignored.
+    setMenuOpen(false)
+    try {
+      await logout()
+    } catch {
+      // signOut already clears local storage on its own error path; swallow so
+      // navigation still happens.
+    }
     router.replace('/login')
   }
 
