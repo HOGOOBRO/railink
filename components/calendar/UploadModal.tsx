@@ -192,6 +192,33 @@ export function UploadModal({
     () => buildInitialManualRows(defaultYear, defaultMonth, initialRows),
   )
   const [manualCategory, setManualCategory] = useState<ManualCategory>('ktx')
+
+  // 일반 카테고리 첫 활성 시 한 달 전체 펼치고 평일=09:00/18:00, 토·일=휴무로
+  // default 시드. 사용자가 이미 입력한 칸은 손대지 않음. seedRef로 한 번만.
+  const seededGeneralRef = useRef(false)
+  useEffect(() => {
+    if (manualCategory !== 'general' || seededGeneralRef.current) return
+    seededGeneralRef.current = true
+    const total = daysInMonth(defaultYear, defaultMonth)
+    setManualRows(rs => {
+      // 부족한 일수 채우기
+      const expanded = [...rs]
+      for (let d = expanded.length + 1; d <= total; d++) {
+        expanded.push({
+          day: d,
+          dow: DOW_KR[new Date(defaultYear, defaultMonth - 1, d).getDay()],
+        })
+      }
+      // 평일 / 주말 default 적용 (이미 holiday이거나 사용자가 채운 row는 그대로)
+      return expanded.map(r => {
+        if (r.holiday || r.dia || r.st || r.et) return r
+        const isWeekend = r.dow === '토' || r.dow === '일'
+        return isWeekend
+          ? { ...r, holiday: true, sun: false }
+          : { ...r, st: '09:00', et: '18:00' }
+      })
+    })
+  }, [manualCategory, defaultYear, defaultMonth])
   const monthTotal = useMemo(
     () => daysInMonth(defaultYear, defaultMonth), [defaultYear, defaultMonth],
   )
@@ -742,23 +769,6 @@ function ManualBody({
   onBack, onChange, onAppendRest,
 }: ManualBodyProps) {
   const headerLabel = category === 'ktx' ? '다이 · 출근 · 퇴근' : '출근 · 퇴근'
-
-  // 일반 근무로 처음 전환할 때 빈 work row의 출퇴근에 09:00/18:00 default를
-  // 실제 값으로 채워준다. placeholder를 default로 착각해서 빈 채로 저장
-  // → row 스킵으로 캘린더에 아무것도 안 들어가는 사고를 막기 위함.
-  // 사용자가 지운 칸은 다시 채우지 않음(seedRef로 한 번만).
-  const seededGeneralRef = useRef(false)
-  useEffect(() => {
-    if (category !== 'general' || seededGeneralRef.current) return
-    rows.forEach((r, i) => {
-      if (r.holiday) return
-      const patch: Partial<ManualRow> = {}
-      if (!r.st) patch.st = '09:00'
-      if (!r.et) patch.et = '18:00'
-      if (Object.keys(patch).length) onChange(i, patch)
-    })
-    seededGeneralRef.current = true
-  }, [category, rows, onChange])
 
   return (
     <>
