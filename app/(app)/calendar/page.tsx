@@ -16,6 +16,7 @@ import { SearchOverlay } from '@/components/calendar/SearchOverlay'
 import { UploadModal } from '@/components/calendar/UploadModal'
 import { GroupTabs } from '@/components/calendar/GroupTabs'
 import { ManageGroupsSheet } from '@/components/calendar/ManageGroupsSheet'
+import { CompareMemberSheet } from '@/components/calendar/CompareMemberSheet'
 import type { MonthPerson, MonthShift } from '@/components/calendar/MonthTimeline'
 import { getCurrentSession, logout, type Session } from '@/lib/auth'
 import {
@@ -104,6 +105,7 @@ export default function CalendarPage() {
   const [uploadStep, setUploadStep] = useState<'pick' | 'preview' | 'manual'>('pick')
   const [manageOpen, setManageOpen] = useState(false)
   const [manageStartCreate, setManageStartCreate] = useState(false)
+  const [memberSheet, setMemberSheet] = useState<CompareEntry | null>(null)
 
   // Loader: resolve the session (demo localStorage OR Supabase), then read
   // the localStorage schedule/compare stores. setState runs after the await,
@@ -304,7 +306,7 @@ export default function CalendarPage() {
 
   const closeOverlays = useCallback(() => {
     setDetailOpen(false); setSearchOpen(false); setUploadOpen(false)
-    setMenuOpen(false); setManageOpen(false)
+    setMenuOpen(false); setManageOpen(false); setMemberSheet(null)
   }, [])
 
   const openSearch = () => { closeOverlays(); setSearchQuery(''); setSearchOpen(true); refreshShareStatus() }
@@ -454,7 +456,7 @@ export default function CalendarPage() {
 
   if (!session) return <div className="min-h-[100dvh] bg-surface" />
 
-  const overlayOpen = detailOpen || searchOpen || uploadOpen || menuOpen || manageOpen
+  const overlayOpen = detailOpen || searchOpen || uploadOpen || menuOpen || manageOpen || !!memberSheet
   const compareColorOf = (c: CompareEntry) => cssColor(c.color)
   const hasGroups = groupsState.groups.length > 0
   const atCompareCap = compares.length >= MAX_PER_GROUP
@@ -538,7 +540,11 @@ export default function CalendarPage() {
             compares.map(c => {
               const pending = !session.isDemo && shareStatus[c.uid] === 'pending'
               return (
-                <button key={c.uid} onClick={() => toggleCompare(c.uid)} aria-label={`${c.name} 비교 제거`}>
+                <button
+                  key={c.uid}
+                  onClick={() => { closeOverlays(); setMemberSheet(c) }}
+                  aria-label={`${c.name} 프로필`}
+                >
                   <PersonPill
                     name={c.name}
                     photo={c.photo}
@@ -720,6 +726,23 @@ export default function CalendarPage() {
           onManageSchedule={openUpload}
           onLogout={handleLogout}
         />
+      </BottomSheet>
+
+      {/* ── Compare-member mini profile ── */}
+      <BottomSheet open={!!memberSheet} onClose={() => setMemberSheet(null)}>
+        {memberSheet && (
+          <CompareMemberSheet
+            member={memberSheet}
+            pending={!session.isDemo && shareStatus[memberSheet.uid] === 'pending'}
+            isDemo={session.isDemo}
+            onClose={() => setMemberSheet(null)}
+            onRemove={() => {
+              const m = memberSheet
+              setMemberSheet(null)
+              toggleCompare(m.uid)
+            }}
+          />
+        )}
       </BottomSheet>
 
       {/* ── Search overlay ── */}
