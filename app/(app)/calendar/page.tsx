@@ -311,11 +311,7 @@ export default function CalendarPage() {
     setMenuOpen(false); setManageOpen(false); setMemberSheet(null)
   }, [])
 
-  const openSearch = () => {
-    // Diagnostic (PR-22): surface whether the icon tap is firing.
-    showToast(`search:open dir=${colleagues.length}`, 'success')
-    closeOverlays(); setSearchQuery(''); setSearchOpen(true); refreshShareStatus()
-  }
+  const openSearch = () => { closeOverlays(); setSearchQuery(''); setSearchOpen(true); refreshShareStatus() }
 
   function refreshShareStatus() {
     if (session && !session.isDemo) myViewerShareStatuses().then(setShareStatus).catch(() => {})
@@ -461,21 +457,19 @@ export default function CalendarPage() {
   }
 
   async function handleLogout() {
-    // Diagnostic (PR-22): user reports logout still broken on real accounts
-    // after PR-21. Surface whether the click is even firing — toast appears
-    // ⇒ onClick reached us; no toast ⇒ event swallowed upstream.
-    showToast('logout:tap', 'success')
-    // Close the menu first so the user gets immediate feedback even if logout()
-    // hangs or throws — without this the sheet stayed open and the tap looked
-    // ignored.
     setMenuOpen(false)
     try {
       await logout()
-      showToast('logout:done', 'success')
-    } catch (e) {
-      showToast(`logout:err ${(e as Error)?.message ?? ''}`, 'danger')
+    } catch {
+      // signOut already best-effort-cleared storage; navigate anyway.
     }
-    router.replace('/login')
+    // Hard navigation rather than router.replace — defeats any in-memory
+    // session state the supabase client (or the prefetched /login bundle)
+    // might still be holding, which was causing the "/login → /calendar
+    // 튕겨나옴" bounce-back even after signOut cleared localStorage.
+    if (typeof window !== 'undefined') {
+      window.location.replace('/login')
+    }
   }
 
   if (!session) return <div className="min-h-[100dvh] bg-surface" />
