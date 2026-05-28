@@ -177,6 +177,23 @@ export function deleteGroup(ownerUid: string, groupId: string): GroupsState {
   return state
 }
 
+/** Reorder groups by an explicit id-sequence (used by the drag-to-reorder UI).
+ *  Unknown ids are dropped; missing ids are appended in their current order so
+ *  partial reorders don't silently lose groups. */
+export function reorderGroups(ownerUid: string, orderedIds: string[]): GroupsState {
+  const state = getGroupsState(ownerUid)
+  const byId = new Map(state.groups.map(g => [g.id, g]))
+  const next: Group[] = []
+  for (const id of orderedIds) {
+    const g = byId.get(id)
+    if (g) { next.push(g); byId.delete(id) }
+  }
+  for (const g of byId.values()) next.push(g)
+  state.groups = next
+  saveGroupsState(ownerUid, state)
+  return state
+}
+
 /** All distinct member uids across every group — used to load schedules once. */
 export function allMemberUids(state: GroupsState): string[] {
   return [...new Set(state.groups.flatMap(g => g.members.map(m => m.uid)))]
