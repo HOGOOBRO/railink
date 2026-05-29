@@ -3,7 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useToast } from '@/components/ui/Toast'
-import { BrandMark, ChevronLeftIcon, ChevronRightIcon } from '@/components/ui/icons'
+import { BrandMark, ChevronLeftIcon, ChevronRightIcon, MailIcon } from '@/components/ui/icons'
+
+const CONTACT_EMAIL = 'hello@railink.app'
 
 const FAQS: { q: string; a: string }[] = [
   {
@@ -100,6 +102,25 @@ export default function HelpPage() {
             )
           })}
         </section>
+
+        {/* 문의 — FAQ로 안 풀리면 메일로 직접. (railink.app 도메인 메일) */}
+        <p className="mt-4 px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">
+          문의
+        </p>
+        <a
+          href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('[RaiLink] 문의')}`}
+          className="flex items-center gap-3 px-4 py-4 bg-surface border border-line rounded-lg active:bg-bg transition-colors"
+        >
+          <div className="w-11 h-11 rounded-lg bg-brand-050 text-brand grid place-items-center shrink-0">
+            <MailIcon size={20} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-callout font-bold text-ink-900">문의하기</p>
+            <p className="mt-0.5 text-caption text-ink-500">궁금한 점 · 오류 제보 · 건의사항을 보내주세요</p>
+            <p className="mt-1 font-en text-[11px] text-brand">{CONTACT_EMAIL}</p>
+          </div>
+          <span className="text-ink-300 shrink-0"><ChevronRightIcon size={16} /></span>
+        </a>
 
         {/* Terms */}
         <p className="mt-4 px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">

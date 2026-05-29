@@ -168,6 +168,14 @@ export function PhoneIcon({ size = 20, className }: IconProps) {
   )
 }
 
+export function MailIcon({ size = 20, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.8} {...base} className={className}>
+      <rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3.5 6.5 8.5 6 8.5-6" />
+    </svg>
+  )
+}
+
 /** iOS Safari share glyph (square + up arrow) — inline in install steps. */
 export function ShareIosIcon({ size = 16, className }: IconProps) {
   return (
