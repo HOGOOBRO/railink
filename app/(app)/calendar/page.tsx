@@ -701,7 +701,12 @@ export default function CalendarPage() {
       </div>
 
       {/* ── Footer ── 근무표 유무 양쪽 모두 한 줄 인라인. 없을 땐 등록 진입점, 있을 땐 카운터. */}
-      <div className="px-4 pt-3 pb-6 text-caption text-ink-500">
+      {/* FAB(56px, bottom 36px)가 이 영역 위에 떠 있어 범례를 가렸음 — FAB가 뜨는
+          경우(hasMySchedule)에만 하단 여백을 확보해 범례가 FAB 위로 올라오게 한다. */}
+      <div
+        className="px-4 pt-3 text-caption text-ink-500"
+        style={{ paddingBottom: hasMySchedule ? 'calc(108px + env(safe-area-inset-bottom))' : '24px' }}
+      >
         {hasMySchedule ? (
           <div className="bg-bg px-3.5 py-2.5 rounded-md">
             <div className="flex items-center gap-2">
