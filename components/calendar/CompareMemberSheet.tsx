@@ -16,11 +16,13 @@ const COLOR_OPTIONS: CompareColor[] = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7',
  *  Selecting a swatch updates the member's display color on this device only;
  *  the colleague is unaffected. */
 export function CompareMemberSheet({
-  member, pending, isDemo, onRemove, onClose, onChangeColor,
+  member, pending, isDemo, usedBy, onRemove, onClose, onChangeColor,
 }: {
   member: CompareEntry
   pending: boolean
   isDemo: boolean
+  /** color → another colleague's name already using it (hint only, dups allowed). */
+  usedBy?: Partial<Record<CompareColor, string>>
   onRemove: () => void
   onClose: () => void
   /** Optional in demo (color override is real-account only). */
@@ -65,19 +67,24 @@ export function CompareMemberSheet({
 
       {onChangeColor && (
         <section className="mb-4">
-          <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">
+          <p className="px-1 pb-2.5 text-[11px] font-bold tracking-wider uppercase text-ink-500">
             표시 색상 <span className="font-normal text-ink-300">· 내 화면에만 적용</span>
           </p>
           <div className="grid grid-cols-5 gap-2.5">
-            {COLOR_OPTIONS.map(c => (
+            {COLOR_OPTIONS.map((c, i) => (
               <ColorSwatch
                 key={c}
                 color={c}
+                index={i + 1}
                 active={member.color === c}
+                takenBy={member.color === c ? undefined : usedBy?.[c]}
                 onClick={() => onChangeColor(c)}
               />
             ))}
           </div>
+          <p className="px-1 pt-3 text-[11px] text-ink-300 leading-relaxed">
+            색상은 내 화면에서만 보여요. 흐리게 표시된 색은 다른 동료가 쓰고 있어요.
+          </p>
         </section>
       )}
 
@@ -95,27 +102,43 @@ export function CompareMemberSheet({
 }
 
 function ColorSwatch({
-  color, active, onClick,
-}: { color: CompareColor; active: boolean; onClick: () => void }) {
+  color, index, active, takenBy, onClick,
+}: {
+  color: CompareColor
+  index: number
+  active: boolean
+  /** another colleague's name already using this color (hint only). */
+  takenBy?: string
+  onClick: () => void
+}) {
+  const label = active ? `색 ${index}` : (takenBy ?? `색 ${index}`)
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={`${color} 색상`}
+      aria-label={takenBy ? `${color} 색상 · ${takenBy} 사용 중` : `${color} 색상`}
       aria-pressed={active}
-      className="relative aspect-square rounded-full grid place-items-center"
-      style={{
-        background: `var(--${color})`,
-        boxShadow: active
-          ? `0 0 0 3px #fff, 0 0 0 5px var(--${color})`
-          : 'inset 0 0 0 1px rgba(0,0,0,0.06)',
-      }}
+      className="flex flex-col items-center gap-1"
     >
-      {active && (
-        <span className="text-white">
-          <CheckIcon size={16} />
-        </span>
-      )}
+      <span
+        className="aspect-square w-full rounded-full grid place-items-center"
+        style={{
+          background: `var(--${color})`,
+          opacity: !active && takenBy ? 0.45 : 1,
+          boxShadow: active
+            ? `0 0 0 3px #fff, 0 0 0 5px var(--${color})`
+            : 'inset 0 0 0 1px rgba(0,0,0,0.06)',
+        }}
+      >
+        {active && (
+          <span className="text-white">
+            <CheckIcon size={16} />
+          </span>
+        )}
+      </span>
+      <span className={`text-[10px] font-semibold max-w-full truncate ${takenBy && !active ? 'text-ink-300' : 'text-ink-500'}`}>
+        {label}
+      </span>
     </button>
   )
 }
