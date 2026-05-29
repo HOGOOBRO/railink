@@ -141,6 +141,15 @@ export function ArrowRightIcon({ size = 18, className }: IconProps) {
   )
 }
 
+export function EraserIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base} className={className}>
+      <path d="M7 21h10" />
+      <path d="m5.5 14.5 4 4M20 13l-7-7a2 2 0 0 0-2.8 0l-6.4 6.4a2 2 0 0 0 0 2.8L7 18.6a2 2 0 0 0 2.8 0L20 13z" />
+    </svg>
+  )
+}
+
 export function KeyIcon({ size = 18, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base} className={className}>

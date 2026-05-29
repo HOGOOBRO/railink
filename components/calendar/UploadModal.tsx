@@ -4,7 +4,7 @@ import { ChangeEvent, CSSProperties, ReactNode, useEffect, useMemo, useRef, useS
 import { Button } from '@/components/ui/Button'
 import {
   CloseIcon, FileIcon, ImageIcon, EditIcon, ChevronLeftIcon,
-  ChevronRightIcon, InfoIcon, CheckIcon, PlusIcon,
+  ChevronRightIcon, InfoIcon, CheckIcon, PlusIcon, EraserIcon,
 } from '@/components/ui/icons'
 import { parseScheduleFile, type ParsedScheduleRow } from '@/lib/parse/schedule-file'
 import { recognizeScheduleImage, type OcrProgress } from '@/lib/parse/schedule-image'
@@ -808,9 +808,9 @@ function ManualBody({
   rows, year, month, filled, total, category, userId, onCategoryChange,
   onBack, onChange, onAppendRest,
 }: ManualBodyProps) {
-  const headerLabel = category === 'ktx' ? '다이 · 출근 · 퇴근' : '출근 · 퇴근'
+  const headerLabel = category === 'ktx' ? '다이 · 출근 · 퇴근' : '근무'
 
-  // Codebook is only useful in the general category (KTX cells need a
+  // Codebook is only used in the general category (KTX cells need a
   // month-specific 다이 number that can't be preset).
   const [codes, setCodes] = useState<CodebookEntry[]>([])
   useEffect(() => {
@@ -819,7 +819,6 @@ function ManualBody({
   }, [userId, category])
 
   const [active, setActive] = useState<ActiveCode>(null)
-  // Clear active chip whenever palette becomes unavailable (category swap, etc).
   useEffect(() => { if (codes.length === 0) setActive(null) }, [codes.length])
 
   function pickChip(next: ActiveCode) {
@@ -835,7 +834,12 @@ function ManualBody({
     if (patch) onChange(i, patch)
   }
 
-  const paintMode = active !== null
+  // Find the codebook entry that matches a row's stored label, for the
+  // general-mode "code applied" cell render.
+  function codeFor(r: ManualRow): CodebookEntry | null {
+    if (!r.dia) return null
+    return codes.find(c => c.label === r.dia) ?? null
+  }
 
   return (
     <>
@@ -877,14 +881,24 @@ function ManualBody({
         />
       </div>
 
-      {/* Code palette — 일반 카테고리에서 사용자 코드북이 있을 때만. 칩 선택
-       *  후 셀을 탭하면 그 코드(시간 또는 휴무) 가 자동으로 들어간다. */}
+      {/* KTX 안내 strip — 다이번호 직접 입력 모드 */}
+      {category === 'ktx' && (
+        <div className="mb-3 flex items-start gap-2 px-3 py-2.5 bg-bg rounded-[12px] text-caption text-ink-700 leading-relaxed">
+          <span className="text-ink-300 shrink-0 mt-px"><InfoIcon size={14} /></span>
+          <span>
+            날짜마다 다이번호와 출·퇴근 시각을 직접 입력해 주세요.
+            쉬는 날은 <strong className="text-ink-900">휴무</strong>로 바꿀 수 있어요.
+          </span>
+        </div>
+      )}
+
+      {/* Code palette — 일반 모드 전용. 칩 + 구분선 + 지우개 + 활성 hint. */}
       {category === 'general' && (
         <div className="mb-3">
           {codes.length === 0 ? (
             <Link
               href="/settings/codebook"
-              className="flex items-center justify-between px-3.5 py-2.5 rounded-[12px] border border-dashed border-line-2 bg-surface text-caption text-ink-500"
+              className="flex items-center justify-between px-3.5 py-3 rounded-[12px] border border-dashed border-line-2 bg-surface text-caption text-ink-500"
             >
               <span>
                 <strong className="text-ink-700">내 근무 코드</strong>를 등록해 두면
@@ -894,32 +908,50 @@ function ManualBody({
             </Link>
           ) : (
             <>
-              <div className="flex items-center justify-between px-1 pb-1.5">
-                <p className="text-[11px] font-semibold tracking-wider uppercase text-ink-300">
-                  근무 코드 — 칩 선택 후 날짜를 탭하세요
+              <div className="flex items-center justify-between px-0.5 pb-1.5">
+                <p className="text-[11px] font-bold tracking-wider uppercase text-ink-500">
+                  근무 코드
                 </p>
-                <Link href="/settings/codebook" className="text-[11px] font-semibold text-brand">
-                  편집
+                <Link
+                  href="/settings/codebook"
+                  className="inline-flex items-center gap-1 text-caption font-semibold text-brand"
+                >
+                  <EditIcon size={13} /> 코드 관리
                 </Link>
               </div>
-              <div className="flex flex-wrap gap-1.5">
+
+              {/* horizontally scrollable: chips + divider + eraser */}
+              <div className="flex items-stretch gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
                 {codes.map(c => (
-                  <PaletteChip
+                  <CodeChip
                     key={c.id}
-                    label={c.label}
-                    sub={c.isOff ? '휴무' : `${c.startTime}~${c.endTime}`}
-                    tone={c.isOff ? 'warn' : 'brand'}
+                    code={c}
                     active={activeKey(active) === c.id}
                     onClick={() => pickChip({ kind: 'code', id: c.id, code: c })}
                   />
                 ))}
-                <PaletteChip
-                  label="지우개"
-                  sub="셀 비우기"
-                  tone="muted"
+                <div className="w-px bg-line my-0.5 shrink-0" />
+                <EraserChip
                   active={activeKey(active) === 'eraser'}
                   onClick={() => pickChip({ kind: 'eraser' })}
                 />
+              </div>
+
+              {/* active-tool hint */}
+              <div className="mt-2 flex items-center gap-1.5 text-caption text-ink-700">
+                {active?.kind === 'eraser' ? (
+                  <>
+                    <span className="text-danger"><EraserIcon size={13} /></span>
+                    지우는 중 — 비울 날짜를 탭하세요
+                  </>
+                ) : active?.kind === 'code' ? (
+                  <>
+                    <span className="font-en font-bold text-brand">{active.code.label}</span>
+                    {' '}칠하는 중 — 적용할 날짜를 탭하세요
+                  </>
+                ) : (
+                  <span className="text-ink-300">코드 칩을 골라 주세요</span>
+                )}
               </div>
             </>
           )}
@@ -927,7 +959,7 @@ function ManualBody({
       )}
 
       <div className="border border-line rounded-[12px] overflow-hidden">
-        <div className="grid grid-cols-[64px_1fr] bg-bg px-3 py-2 text-[10px] font-bold text-ink-500 tracking-wide uppercase border-b border-line">
+        <div className="grid grid-cols-[56px_1fr] bg-bg px-3 py-2 text-[10px] font-bold text-ink-500 tracking-wide uppercase border-b border-line">
           <span>날짜</span><span>{headerLabel}</span>
         </div>
         {rows.map((r, i) => {
@@ -935,41 +967,59 @@ function ManualBody({
             r.dow === '일' ? 'text-danger'
             : r.dow === '토' ? 'text-c1'
             : 'text-ink-500'
-          // Paint mode: the whole row becomes a button — tap to apply the active
-          // chip. Skip the regular inputs entirely; the row reads as a clear
-          // "drop the active code here" target.
-          if (paintMode) {
-            const summary = r.holiday
-              ? `휴무${r.dia ? ` · ${r.dia}` : ''}`
-              : r.dia || r.st || r.et
-                ? `${r.dia ?? ''}${r.dia && (r.st || r.et) ? ' · ' : ''}${r.st ?? ''}${r.et ? '~' + r.et : ''}`
-                : '비어 있음'
+
+          // ─── general mode: chip-paint cell (always a button) ─────────
+          if (category === 'general') {
+            const code = codeFor(r)
             return (
               <button
                 key={r.day}
                 onClick={() => paintRow(i)}
-                className={`w-full grid grid-cols-[64px_1fr] items-center px-3 py-3 text-left ${
+                disabled={!active}
+                className={`w-full grid grid-cols-[56px_1fr] items-center px-3 py-3 text-left ${
                   i < rows.length - 1 ? 'border-b border-line' : ''
-                } ${r.holiday ? 'bg-surface-2' : 'bg-surface'} active:bg-brand-050`}
+                } ${(code?.isOff || r.holiday) ? 'bg-surface-2' : 'bg-surface'} ${
+                  active ? 'active:bg-brand-050 cursor-pointer' : 'cursor-default'
+                }`}
               >
                 <div className="font-en text-caption text-ink-900 leading-tight">
                   <div>{String(month).padStart(2, '0')}-{String(r.day).padStart(2, '0')}</div>
                   <div className={`text-[10px] ${dowColor}`}>{r.dow}</div>
                 </div>
-                <span className={`text-caption ${
-                  r.holiday ? 'text-warn font-semibold'
-                  : (r.dia || r.st || r.et) ? 'text-ink-900 font-en'
-                  : 'text-ink-300'
-                }`}>
-                  {summary}
-                </span>
+                {code && code.isOff ? (
+                  <div className="flex items-center gap-2">
+                    <HolidayTag />
+                    <span className="text-callout font-semibold font-en text-ink-700">{code.label}</span>
+                  </div>
+                ) : code ? (
+                  <div className="flex items-center gap-2 font-en text-[13.5px] text-ink-900">
+                    <span className="font-bold">{code.label}</span>
+                    <span className="text-ink-300">·</span>
+                    <span className="text-ink-700">{code.startTime}~{code.endTime}</span>
+                  </div>
+                ) : r.holiday ? (
+                  <div className="flex items-center gap-2">
+                    <HolidayTag />
+                    <span className="text-caption text-ink-500">오프</span>
+                  </div>
+                ) : (r.st || r.et) ? (
+                  <div className="flex items-center gap-2 font-en text-[13.5px] text-ink-700">
+                    <span>{r.st ?? '--:--'}</span>
+                    <span className="text-ink-300">~</span>
+                    <span>{r.et ?? '--:--'}</span>
+                  </div>
+                ) : (
+                  <span className="text-caption text-ink-300">탭하여 입력</span>
+                )}
               </button>
             )
           }
+
+          // ─── KTX mode: inline 다이 + 시각 inputs (no paint) ──────────
           return (
             <div
               key={r.day}
-              className={`grid grid-cols-[64px_1fr] items-center px-3 py-2.5 ${
+              className={`grid grid-cols-[56px_1fr] items-center px-3 py-2.5 ${
                 i < rows.length - 1 ? 'border-b border-line' : ''
               } ${r.holiday ? 'bg-surface-2' : 'bg-surface'}`}
             >
@@ -979,14 +1029,9 @@ function ManualBody({
               </div>
               {r.holiday ? (
                 <div className="flex items-center gap-2">
-                  <span
-                    className="font-bold text-[11px] tracking-wide px-2 py-0.5 rounded-pill"
-                    style={{ background: '#FEF3C7', color: '#92400E' }}
-                  >
-                    휴무
-                  </span>
+                  <HolidayTag />
                   <span className="text-caption text-ink-500 font-en">
-                    {category === 'ktx' ? (r.sun ? 'S(주휴)' : 'S') : '오프'}
+                    {r.sun ? 'S(주휴)' : 'S'}
                   </span>
                   <div className="flex-1" />
                   <button
@@ -998,39 +1043,37 @@ function ManualBody({
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5">
-                  {category === 'ktx' && (
-                    <input
-                      value={r.dia ?? ''}
-                      placeholder="H----"
-                      onChange={e => onChange(i, { dia: e.target.value })}
-                      className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
-                        r.dia ? 'border-line-2 bg-surface' : 'border-line bg-bg'
-                      }`}
-                      style={{ width: 84 }}
-                    />
-                  )}
+                  <input
+                    value={r.dia ?? ''}
+                    placeholder="H----"
+                    onChange={e => onChange(i, { dia: e.target.value })}
+                    className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
+                      r.dia ? 'border-line-2 bg-surface' : 'border-line bg-bg'
+                    }`}
+                    style={{ width: 84 }}
+                  />
                   <input
                     value={r.st ?? ''}
-                    placeholder={category === 'general' ? '09:00' : '시작'}
+                    placeholder="시작"
                     inputMode="numeric"
                     maxLength={5}
                     onChange={e => onChange(i, { st: normalizeTimeInput(e.target.value) })}
                     className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
                       r.st ? 'border-line-2 bg-surface' : 'border-line bg-bg'
                     }`}
-                    style={{ width: category === 'general' ? 72 : 62 }}
+                    style={{ width: 62 }}
                   />
                   <span className="text-ink-300 font-en">→</span>
                   <input
                     value={r.et ?? ''}
-                    placeholder={category === 'general' ? '18:00' : '종료'}
+                    placeholder="종료"
                     inputMode="numeric"
                     maxLength={5}
                     onChange={e => onChange(i, { et: normalizeTimeInput(e.target.value) })}
                     className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
                       r.et ? 'border-line-2 bg-surface' : 'border-line bg-bg'
                     }`}
-                    style={{ width: category === 'general' ? 72 : 62 }}
+                    style={{ width: 62 }}
                   />
                   <div className="flex-1" />
                   <button
@@ -1059,35 +1102,66 @@ function ManualBody({
   )
 }
 
-function PaletteChip({
-  label, sub, tone, active, onClick,
+function CodeChip({
+  code, active, onClick,
 }: {
-  label: string
-  sub: string
-  tone: 'brand' | 'warn' | 'muted'
+  code: CodebookEntry
   active: boolean
   onClick: () => void
 }) {
-  const palette = active
-    ? tone === 'warn'
-      ? 'border-[1.5px] text-warn'
-      : tone === 'muted'
-        ? 'border-[1.5px] border-ink-700 bg-bg text-ink-900'
-        : 'border-[1.5px] border-brand bg-brand-050 text-brand-700'
-    : 'border border-line bg-surface text-ink-900'
-  const inlineStyle = active && tone === 'warn'
-    ? { borderColor: 'var(--warn)', background: 'rgba(255,205,0,0.12)' }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex flex-col items-start gap-0.5 px-3.5 py-2 rounded-[12px] shrink-0 min-w-[64px] text-left ${
+        active
+          ? 'border-[1.5px] border-brand bg-brand-050'
+          : 'border border-line-2 bg-surface'
+      }`}
+    >
+      <span className={`text-[15px] font-bold leading-tight ${
+        code.isOff ? '' : 'font-en'
+      } ${active ? 'text-brand-700' : 'text-ink-900'}`}>
+        {code.label}
+      </span>
+      <span
+        className={`text-[10.5px] leading-none ${
+          code.isOff ? 'font-bold text-warn' : `font-en ${active ? 'text-brand' : 'text-ink-500'}`
+        }`}
+      >
+        {code.isOff ? '휴무' : `${code.startTime}~${code.endTime}`}
+      </span>
+    </button>
+  )
+}
+
+function EraserChip({ active, onClick }: { active: boolean; onClick: () => void }) {
+  const style = active
+    ? { borderColor: 'var(--danger)', background: 'var(--danger-soft)', color: 'var(--danger)', borderWidth: 1.5 }
     : undefined
   return (
     <button
       type="button"
       onClick={onClick}
-      style={inlineStyle}
-      className={`flex flex-col items-start gap-0.5 px-2.5 py-1.5 rounded-[10px] ${palette}`}
+      style={style}
+      className={`shrink-0 flex flex-col items-center justify-center gap-1 px-3.5 py-2 rounded-[12px] ${
+        active ? '' : 'border border-dashed border-line-2 bg-surface text-ink-500'
+      }`}
     >
-      <span className="text-[13px] font-bold leading-tight">{label}</span>
-      <span className={`text-[10px] leading-tight ${active ? '' : 'text-ink-500'}`}>{sub}</span>
+      <EraserIcon size={16} />
+      <span className="text-[10.5px] font-semibold leading-none">지우개</span>
     </button>
+  )
+}
+
+function HolidayTag() {
+  return (
+    <span
+      className="font-bold text-[11px] tracking-wide px-2 py-0.5 rounded-pill"
+      style={{ background: '#FEF3C7', color: '#92400E' }}
+    >
+      휴무
+    </span>
   )
 }
 
