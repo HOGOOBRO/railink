@@ -172,38 +172,34 @@ function CodeRow({
   return (
     <button
       onClick={onTap}
-      className={`w-full flex items-center gap-3 px-3.5 py-3.5 text-left active:bg-bg ${
+      className={`w-full flex items-center gap-3 px-3.5 py-4 text-left active:bg-bg ${
         last ? '' : 'border-b border-line'
       }`}
     >
-      {/* code badge: warm tone for 휴무, brand for 근무 */}
+      {/* code badge: warm tone for 휴무, brand for 근무.
+       *  좌측 뱃지 색이 휴무/근무 카테고리를 이미 전달하므로 우측 태그는
+       *  중복 정보라 제거했음. 코드명은 굵게+크게 해서 자체 식별성을 강화. */}
       <span
-        className="min-w-[46px] h-[46px] px-2 grid place-items-center rounded-[11px] font-en font-bold text-[15px] shrink-0"
+        className="min-w-[52px] h-[52px] px-2 grid place-items-center rounded-[12px] shrink-0"
         style={
           code.isOff
             ? { background: '#FEF3C7', color: '#92400E' }
             : { background: 'var(--brand-050)', color: 'var(--brand-700)' }
         }
       >
-        {code.label}
+        <span className={`font-bold text-[17px] leading-none ${code.isOff ? '' : 'font-en'}`}>
+          {code.label}
+        </span>
       </span>
       <div className="flex-1 min-w-0">
-        <div className="text-[15px] font-semibold text-ink-900 truncate">{code.label}</div>
-        <div className={`text-[12.5px] text-ink-500 mt-0.5 ${code.isOff ? '' : 'font-en'}`}>
-          {code.isOff ? '휴무 코드' : `${code.startTime} – ${code.endTime}`}
+        <div className="text-[17px] font-bold text-ink-900 truncate leading-tight">
+          {code.label}
+        </div>
+        <div className={`text-caption text-ink-500 mt-1 ${code.isOff ? '' : 'font-en'}`}>
+          {code.isOff ? '휴무' : `${code.startTime} – ${code.endTime}`}
         </div>
       </div>
-      <span
-        className="text-[11px] font-semibold tracking-wide px-2 py-0.5 rounded-pill"
-        style={
-          code.isOff
-            ? { background: 'rgba(217,119,6,0.12)', color: 'var(--warn)' }
-            : { background: 'var(--brand-050)', color: 'var(--brand)' }
-        }
-      >
-        {code.isOff ? '휴무' : '근무'}
-      </span>
-      <span className="text-ink-300 ml-0.5"><ChevronRightIcon size={16} /></span>
+      <span className="text-ink-300 shrink-0"><ChevronRightIcon size={16} /></span>
     </button>
   )
 }
