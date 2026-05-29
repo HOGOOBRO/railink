@@ -802,6 +802,7 @@ export default function CalendarPage() {
           defaultYear={year}
           defaultMonth={month}
           userName={session.isDemo ? undefined : session.name}
+          userId={session.uid}
           initialRows={mySched.map(e => ({
             date: e.date, isOff: e.isOff,
             diaNr: e.diaNr, trainNr: e.trainNr,

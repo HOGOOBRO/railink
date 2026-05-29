@@ -4,7 +4,7 @@ import { ReactNode } from 'react'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/Avatar'
 import {
-  UserIcon, UploadIcon, InfoIcon, LogoutIcon, ChevronRightIcon,
+  UserIcon, UploadIcon, InfoIcon, LogoutIcon, ChevronRightIcon, EditIcon,
 } from '@/components/ui/icons'
 import type { Session } from '@/lib/auth'
 
@@ -41,6 +41,7 @@ export function MenuSheet({ session, compareCount, hasPending, onManageSchedule,
       <div className="px-2 pb-3">
         <MenuRow icon={<UserIcon size={18} />} label="내 정보" href="/settings/info" indicator={hasPending} />
         <MenuRow icon={<UploadIcon size={18} />} label="내 근무표 관리" onClick={onManageSchedule} />
+        <MenuRow icon={<EditIcon size={18} />} label="내 근무 코드" href="/settings/codebook" />
         <MenuRow icon={<InfoIcon size={18} />} label="도움말 · 약관" href="/settings/help" />
         <div className="h-px bg-line mx-4 my-1" />
         <MenuRow icon={<LogoutIcon size={18} />} label="로그아웃" danger onClick={onLogout} />
