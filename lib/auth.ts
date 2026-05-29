@@ -50,6 +50,15 @@ function getDemoSession(): Session | null {
 
 /* ── Unified session (used by calendar / menu) ─────────────────────────────── */
 
+/* In-memory photo cache (keyed by uid). The ONLY network read in
+ * getCurrentSession is the profiles.photo lookup, and getCurrentSession runs
+ * on every (app) page mount — so without this, each route change pays a
+ * profiles round-trip (through /api/sb-proxy) and shows a loading gate while
+ * it resolves. Caching just the photo for the SPA lifetime makes navigation
+ * network-free; uid/email/name/metadata still come live from getSession().
+ * Cached only on a successful fetch; invalidated on photo change + logout. */
+let photoCache: { uid: string; photo: string | undefined } | null = null
+
 export async function getCurrentSession(): Promise<Session | null> {
   const { data } = await supabase.auth.getSession()
   const u = data.session?.user
@@ -61,11 +70,16 @@ export async function getCurrentSession(): Promise<Session | null> {
   // cleaned up yet; new writes never touch metadata.
   let photo = m.photo || undefined
   if (!photo) {
-    try {
-      const { data: prof } = await supabase
-        .from('profiles').select('photo').eq('id', u.id).maybeSingle()
-      photo = (prof?.photo as string | null | undefined) || undefined
-    } catch { /* profiles fetch is best-effort */ }
+    if (photoCache && photoCache.uid === u.id) {
+      photo = photoCache.photo
+    } else {
+      try {
+        const { data: prof } = await supabase
+          .from('profiles').select('photo').eq('id', u.id).maybeSingle()
+        photo = (prof?.photo as string | null | undefined) || undefined
+        photoCache = { uid: u.id, photo }   // cache only on a clean fetch
+      } catch { /* profiles fetch is best-effort; leave cache unset to retry */ }
+    }
   }
   return {
     uid: u.id,
@@ -172,12 +186,16 @@ export async function updatePhoto(photo: string | null): Promise<{ ok: boolean; 
     .update({ photo: photo })
     .eq('id', user.id)
   if (error) return { ok: false, message: error.message }
+  // Keep the in-memory cache in sync so the new photo shows immediately on the
+  // next getCurrentSession (e.g. when the photo page navigates back).
+  photoCache = { uid: user.id, photo: photo ?? undefined }
   return { ok: true }
 }
 
 /* ── Logout ────────────────────────────────────────────────────────────────── */
 
 export async function logout(): Promise<void> {
+  photoCache = null
   if (typeof window !== 'undefined') {
     localStorage.removeItem(DEMO_SESSION_KEY)
     // Defensive wipe: supabase-js usually stores the session under
