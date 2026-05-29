@@ -9,6 +9,8 @@ import {
 import { parseScheduleFile, type ParsedScheduleRow } from '@/lib/parse/schedule-file'
 import { recognizeScheduleImage, type OcrProgress } from '@/lib/parse/schedule-image'
 import { fmtClock, hmToDecimal, canonicalEnd, isOvernight } from '@/lib/schedule-utils'
+import { getCodebook, type CodebookEntry } from '@/lib/store/codebook'
+import Link from 'next/link'
 
 // Show overnight ends as a real next-day clock ("11:49") in the editable preview
 // instead of 24+ notation ("35:49"); the +24 is re-derived on save (see
@@ -52,6 +54,8 @@ interface UploadModalProps {
   /** Real-account full name; passed to AI image OCR so a team roster (여러 사람
    *  row) can be filtered down to just the user's row. */
   userName?: string
+  /** Owner uid — used by ManualBody to load the per-user codebook (코드 palette). */
+  userId?: string
   onPreview: () => void
   onManual: () => void
   onBack: () => void
@@ -175,7 +179,7 @@ function nextPreviewDate(rows: ParsedScheduleRow[], year: number, month: number)
 }
 
 export function UploadModal({
-  step, defaultYear, defaultMonth, initialRows = [], userName,
+  step, defaultYear, defaultMonth, initialRows = [], userName, userId,
   onPreview, onManual, onBack, onClose, onSave,
 }: UploadModalProps) {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -574,6 +578,7 @@ export function UploadModal({
               filled={manualFilled}
               total={monthTotal}
               category={manualCategory}
+              userId={userId}
               onCategoryChange={setManualCategory}
               onBack={onBack}
               onChange={setManualRow}
@@ -656,6 +661,8 @@ interface ManualBodyProps {
   filled: number
   total: number
   category: ManualCategory
+  /** Owner uid — used to load the per-user codebook for the paint palette. */
+  userId?: string
   onCategoryChange: (next: ManualCategory) => void
   onBack: () => void
   onChange: (i: number, patch: Partial<ManualRow>) => void
@@ -767,11 +774,64 @@ function PreviewBody({ rows, onChange, onRemove, onAppend }: PreviewBodyProps) {
   )
 }
 
+// Code palette / paint mode:
+// When the user picks a chip the row inputs are replaced with a single tap
+// target. Tapping a row applies the chip's preset to that day; tapping the
+// chip again clears the active state and the row inputs come back.
+type ActiveCode =
+  | { kind: 'eraser' }
+  | { kind: 'code'; id: string; code: CodebookEntry }
+  | null
+
+function applyCodeToRow(active: ActiveCode): Partial<ManualRow> | null {
+  if (!active) return null
+  if (active.kind === 'eraser') {
+    return { holiday: false, sun: false, dia: undefined, st: undefined, et: undefined }
+  }
+  const c = active.code
+  if (c.isOff) {
+    return { holiday: true, sun: false, dia: c.label, st: undefined, et: undefined }
+  }
+  return { holiday: false, sun: false, dia: c.label, st: c.startTime, et: c.endTime }
+}
+
+function activeKey(active: ActiveCode): string | null {
+  if (!active) return null
+  return active.kind === 'eraser' ? 'eraser' : active.id
+}
+
 function ManualBody({
-  rows, year, month, filled, total, category, onCategoryChange,
+  rows, year, month, filled, total, category, userId, onCategoryChange,
   onBack, onChange, onAppendRest,
 }: ManualBodyProps) {
   const headerLabel = category === 'ktx' ? '다이 · 출근 · 퇴근' : '출근 · 퇴근'
+
+  // Codebook is only useful in the general category (KTX cells need a
+  // month-specific 다이 number that can't be preset).
+  const [codes, setCodes] = useState<CodebookEntry[]>([])
+  useEffect(() => {
+    if (!userId || category !== 'general') { setCodes([]); return }
+    setCodes(getCodebook(userId).codes)
+  }, [userId, category])
+
+  const [active, setActive] = useState<ActiveCode>(null)
+  // Clear active chip whenever palette becomes unavailable (category swap, etc).
+  useEffect(() => { if (codes.length === 0) setActive(null) }, [codes.length])
+
+  function pickChip(next: ActiveCode) {
+    setActive(cur => {
+      if (!cur || !next) return next
+      if (activeKey(cur) === activeKey(next)) return null
+      return next
+    })
+  }
+
+  function paintRow(i: number) {
+    const patch = applyCodeToRow(active)
+    if (patch) onChange(i, patch)
+  }
+
+  const paintMode = active !== null
 
   return (
     <>
@@ -813,6 +873,55 @@ function ManualBody({
         />
       </div>
 
+      {/* Code palette — 일반 카테고리에서 사용자 코드북이 있을 때만. 칩 선택
+       *  후 셀을 탭하면 그 코드(시간 또는 휴무) 가 자동으로 들어간다. */}
+      {category === 'general' && (
+        <div className="mb-3">
+          {codes.length === 0 ? (
+            <Link
+              href="/settings/codebook"
+              className="flex items-center justify-between px-3.5 py-2.5 rounded-[12px] border border-dashed border-line-2 bg-surface text-caption text-ink-500"
+            >
+              <span>
+                <strong className="text-ink-700">내 근무 코드</strong>를 등록해 두면
+                탭만으로 입력할 수 있어요.
+              </span>
+              <span className="text-brand font-semibold shrink-0 ml-2">설정 →</span>
+            </Link>
+          ) : (
+            <>
+              <div className="flex items-center justify-between px-1 pb-1.5">
+                <p className="text-[11px] font-semibold tracking-wider uppercase text-ink-300">
+                  근무 코드 — 칩 선택 후 날짜를 탭하세요
+                </p>
+                <Link href="/settings/codebook" className="text-[11px] font-semibold text-brand">
+                  편집
+                </Link>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {codes.map(c => (
+                  <PaletteChip
+                    key={c.id}
+                    label={c.label}
+                    sub={c.isOff ? '휴무' : `${c.startTime}~${c.endTime}`}
+                    tone={c.isOff ? 'warn' : 'brand'}
+                    active={activeKey(active) === c.id}
+                    onClick={() => pickChip({ kind: 'code', id: c.id, code: c })}
+                  />
+                ))}
+                <PaletteChip
+                  label="지우개"
+                  sub="셀 비우기"
+                  tone="muted"
+                  active={activeKey(active) === 'eraser'}
+                  onClick={() => pickChip({ kind: 'eraser' })}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="border border-line rounded-[12px] overflow-hidden">
         <div className="grid grid-cols-[64px_1fr] bg-bg px-3 py-2 text-[10px] font-bold text-ink-500 tracking-wide uppercase border-b border-line">
           <span>날짜</span><span>{headerLabel}</span>
@@ -822,6 +931,37 @@ function ManualBody({
             r.dow === '일' ? 'text-danger'
             : r.dow === '토' ? 'text-c1'
             : 'text-ink-500'
+          // Paint mode: the whole row becomes a button — tap to apply the active
+          // chip. Skip the regular inputs entirely; the row reads as a clear
+          // "drop the active code here" target.
+          if (paintMode) {
+            const summary = r.holiday
+              ? `휴무${r.dia ? ` · ${r.dia}` : ''}`
+              : r.dia || r.st || r.et
+                ? `${r.dia ?? ''}${r.dia && (r.st || r.et) ? ' · ' : ''}${r.st ?? ''}${r.et ? '~' + r.et : ''}`
+                : '비어 있음'
+            return (
+              <button
+                key={r.day}
+                onClick={() => paintRow(i)}
+                className={`w-full grid grid-cols-[64px_1fr] items-center px-3 py-3 text-left ${
+                  i < rows.length - 1 ? 'border-b border-line' : ''
+                } ${r.holiday ? 'bg-surface-2' : 'bg-surface'} active:bg-brand-050`}
+              >
+                <div className="font-en text-caption text-ink-900 leading-tight">
+                  <div>{String(month).padStart(2, '0')}-{String(r.day).padStart(2, '0')}</div>
+                  <div className={`text-[10px] ${dowColor}`}>{r.dow}</div>
+                </div>
+                <span className={`text-caption ${
+                  r.holiday ? 'text-warn font-semibold'
+                  : (r.dia || r.st || r.et) ? 'text-ink-900 font-en'
+                  : 'text-ink-300'
+                }`}>
+                  {summary}
+                </span>
+              </button>
+            )
+          }
           return (
             <div
               key={r.day}
@@ -908,6 +1048,38 @@ function ManualBody({
         </button>
       )}
     </>
+  )
+}
+
+function PaletteChip({
+  label, sub, tone, active, onClick,
+}: {
+  label: string
+  sub: string
+  tone: 'brand' | 'warn' | 'muted'
+  active: boolean
+  onClick: () => void
+}) {
+  const palette = active
+    ? tone === 'warn'
+      ? 'border-[1.5px] text-warn'
+      : tone === 'muted'
+        ? 'border-[1.5px] border-ink-700 bg-bg text-ink-900'
+        : 'border-[1.5px] border-brand bg-brand-050 text-brand-700'
+    : 'border border-line bg-surface text-ink-900'
+  const inlineStyle = active && tone === 'warn'
+    ? { borderColor: 'var(--warn)', background: 'rgba(255,205,0,0.12)' }
+    : undefined
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={inlineStyle}
+      className={`flex flex-col items-start gap-0.5 px-2.5 py-1.5 rounded-[10px] ${palette}`}
+    >
+      <span className="text-[13px] font-bold leading-tight">{label}</span>
+      <span className={`text-[10px] leading-tight ${active ? '' : 'text-ink-500'}`}>{sub}</span>
+    </button>
   )
 }
 
