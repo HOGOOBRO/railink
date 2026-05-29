@@ -12,6 +12,7 @@ import {
   addCode, getCodebook, removeCode, seedDefaultCodes, updateCode,
   type CodebookEntry, type CodebookState, MAX_LABEL,
 } from '@/lib/store/codebook'
+import { normalizeTimeInput } from '@/lib/schedule-utils'
 
 type SheetMode =
   | { type: 'closed' }
@@ -234,17 +235,19 @@ function CodeForm({
           <div className="flex items-center gap-2">
             <input
               value={start}
-              onChange={e => { setStart(e.target.value); setError(null) }}
+              onChange={e => { setStart(normalizeTimeInput(e.target.value)); setError(null) }}
               placeholder="09:00"
               inputMode="numeric"
+              maxLength={5}
               className="flex-1 h-10 px-3 rounded-md border border-line bg-surface font-en text-[15px] text-ink-900 outline-none"
             />
             <span className="font-en text-ink-300">→</span>
             <input
               value={end}
-              onChange={e => { setEnd(e.target.value); setError(null) }}
+              onChange={e => { setEnd(normalizeTimeInput(e.target.value)); setError(null) }}
               placeholder="18:00"
               inputMode="numeric"
+              maxLength={5}
               className="flex-1 h-10 px-3 rounded-md border border-line bg-surface font-en text-[15px] text-ink-900 outline-none"
             />
           </div>

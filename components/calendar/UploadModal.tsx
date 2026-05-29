@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/icons'
 import { parseScheduleFile, type ParsedScheduleRow } from '@/lib/parse/schedule-file'
 import { recognizeScheduleImage, type OcrProgress } from '@/lib/parse/schedule-image'
-import { fmtClock, hmToDecimal, canonicalEnd, isOvernight } from '@/lib/schedule-utils'
+import { fmtClock, hmToDecimal, canonicalEnd, isOvernight, normalizeTimeInput } from '@/lib/schedule-utils'
 import { getCodebook, type CodebookEntry } from '@/lib/store/codebook'
 import Link from 'next/link'
 
@@ -750,14 +750,18 @@ function PreviewBody({ rows, onChange, onRemove, onAppend }: PreviewBodyProps) {
                 value={row.startTime ?? ''}
                 placeholder="시작"
                 disabled={row.isOff}
-                onChange={e => onChange(i, { startTime: e.target.value })}
+                inputMode="numeric"
+                maxLength={5}
+                onChange={e => onChange(i, { startTime: normalizeTimeInput(e.target.value) })}
                 className="font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
               />
               <input
                 value={row.endTime ?? ''}
                 placeholder="종료"
                 disabled={row.isOff}
-                onChange={e => onChange(i, { endTime: e.target.value })}
+                inputMode="numeric"
+                maxLength={5}
+                onChange={e => onChange(i, { endTime: normalizeTimeInput(e.target.value) })}
                 className="font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
               />
             </div>
@@ -1008,7 +1012,9 @@ function ManualBody({
                   <input
                     value={r.st ?? ''}
                     placeholder={category === 'general' ? '09:00' : '시작'}
-                    onChange={e => onChange(i, { st: e.target.value })}
+                    inputMode="numeric"
+                    maxLength={5}
+                    onChange={e => onChange(i, { st: normalizeTimeInput(e.target.value) })}
                     className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
                       r.st ? 'border-line-2 bg-surface' : 'border-line bg-bg'
                     }`}
@@ -1018,7 +1024,9 @@ function ManualBody({
                   <input
                     value={r.et ?? ''}
                     placeholder={category === 'general' ? '18:00' : '종료'}
-                    onChange={e => onChange(i, { et: e.target.value })}
+                    inputMode="numeric"
+                    maxLength={5}
+                    onChange={e => onChange(i, { et: normalizeTimeInput(e.target.value) })}
                     className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
                       r.et ? 'border-line-2 bg-surface' : 'border-line bg-bg'
                     }`}
