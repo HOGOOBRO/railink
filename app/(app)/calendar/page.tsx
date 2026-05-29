@@ -382,7 +382,7 @@ export default function CalendarPage() {
   // Add/remove a colleague from the active compare group.
   // For real accounts the group IS the share-intent surface: adding fires a
   // share request when needed, removing from the last group cancels it.
-  async function toggleCompare(uid: string) {
+  async function toggleCompare(uid: string, fallbackMeta?: Colleague) {
     if (!session) return
     const existing = compares.find(c => c.uid === uid)
 
@@ -403,7 +403,9 @@ export default function CalendarPage() {
       return
     }
 
-    const meta = findColleagueInDirectory(uid, colleagues)
+    // Private (사번-only) accounts aren't in the directory list, so fall back to
+    // the profile the search row passed in.
+    const meta = findColleagueInDirectory(uid, colleagues) ?? fallbackMeta
     if (!meta) return
     const res = addToActiveGroup(session.uid, {
       uid, name: meta.name, employeeId: meta.employeeId, photo: meta.photo, office: meta.office,
