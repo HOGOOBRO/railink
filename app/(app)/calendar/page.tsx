@@ -19,7 +19,6 @@ import { ManageGroupsSheet } from '@/components/calendar/ManageGroupsSheet'
 import { CompareMemberSheet } from '@/components/calendar/CompareMemberSheet'
 import type { MonthPerson, MonthShift } from '@/components/calendar/MonthTimeline'
 import { getCurrentSession, logout, type Session } from '@/lib/auth'
-import { supabase } from '@/lib/supabase'
 import {
   getMonthSchedules,
   getRemoteMonthSchedules,
@@ -181,62 +180,6 @@ export default function CalendarPage() {
         const directory = await getColleagueDirectory(s)
         if (!alive) return
         setColleagues(directory)
-        // Diagnostic (PR-24): when directory is empty for a real account,
-        // surface the underlying supabase response so we can tell apart
-        // (a) auth-not-applied (status 200 anon-style 0 rows), (b) RLS-error,
-        // and (c) actual empty pool. The polled call is a separate, light
-        // probe — it does NOT replace the directory shown to the user.
-        if (!s.isDemo && directory.length === 0) {
-          // PR-28 diagnostic: 494 persists after proxy + allowlist. Suspect
-          // the user's own JWT is unusually long (admin metadata, etc) and
-          // pushes the upstream over the header-size limit. Surface the JWT
-          // length, total header byte size, and what a same-headers raw
-          // fetch to the proxy returns — these together pinpoint whether the
-          // problem is JWT-size or something else.
-          const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-          const { data: { session: sess } } = await supabase.auth.getSession()
-          const jwt = sess?.access_token ?? ''
-          showToast(`jwt=${jwt.length} anon=${ANON.length}`, 'success')
-
-          const headers: Record<string, string> = {
-            apikey: ANON,
-            Authorization: `Bearer ${jwt}`,
-            'Accept-Profile': 'public',
-            Prefer: 'count=exact',
-            'x-client-info': 'supabase-js-web/2.78.0',
-          }
-          const hsz = Object.entries(headers).reduce(
-            (n, [k, v]) => n + k.length + v.length + 4, 0,
-          )
-          showToast(`hsz=${hsz}`, 'success')
-
-          try {
-            const proxy = `${window.location.origin}/api/sb-proxy`
-            const res = await fetch(
-              `${proxy}/rest/v1/profiles?select=id&limit=1`,
-              { headers },
-            )
-            const txt = await res.text()
-            showToast(`raw2 st=${res.status} body=${txt.slice(0, 40)}`, res.ok ? 'success' : 'danger')
-          } catch (e) {
-            showToast(`raw2 threw: ${(e as Error)?.message?.slice(0, 50)}`, 'danger')
-          }
-
-          try {
-            const { data: { user } } = await supabase.auth.getUser()
-            const { count, error, status } = await supabase
-              .from('profiles')
-              .select('id', { count: 'exact', head: true })
-              .neq('id', s.uid)
-              .eq('is_admin', false)
-            showToast(
-              `sb uid=${user?.id?.slice(0, 8) ?? '∅'} st=${status} n=${count ?? 'null'} err=${error?.message?.slice(0, 30) ?? '-'}`,
-              error ? 'danger' : 'success',
-            )
-          } catch (e) {
-            showToast(`sb probe threw: ${(e as Error)?.message?.slice(0, 60)}`, 'danger')
-          }
-        }
       } catch {
         if (alive) setColleagues([])
       } finally {
