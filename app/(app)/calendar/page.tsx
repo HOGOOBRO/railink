@@ -38,6 +38,7 @@ import {
   isDemoColleagueUid,
 } from '@/lib/store/colleagues'
 import { myViewerShareStatuses, requestShare, cancelShare, listShares } from '@/lib/store/shares'
+import { getMemberColors, setMemberColor } from '@/lib/store/member-colors'
 import type { Colleague } from '@/lib/demo-data'
 import {
   DOW_KR, buildMonthCells, hmToDecimal,
@@ -96,6 +97,7 @@ export default function CalendarPage() {
   const [colleagueLoading, setColleagueLoading] = useState(false)
   const [shareStatus, setShareStatus] = useState<Record<string, ShareStatus>>({})
   const [pendingCount, setPendingCount] = useState(0)
+  const [colorOverrides, setColorOverrides] = useState<Record<string, CompareColor>>({})
   const [migrationOpen, setMigrationOpen] = useState(false)
   const [reload, setReload] = useState(0)
 
@@ -150,6 +152,7 @@ export default function CalendarPage() {
       setGroupsState(nextGroups)
       setMySched(mine)
       setColSched(cols)
+      setColorOverrides(getMemberColors(s.uid))
 
       if (s.isDemo) {
         for (const uid of memberUids) cols[uid] = getMonthSchedules(uid, year, month)
@@ -237,7 +240,15 @@ export default function CalendarPage() {
   // The calendar reads from the active group only; switching tabs is a pure
   // read-side swap (colSched already holds every group's members).
   const activeGroup = useMemo(() => activeGroupOf(groupsState), [groupsState])
-  const compares = useMemo<CompareEntry[]>(() => activeGroup?.members ?? [], [activeGroup])
+  // Apply per-owner color overrides (stored locally only) before downstream
+  // consumers (bars, timeline, pills) read cmp.color.
+  const compares = useMemo<CompareEntry[]>(() => {
+    const base = activeGroup?.members ?? []
+    return base.map(m => {
+      const o = colorOverrides[m.uid]
+      return o ? { ...m, color: o } : m
+    })
+  }, [activeGroup, colorOverrides])
 
   // My schedule for the visible month, by ISO date.
   const myByDate = useMemo(() => {
@@ -762,6 +773,12 @@ export default function CalendarPage() {
               const m = memberSheet
               setMemberSheet(null)
               toggleCompare(m.uid)
+            }}
+            onChangeColor={color => {
+              const owner = setMemberColor(session.uid, memberSheet.uid, color)
+              setColorOverrides(owner)
+              // Reflect on the open sheet so the swatch check moves immediately.
+              setMemberSheet(s => s ? { ...s, color } : s)
             }}
           />
         )}
