@@ -2,21 +2,29 @@
 
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
-import { CloseIcon } from '@/components/ui/icons'
-import type { CompareEntry } from '@/lib/types/schedule'
+import { CloseIcon, CheckIcon } from '@/components/ui/icons'
+import type { CompareColor, CompareEntry } from '@/lib/types/schedule'
+
+const COLOR_OPTIONS: CompareColor[] = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9', 'c10']
 
 /** Tap-an-avatar mini profile sheet. The whole point: tapping a strip pill
  *  used to immediately remove the colleague (and silently cancel the share
  *  on the last-group case). Users tap to *look* — Instagram-story style —
- *  so removal goes behind an explicit button inside the sheet. */
+ *  so removal goes behind an explicit button inside the sheet.
+ *
+ *  Color picker — owner-local override (saved to railink_member_colors_v1).
+ *  Selecting a swatch updates the member's display color on this device only;
+ *  the colleague is unaffected. */
 export function CompareMemberSheet({
-  member, pending, isDemo, onRemove, onClose,
+  member, pending, isDemo, onRemove, onClose, onChangeColor,
 }: {
   member: CompareEntry
   pending: boolean
   isDemo: boolean
   onRemove: () => void
   onClose: () => void
+  /** Optional in demo (color override is real-account only). */
+  onChangeColor?: (color: CompareColor) => void
 }) {
   const statusLabel = pending ? '수락 대기 중' : '공유 중'
   const statusTone = pending
@@ -55,6 +63,24 @@ export function CompareMemberSheet({
         )}
       </div>
 
+      {onChangeColor && (
+        <section className="mb-4">
+          <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">
+            표시 색상 <span className="font-normal text-ink-300">· 내 화면에만 적용</span>
+          </p>
+          <div className="grid grid-cols-5 gap-2.5">
+            {COLOR_OPTIONS.map(c => (
+              <ColorSwatch
+                key={c}
+                color={c}
+                active={member.color === c}
+                onClick={() => onChangeColor(c)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
       {pending && !isDemo && (
         <p className="mb-3 text-[11px] text-ink-500 text-center leading-relaxed">
           빼면 보낸 공유 요청도 함께 취소돼요.
@@ -65,5 +91,31 @@ export function CompareMemberSheet({
         비교에서 빼기
       </Button>
     </div>
+  )
+}
+
+function ColorSwatch({
+  color, active, onClick,
+}: { color: CompareColor; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${color} 색상`}
+      aria-pressed={active}
+      className="relative aspect-square rounded-full grid place-items-center"
+      style={{
+        background: `var(--${color})`,
+        boxShadow: active
+          ? `0 0 0 3px #fff, 0 0 0 5px var(--${color})`
+          : 'inset 0 0 0 1px rgba(0,0,0,0.06)',
+      }}
+    >
+      {active && (
+        <span className="text-white">
+          <CheckIcon size={16} />
+        </span>
+      )}
+    </button>
   )
 }
