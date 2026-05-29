@@ -6,7 +6,10 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { BottomSheet } from '@/components/ui/BottomSheet'
-import { ChevronLeftIcon, PlusIcon, CloseIcon } from '@/components/ui/icons'
+import { Switch } from '@/components/ui/Switch'
+import {
+  ChevronLeftIcon, ChevronRightIcon, PlusIcon, CloseIcon,
+} from '@/components/ui/icons'
 import { getCurrentSession, type Session } from '@/lib/auth'
 import {
   addCode, getCodebook, removeCode, seedDefaultCodes, updateCode,
@@ -41,12 +44,8 @@ export default function CodebookSettingsPage() {
 
   function startSeed() {
     if (!session) return
-    const seeded: CodebookState = { codes: seedDefaultCodes() }
-    setState(seeded)
-    // saveCodebook 은 addCode 안에서 호출되므로 명시적으로 한 번에 저장.
-    // 시드는 가벼우니 addCode 루프로 처리.
-    let cur = { codes: [] as CodebookEntry[] }
-    for (const c of seeded.codes) {
+    let cur: CodebookState = { codes: [] }
+    for (const c of seedDefaultCodes()) {
       const { state: next } = addCode(session.uid, {
         label: c.label, isOff: c.isOff, startTime: c.startTime, endTime: c.endTime,
       })
@@ -109,15 +108,14 @@ export default function CodebookSettingsPage() {
         </button>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 pt-3.5 pb-8">
-        <p className="px-1 text-caption text-ink-500 leading-relaxed">
-          자주 쓰는 근무 코드(N, A, B, 출장, 연차 등)를 미리 정의해 두면,
-          근무표 직접 입력 시 코드 칩을 선택하고 날짜 셀을 탭하기만 해도
-          빠르게 등록할 수 있어요.
+      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-8">
+        <p className="px-1 text-[13px] text-ink-500 leading-relaxed mb-4">
+          자주 쓰는 근무 코드를 미리 정의해 두면, 직접 입력할 때 칩을 고르고
+          날짜를 탭하기만 해도 빠르게 등록할 수 있어요.
         </p>
 
         {empty ? (
-          <div className="mt-6 flex flex-col items-center gap-3 py-10 px-4 bg-surface border border-dashed border-line rounded-lg">
+          <div className="mt-2 flex flex-col items-center gap-3 py-10 px-4 bg-surface border border-dashed border-line rounded-lg">
             <p className="text-callout text-ink-700 text-center leading-relaxed">
               아직 등록된 코드가 없어요.<br />
               자주 쓰는 패턴을 한 번에 시드해서 시작할 수 있어요.
@@ -128,16 +126,29 @@ export default function CodebookSettingsPage() {
             <p className="text-[11px] text-ink-300">또는 우상단 + 버튼으로 직접 추가</p>
           </div>
         ) : (
-          <section className="mt-4">
+          <>
             <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">
               등록된 코드 <span className="font-en">{state.codes.length}</span>개
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              {state.codes.map(c => (
-                <CodeCard key={c.id} code={c} onTap={() => setSheet({ type: 'edit', entry: c })} />
+
+            <div className="border border-line rounded-[14px] overflow-hidden bg-surface">
+              {state.codes.map((c, i) => (
+                <CodeRow
+                  key={c.id}
+                  code={c}
+                  last={i === state.codes.length - 1}
+                  onTap={() => setSheet({ type: 'edit', entry: c })}
+                />
               ))}
             </div>
-          </section>
+
+            <button
+              onClick={() => setSheet({ type: 'create' })}
+              className="mt-2.5 w-full flex items-center justify-center gap-1.5 px-3 py-3 rounded-[12px] border border-dashed border-line-2 bg-surface text-callout font-semibold text-ink-700 active:bg-bg"
+            >
+              <PlusIcon size={14} /> 코드 추가하기
+            </button>
+          </>
         )}
       </div>
 
@@ -155,16 +166,44 @@ export default function CodebookSettingsPage() {
   )
 }
 
-function CodeCard({ code, onTap }: { code: CodebookEntry; onTap: () => void }) {
+function CodeRow({
+  code, last, onTap,
+}: { code: CodebookEntry; last: boolean; onTap: () => void }) {
   return (
     <button
       onClick={onTap}
-      className="flex flex-col items-start gap-1 px-3.5 py-3 rounded-[12px] bg-surface border border-line text-left active:bg-bg"
+      className={`w-full flex items-center gap-3 px-3.5 py-3.5 text-left active:bg-bg ${
+        last ? '' : 'border-b border-line'
+      }`}
     >
-      <span className="text-[15px] font-bold text-ink-900 leading-tight">{code.label}</span>
-      <span className={`text-[11px] font-en leading-tight ${code.isOff ? 'text-warn' : 'text-ink-500'}`}>
-        {code.isOff ? '휴무' : `${code.startTime ?? '--:--'} – ${code.endTime ?? '--:--'}`}
+      {/* code badge: warm tone for 휴무, brand for 근무 */}
+      <span
+        className="min-w-[46px] h-[46px] px-2 grid place-items-center rounded-[11px] font-en font-bold text-[15px] shrink-0"
+        style={
+          code.isOff
+            ? { background: '#FEF3C7', color: '#92400E' }
+            : { background: 'var(--brand-050)', color: 'var(--brand-700)' }
+        }
+      >
+        {code.label}
       </span>
+      <div className="flex-1 min-w-0">
+        <div className="text-[15px] font-semibold text-ink-900 truncate">{code.label}</div>
+        <div className={`text-[12.5px] text-ink-500 mt-0.5 ${code.isOff ? '' : 'font-en'}`}>
+          {code.isOff ? '휴무 코드' : `${code.startTime} – ${code.endTime}`}
+        </div>
+      </div>
+      <span
+        className="text-[11px] font-semibold tracking-wide px-2 py-0.5 rounded-pill"
+        style={
+          code.isOff
+            ? { background: 'rgba(217,119,6,0.12)', color: 'var(--warn)' }
+            : { background: 'var(--brand-050)', color: 'var(--brand)' }
+        }
+      >
+        {code.isOff ? '휴무' : '근무'}
+      </span>
+      <span className="text-ink-300 ml-0.5"><ChevronRightIcon size={16} /></span>
     </button>
   )
 }
@@ -183,16 +222,14 @@ function CodeForm({
   const [end, setEnd] = useState(initial?.endTime ?? '')
   const [error, setError] = useState<string | null>(null)
 
+  const timesOk = isOff || (/^\d{2}:\d{2}$/.test(start) && /^\d{2}:\d{2}$/.test(end))
+  const canSave = label.trim().length > 0 && timesOk
+
   function submit() {
     const labelTrim = label.trim()
     if (!labelTrim) { setError('코드 이름을 입력해 주세요.'); return }
     if (labelTrim.length > MAX_LABEL) { setError(`코드 이름은 ${MAX_LABEL}자 이하로 해 주세요.`); return }
-    if (!isOff) {
-      if (!start || !end) { setError('시작·종료 시각을 입력해 주세요.'); return }
-      if (!/^\d{1,2}:\d{2}$/.test(start) || !/^\d{1,2}:\d{2}$/.test(end)) {
-        setError('시간은 HH:MM 형식으로 입력해 주세요.'); return
-      }
-    }
+    if (!isOff && !timesOk) { setError('시간은 HH:MM 형식으로 입력해 주세요.'); return }
     onSave({
       label: labelTrim,
       isOff,
@@ -202,68 +239,100 @@ function CodeForm({
   }
 
   return (
-    <div className="px-5 pt-2 pb-7">
-      <h3 className="text-[18px] font-bold tracking-tight text-ink-900">
-        {initial ? '코드 편집' : '코드 추가'}
+    <div className="px-5 pt-1 pb-7">
+      <h3 className="text-subtitle font-bold tracking-tight text-ink-900 mb-4">
+        {initial ? '코드 수정' : '코드 추가'}
       </h3>
 
-      <div className="mt-4 flex flex-col gap-3">
-        <div>
-          <label className="block px-1 pb-1 text-[11px] font-semibold tracking-wide text-ink-500">
-            코드 이름
-          </label>
-          <input
-            value={label}
-            onChange={e => { setLabel(e.target.value); setError(null) }}
-            placeholder="예: N, DO, 출장"
-            maxLength={MAX_LABEL}
-            className="w-full h-10 px-3 rounded-md border border-line bg-surface text-[15px] text-ink-900 outline-none"
-          />
+      {/* name */}
+      <p className="px-0.5 pb-1.5 text-[11px] font-semibold tracking-wider uppercase text-ink-500">
+        코드 이름
+      </p>
+      <input
+        value={label}
+        onChange={e => { setLabel(e.target.value); setError(null) }}
+        placeholder="예: N, A, 출장, 연차"
+        maxLength={MAX_LABEL}
+        className="w-full h-[50px] px-3.5 rounded-[12px] border-[1.5px] border-line-2 bg-surface text-[16px] text-ink-900 outline-none mb-1.5"
+      />
+
+      {/* off toggle — borderless row + switch */}
+      <button
+        type="button"
+        onClick={() => { setIsOff(v => !v); setError(null) }}
+        className="w-full flex items-center justify-between gap-3 py-3.5 active:opacity-70"
+      >
+        <div className="text-left">
+          <div className="text-[15px] font-semibold text-ink-900">휴무 코드</div>
+          <div className="text-[11.5px] text-ink-500 mt-0.5">
+            출퇴근 시간 없이 쉬는 날로 표시돼요
+          </div>
         </div>
+        <Switch on={isOff} onChange={v => { setIsOff(v); setError(null) }} ariaLabel="휴무 코드 토글" />
+      </button>
+      <div className="h-px bg-line mb-3.5" />
 
-        <label className="flex items-center justify-between px-3.5 py-3 rounded-md bg-surface border border-line">
-          <span className="text-callout font-medium text-ink-900">휴무 코드</span>
-          <input
-            type="checkbox"
-            checked={isOff}
-            onChange={e => { setIsOff(e.target.checked); setError(null) }}
-            className="w-5 h-5 accent-[var(--brand)]"
-          />
-        </label>
-
-        {!isOff && (
-          <div className="flex items-center gap-2">
+      {/* times — hidden when 휴무 on */}
+      {!isOff && (
+        <>
+          <p className="px-0.5 pb-1.5 text-[11px] font-semibold tracking-wider uppercase text-ink-500">
+            출근 · 퇴근 시간
+          </p>
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-2.5 items-center">
             <input
               value={start}
               onChange={e => { setStart(normalizeTimeInput(e.target.value)); setError(null) }}
               placeholder="09:00"
               inputMode="numeric"
               maxLength={5}
-              className="flex-1 h-10 px-3 rounded-md border border-line bg-surface font-en text-[15px] text-ink-900 outline-none"
+              className="w-full h-[50px] px-3.5 rounded-[12px] border-[1.5px] border-line-2 bg-surface font-en text-[17px] font-semibold text-ink-900 text-center outline-none"
             />
-            <span className="font-en text-ink-300">→</span>
+            <span className="text-ink-300 font-en">→</span>
             <input
               value={end}
               onChange={e => { setEnd(normalizeTimeInput(e.target.value)); setError(null) }}
               placeholder="18:00"
               inputMode="numeric"
               maxLength={5}
-              className="flex-1 h-10 px-3 rounded-md border border-line bg-surface font-en text-[15px] text-ink-900 outline-none"
+              className="w-full h-[50px] px-3.5 rounded-[12px] border-[1.5px] border-line-2 bg-surface font-en text-[17px] font-semibold text-ink-900 text-center outline-none"
             />
           </div>
-        )}
+          <p className="text-caption text-ink-500 mt-2">
+            숫자만 입력하면 자동으로{' '}
+            <strong className="text-ink-700 font-en">시:분</strong>으로 맞춰져요.{' '}
+            <span className="text-ink-300">(예: 0930 → 09:30)</span>
+          </p>
+        </>
+      )}
 
-        {error && <p className="text-caption text-danger">{error}</p>}
-      </div>
+      {error && <p className="text-caption text-danger mt-2">{error}</p>}
 
-      <div className="mt-5 flex gap-2.5">
+      <div className="flex gap-2.5 mt-5">
         {onRemove && (
-          <Button variant="outline" className="px-3" onClick={onRemove} aria-label="삭제">
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label="코드 삭제"
+            className="h-[50px] px-3 rounded-[11px] border border-line-2 bg-surface text-danger grid place-items-center"
+          >
             <CloseIcon size={14} />
-          </Button>
+          </button>
         )}
-        <Button variant="outline" className="flex-1" onClick={onCancel}>취소</Button>
-        <Button className="flex-1" onClick={submit}>{initial ? '저장' : '추가'}</Button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 h-[50px] rounded-[11px] border border-line-2 bg-surface text-ink-900 text-[15px] font-bold"
+        >
+          취소
+        </button>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!canSave}
+          className="flex-1 h-[50px] rounded-[11px] bg-brand-700 text-white text-[15px] font-bold disabled:opacity-45"
+        >
+          {initial ? '저장' : '추가'}
+        </button>
       </div>
     </div>
   )
