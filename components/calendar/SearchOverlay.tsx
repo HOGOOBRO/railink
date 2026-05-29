@@ -17,8 +17,10 @@ interface SearchOverlayProps {
   activeGroupName?: string | null
   onOpenManage?: () => void
   onClose: () => void
-  /** Add/remove a colleague. For real accounts, add also fires a share request. */
-  onToggle: (uid: string) => void
+  /** Add/remove a colleague. For real accounts, add also fires a share request.
+   *  `meta` carries the profile so private (사번-only) accounts — which aren't in
+   *  the directory list — can still be added. */
+  onToggle: (uid: string, meta?: Colleague) => void
   /** False on demo: skip the pending indicator entirely (no shares in demo). */
   shareGated: boolean
   /** My viewer-side share status per owner uid — used only for the "수락 대기 중" hint. */
@@ -227,14 +229,14 @@ function ResultRow({
   visibility?: Visibility
   added: boolean
   pending: boolean
-  onToggle: (uid: string) => void
+  onToggle: (uid: string, meta?: Colleague) => void
 }) {
   const isPrivate = visibility === 'private'
   const label = added ? '✓ 비교 중' : '+ 추가'
   const tone: 'brand' | 'muted' = added ? 'muted' : 'brand'
   return (
     <button
-      onClick={() => onToggle(u.uid)}
+      onClick={() => onToggle(u.uid, u)}
       className="w-full flex items-center gap-3 px-2 py-3 rounded-md text-left hover:bg-bg transition-colors"
     >
       <Avatar name={u.name} photo={u.photo} size="lg" color="brand" />
