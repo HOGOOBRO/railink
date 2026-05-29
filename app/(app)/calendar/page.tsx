@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { type ReactNode, useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
@@ -701,13 +701,17 @@ export default function CalendarPage() {
       {/* ── Footer ── 근무표 유무 양쪽 모두 한 줄 인라인. 없을 땐 등록 진입점, 있을 땐 카운터. */}
       <div className="px-4 pt-3 pb-6 text-caption text-ink-500">
         {hasMySchedule ? (
-          <div className="flex items-center gap-2 bg-bg px-3.5 py-2.5 rounded-md">
-            <span className="text-brand shrink-0"><UploadIcon size={14} /></span>
-            <span>
-              이번 달{' '}
-              <strong className="font-en text-ink-700">내 근무 {workDays}일</strong>
-              {' · '}휴무 {offDays}일 · 비교 동료 {compares.length}명
-            </span>
+          <div className="bg-bg px-3.5 py-2.5 rounded-md">
+            <div className="flex items-center gap-2">
+              <span className="text-brand shrink-0"><UploadIcon size={14} /></span>
+              <span>
+                이번 달{' '}
+                <strong className="font-en text-ink-700">내 근무 {workDays}일</strong>
+                {' · '}휴무 {offDays}일 · 비교 동료 {compares.length}명
+              </span>
+            </div>
+            <div className="border-t border-line my-2.5" />
+            <CalendarLegend />
           </div>
         ) : (
           <button
@@ -857,6 +861,68 @@ export default function CalendarPage() {
         </div>
       </BottomSheet>
     </div>
+  )
+}
+
+/* 표시 안내 — 셀의 각 표시가 무슨 뜻인지 한눈에. 비주얼은 실제 셀과 동일하게
+ * 그려 매칭이 바로 되도록 한다. 핵심 혼동(연한 칩=근무 vs 취소선=휴무 vs
+ * 그냥 숫자=일정 없음)을 분명히 구분. */
+function CalendarLegend() {
+  return (
+    <div>
+      <p className="text-[11px] font-bold text-ink-700 mb-2">표시 안내</p>
+      <div className="flex flex-wrap gap-x-3.5 gap-y-2 text-[11px] text-ink-500 leading-none">
+        {/* 오늘 */}
+        <LegendItem label="오늘">
+          <span className="w-[18px] h-[18px] rounded-full bg-brand inline-block" />
+        </LegendItem>
+        {/* 공휴일 */}
+        <LegendItem label="공휴일">
+          <span className="relative inline-grid place-items-center w-[18px] h-[18px]">
+            <span className="absolute top-[1px] w-[9px] h-[2px] rounded-[1px] bg-danger" />
+            <span className="font-en text-[12px] text-danger">1</span>
+          </span>
+        </LegendItem>
+        {/* 근무 1명 — 그 사람 색 칩 */}
+        <LegendItem label="근무 · 사람 색">
+          <span
+            className="font-en text-[12px] font-semibold px-[6px] py-[1px] rounded-pill leading-none"
+            style={{ background: 'color-mix(in oklab, var(--brand) 16%, white)', color: 'var(--brand)' }}
+          >
+            1
+          </span>
+        </LegendItem>
+        {/* 근무 2명+ — 색 점 */}
+        <LegendItem label="여러 명 근무">
+          <span className="inline-flex items-center w-[18px] justify-center">
+            {[BRAND, 'var(--c1)', 'var(--c2)'].map((c, i) => (
+              <span
+                key={i}
+                className="w-[6px] h-[6px] rounded-full shadow-[0_0_0_1px_#fff]"
+                style={{ background: c, marginLeft: i > 0 ? -2 : 0 }}
+              />
+            ))}
+          </span>
+        </LegendItem>
+        {/* 휴무 — 취소선 */}
+        <LegendItem label="휴무 (쉬는 날)">
+          <span className="font-en text-[12px] text-ink-500 line-through decoration-ink-300">1</span>
+        </LegendItem>
+        {/* 일정 없음 — 그냥 숫자 */}
+        <LegendItem label="일정 없음">
+          <span className="font-en text-[12px] text-ink-900">1</span>
+        </LegendItem>
+      </div>
+    </div>
+  )
+}
+
+function LegendItem({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="inline-grid place-items-center w-[18px] h-[18px] shrink-0">{children}</span>
+      <span>{label}</span>
+    </span>
   )
 }
 
