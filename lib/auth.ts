@@ -56,13 +56,24 @@ export async function getCurrentSession(): Promise<Session | null> {
   if (!u) return getDemoSession()
   if (typeof window !== 'undefined') localStorage.removeItem(DEMO_SESSION_KEY)
   const m = (u.user_metadata ?? {}) as Record<string, string>
+  // Photo lives in profiles, NOT user_metadata (see updatePhoto for why).
+  // Fall back to metadata.photo only for legacy rows that haven't been
+  // cleaned up yet; new writes never touch metadata.
+  let photo = m.photo || undefined
+  if (!photo) {
+    try {
+      const { data: prof } = await supabase
+        .from('profiles').select('photo').eq('id', u.id).maybeSingle()
+      photo = (prof?.photo as string | null | undefined) || undefined
+    } catch { /* profiles fetch is best-effort */ }
+  }
   return {
     uid: u.id,
     email: u.email ?? '',
     name: m.name ?? '',
     employeeId: m.employee_id ?? '',
     part: m.part || undefined,
-    photo: m.photo || undefined,
+    photo,
     isDemo: false,
   }
 }
@@ -142,14 +153,24 @@ export async function resendConfirmation(email: string): Promise<void> {
 /* ── Profile updates ───────────────────────────────────────────────────────── */
 
 /** Save a new profile photo. Pass `null` to clear it (fall back to initials).
- * Demo accounts persist to localStorage; real accounts hit Supabase
- * user_metadata. */
+ * Demo accounts persist to localStorage; real accounts write to the profiles
+ * table only — NEVER to user_metadata. The supabase JWT payload includes
+ * user_metadata, and base64-encoded photos bloat the JWT to tens of KB,
+ * overflowing PostgREST/nginx's request-header ceiling and breaking every
+ * subsequent supabase call with HTTP 494. Reading still works because
+ * getCurrentSession reads photo from user_metadata first, then falls back
+ * to profiles — but the source of truth for new writes is profiles only. */
 export async function updatePhoto(photo: string | null): Promise<{ ok: boolean; message?: string }> {
   if (typeof window !== 'undefined' && localStorage.getItem(DEMO_SESSION_KEY)) {
     localStorage.setItem(DEMO_PHOTO_KEY, photo ?? '')
     return { ok: true }
   }
-  const { error } = await supabase.auth.updateUser({ data: { photo: photo ?? null } })
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, message: '로그인 상태를 확인하지 못했어요.' }
+  const { error } = await supabase
+    .from('profiles')
+    .update({ photo: photo })
+    .eq('id', user.id)
   if (error) return { ok: false, message: error.message }
   return { ok: true }
 }
