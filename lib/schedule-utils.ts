@@ -38,6 +38,16 @@ export function hmToDecimal(s?: string): number {
   return h + (m || 0) / 60
 }
 
+/** Live-format what the user is typing into a time input.
+ *  Mobile numeric keypads have no colon key, so users type "0530" expecting
+ *  05:30. Strip non-digits, cap to 4 chars, insert a colon after the hour.
+ *  Pass-through for partial input ("0", "05", "053") so editing feels natural. */
+export function normalizeTimeInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 4)
+  if (digits.length <= 2) return digits
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`
+}
+
 /** Decimal hour → "HH:MM" wrapped to a 24h clock for display. */
 export function fmtClock(h: number): string {
   const dayH = ((h % 24) + 24) % 24
