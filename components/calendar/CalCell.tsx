@@ -1,9 +1,12 @@
 /* Chip-style calendar cell (the user's chosen "C" variant).
- *   - no work        → plain mono day number
+ *   - no work        → plain mono day number (weekend/holiday hue applied)
  *   - 1 worker       → day number in a soft-tinted chip in that user's color
  *   - 2+ workers     → mono day number + small stacked color dots
  *   - holiday only    → muted, struck-through day number
- * Today (warn dot) and selected (brand tint) overlay any state. */
+ * Today (filled brand circle) beats every state — it overrides the weekend/
+ * holiday hue and the single-worker chip so it can never be mistaken for a
+ * holiday. Holidays carry a red bar above the number (never a dot) + red
+ * number. Selected (brand tint) shades the cell background. */
 
 export interface CellBar {
   color: string   // CSS color value, e.g. 'var(--brand)' or 'var(--c3)'
@@ -41,7 +44,15 @@ export function CalCell({ d, isOther, today, selected, bars, dow, holiday }: Cal
   }
 
   let inner
-  if (isOther) {
+  if (today && !isOther) {
+    // Today → filled brand circle, white number. Highest-priority cell marker;
+    // overrides weekend/holiday hue and the single-worker chip.
+    inner = (
+      <span className="font-en text-[14px] font-bold tracking-tight w-7 h-7 rounded-full bg-brand text-white grid place-items-center leading-none">
+        {d}
+      </span>
+    )
+  } else if (isOther) {
     inner = <span className="font-en text-[15px] font-[400] text-ink-300">{d}</span>
   } else if (single) {
     inner = (
@@ -57,7 +68,7 @@ export function CalCell({ d, isOther, today, selected, bars, dow, holiday }: Cal
     )
   } else if (offCount > 0 && work.length === 0) {
     inner = (
-      <span className={`font-en text-[15px] font-[400] line-through decoration-ink-300 ${numberColor()}`}>
+      <span className={`font-en text-[15px] font-[400] line-through decoration-ink-300 ${isRed ? 'text-danger' : isSat ? 'text-c1' : 'text-ink-300'}`}>
         {d}
       </span>
     )
@@ -65,29 +76,19 @@ export function CalCell({ d, isOther, today, selected, bars, dow, holiday }: Cal
     inner = <span className={`font-en text-[15px] font-[400] ${numberColor()}`}>{d}</span>
   }
 
-  // Background priority: selected > red holiday tint > weekend tint > plain.
-  let bgClass = 'bg-surface'
-  if (selected) {
-    bgClass = 'bg-brand-050 border-y border-brand-100'
-  } else if (!isOther && holiday) {
-    // soft red so the cell reads as a non-working day at a glance
-    bgClass = ''
-  } else if (!isOther && (isSat || isSun)) {
-    bgClass = 'bg-surface-2'
-  }
-
-  const inlineHoliday = !selected && !isOther && holiday
-    ? { background: 'rgba(220,38,38,0.06)' }
-    : undefined
+  // No weekend/holiday cell shading — weekends read through the number hue and
+  // holidays through the red bar. Only the selected day tints its background.
+  const bgClass = selected ? 'bg-brand-050 border-y border-brand-100' : 'bg-surface'
 
   return (
     <div
       className={`relative h-14 px-[4px] flex flex-col items-center justify-center gap-[2px] ${bgClass}`}
-      style={inlineHoliday}
       title={holiday ?? undefined}
     >
-      {today && (
-        <span className="absolute top-[4px] left-1/2 -translate-x-1/2 w-[4px] h-[4px] rounded-[6px] bg-warn pointer-events-none" />
+      {/* Holiday marker — a small red bar above the number (only when NOT today,
+          to stay distinct from today's filled circle). */}
+      {holiday && !isOther && !today && (
+        <span className="absolute top-[5px] left-1/2 -translate-x-1/2 w-[10px] h-[2.5px] rounded-[2px] bg-danger pointer-events-none" />
       )}
       {inner}
       {work.length >= 2 && (

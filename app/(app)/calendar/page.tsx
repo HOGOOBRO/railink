@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { useToast } from '@/components/ui/Toast'
 import {
-  BrandMark, SearchIcon, PlusIcon, ChevronLeftIcon, ChevronRightIcon, UploadIcon, ArrowRightIcon,
+  BrandMark, SearchIcon, PlusIcon, ChevronLeftIcon, ChevronRightIcon, UploadIcon, ArrowRightIcon, EditIcon,
 } from '@/components/ui/icons'
 import { CalCell, type CellBar } from '@/components/calendar/CalCell'
 import { DetailSheet } from '@/components/calendar/DetailSheet'
@@ -582,6 +582,7 @@ export default function CalendarPage() {
                     ringColor={compareColorOf(c)}
                     avatarColor={c.color}
                     pending={pending}
+                    editable={!pending}
                   />
                 </button>
               )
@@ -654,7 +655,7 @@ export default function CalendarPage() {
             <div
               key={d}
               className={`text-center font-kr text-[13px] font-bold py-1 ${
-                i === 0 ? 'text-danger' : i === 6 ? 'text-brand' : 'text-ink-700'
+                i === 0 ? 'text-danger' : i === 6 ? 'text-c1' : 'text-ink-700'
               }`}
             >
               {d}
@@ -768,6 +769,10 @@ export default function CalendarPage() {
             member={memberSheet}
             pending={!session.isDemo && shareStatus[memberSheet.uid] === 'pending'}
             isDemo={session.isDemo}
+            usedBy={compares.reduce((acc, c) => {
+              if (c.uid !== memberSheet.uid && !(c.color in acc)) acc[c.color] = c.name
+              return acc
+            }, {} as Partial<Record<CompareColor, string>>)}
             onClose={() => setMemberSheet(null)}
             onRemove={() => {
               const m = memberSheet
@@ -855,13 +860,16 @@ export default function CalendarPage() {
   )
 }
 
-function PersonPill({ name, photo, ringColor, avatarColor, self, pending }: {
+function PersonPill({ name, photo, ringColor, avatarColor, self, pending, editable }: {
   name: string
   photo?: string
   ringColor: string
   avatarColor: 'brand' | CompareColor
   self?: boolean
   pending?: boolean
+  /** Colleague pill — show a small pencil badge (in the colleague's color) to
+   *  hint the pill is tappable to recolor. */
+  editable?: boolean
 }) {
   return (
     <div className="shrink-0 flex flex-col items-center gap-1.5 w-14">
@@ -878,6 +886,14 @@ function PersonPill({ name, photo, ringColor, avatarColor, self, pending }: {
         {self && (
           <span className="absolute -right-1 -bottom-0.5 bg-brand text-ink-on-brand text-[9px] font-bold px-1.5 rounded-pill shadow-[0_0_0_2px_#fff]">
             나
+          </span>
+        )}
+        {editable && !self && (
+          <span
+            className="absolute -right-[3px] -bottom-[3px] w-[18px] h-[18px] rounded-full grid place-items-center text-white shadow-[0_0_0_2px_#fff]"
+            style={{ background: ringColor }}
+          >
+            <EditIcon size={9} />
           </span>
         )}
       </div>

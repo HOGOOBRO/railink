@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { CloseIcon, PlusIcon, EditIcon } from '@/components/ui/icons'
 import { MonthTimeline, DAY_PX, type MonthPerson } from './MonthTimeline'
 import { DOW_KR } from '@/lib/schedule-utils'
+import { holidayNameFor } from '@/lib/holidays-kr'
 
 interface DetailSheetProps {
   date: Date            // day to open scrolled to
@@ -39,6 +40,12 @@ export function DetailSheet({
   }
 
   const headDate = new Date(year, month - 1, topDay)
+  const dow = headDate.getDay()
+  const iso = `${year}-${String(month).padStart(2, '0')}-${String(topDay).padStart(2, '0')}`
+  const holiday = holidayNameFor(iso)
+  // Weekday hue: red for Sun/holiday, blue for Sat, muted otherwise — same rule
+  // as the calendar grid so the sheet heading reads consistently.
+  const dowClass = holiday || dow === 0 ? 'text-danger' : dow === 6 ? 'text-c1' : 'text-ink-500'
   const workN = people.filter(p => p.shifts.some(s => s.day === topDay)).length
 
   return (
@@ -47,7 +54,12 @@ export function DetailSheet({
         <div>
           <h3 className="text-title font-bold tracking-tighter text-ink-900">
             {month}월 {topDay}일{' '}
-            <span className="text-ink-500 font-medium">{DOW_KR[headDate.getDay()]}</span>
+            <span className={`font-medium ${dowClass}`}>{DOW_KR[dow]}</span>
+            {holiday && (
+              <span className="align-middle ml-2 text-[12px] font-bold text-danger bg-danger-soft px-2 py-0.5 rounded-pill">
+                {holiday}
+              </span>
+            )}
           </h3>
           <p className="text-caption text-ink-500 mt-0.5">근무 {workN}명 · 위아래로 넘겨 다른 날</p>
         </div>
