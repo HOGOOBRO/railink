@@ -42,6 +42,7 @@ import type { Colleague } from '@/lib/demo-data'
 import {
   DOW_KR, buildMonthCells, hmToDecimal,
 } from '@/lib/schedule-utils'
+import { holidayNameFor } from '@/lib/holidays-kr'
 import type { ParsedScheduleRow } from '@/lib/parse/schedule-file'
 import type { CompareEntry, CompareColor, GroupsState, ScheduleEntry, ShareStatus } from '@/lib/types/schedule'
 
@@ -675,6 +676,8 @@ export default function CalendarPage() {
                       selectedDate.getMonth() === month - 1 && selectedDate.getDate() === c.d
                     }
                     bars={c.iso ? barsByIso.get(c.iso) ?? [] : []}
+                    dow={ci}
+                    holiday={holidayNameFor(c.iso)}
                   />
                 </button>
               ))}
