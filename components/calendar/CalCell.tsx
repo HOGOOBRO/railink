@@ -16,12 +16,29 @@ interface CalCellProps {
   today: boolean
   selected: boolean
   bars: CellBar[]
+  /** 0=일 ~ 6=토 — 토·일 셀에 옅은 배경, 일요일 숫자는 빨강. */
+  dow?: number
+  /** 한국 공휴일 (대체공휴일 포함). 빨강 배경 + 작은 캡션 라벨. */
+  holiday?: string | null
 }
 
-export function CalCell({ d, isOther, today, selected, bars }: CalCellProps) {
+export function CalCell({ d, isOther, today, selected, bars, dow, holiday }: CalCellProps) {
   const work = bars.filter(b => !b.isOff)
   const offCount = bars.length - work.length
   const single = work.length === 1 ? work[0] : null
+  const isSun = dow === 0
+  const isSat = dow === 6
+  const isRed = !!holiday || (isSun && !isOther)
+
+  // Day-number color. Selected/Today brand take precedence in the cell
+  // background; the number itself follows weekend/holiday hue when there's
+  // no worker chip overriding it.
+  function numberColor(): string {
+    if (isOther) return 'text-ink-300'
+    if (isRed) return 'text-danger'
+    if (isSat) return 'text-c1'
+    return 'text-ink-900'
+  }
 
   let inner
   if (isOther) {
@@ -40,19 +57,34 @@ export function CalCell({ d, isOther, today, selected, bars }: CalCellProps) {
     )
   } else if (offCount > 0 && work.length === 0) {
     inner = (
-      <span className="font-en text-[15px] font-[400] text-ink-500 line-through decoration-ink-300">
+      <span className={`font-en text-[15px] font-[400] line-through decoration-ink-300 ${numberColor()}`}>
         {d}
       </span>
     )
   } else {
-    inner = <span className="font-en text-[15px] font-[400] text-ink-900">{d}</span>
+    inner = <span className={`font-en text-[15px] font-[400] ${numberColor()}`}>{d}</span>
   }
+
+  // Background priority: selected > red holiday tint > weekend tint > plain.
+  let bgClass = 'bg-surface'
+  if (selected) {
+    bgClass = 'bg-brand-050 border-y border-brand-100'
+  } else if (!isOther && holiday) {
+    // soft red so the cell reads as a non-working day at a glance
+    bgClass = ''
+  } else if (!isOther && (isSat || isSun)) {
+    bgClass = 'bg-surface-2'
+  }
+
+  const inlineHoliday = !selected && !isOther && holiday
+    ? { background: 'rgba(220,38,38,0.06)' }
+    : undefined
 
   return (
     <div
-      className={`relative h-14 px-[4px] flex flex-col items-center justify-center gap-[2px] ${
-        selected ? 'bg-brand-050 border-y border-brand-100' : 'bg-surface'
-      }`}
+      className={`relative h-14 px-[4px] flex flex-col items-center justify-center gap-[2px] ${bgClass}`}
+      style={inlineHoliday}
+      title={holiday ?? undefined}
     >
       {today && (
         <span className="absolute top-[4px] left-1/2 -translate-x-1/2 w-[4px] h-[4px] rounded-[6px] bg-warn pointer-events-none" />
