@@ -12,6 +12,7 @@ import {
 import { CalCell, type CellBar } from '@/components/calendar/CalCell'
 import { DetailSheet } from '@/components/calendar/DetailSheet'
 import { MenuSheet } from '@/components/calendar/MenuSheet'
+import { InviteCreateSheet } from '@/components/calendar/InviteCreateSheet'
 import { SearchOverlay } from '@/components/calendar/SearchOverlay'
 import { UploadModal } from '@/components/calendar/UploadModal'
 import { GroupTabs } from '@/components/calendar/GroupTabs'
@@ -110,6 +111,7 @@ export default function CalendarPage() {
   const [uploadStep, setUploadStep] = useState<'pick' | 'preview' | 'manual'>('pick')
   const [manageOpen, setManageOpen] = useState(false)
   const [manageStartCreate, setManageStartCreate] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
   const [memberSheet, setMemberSheet] = useState<CompareEntry | null>(null)
 
   // Loader: resolve the session (demo localStorage OR Supabase), then read
@@ -320,8 +322,10 @@ export default function CalendarPage() {
 
   const closeOverlays = useCallback(() => {
     setDetailOpen(false); setSearchOpen(false); setUploadOpen(false)
-    setMenuOpen(false); setManageOpen(false); setMemberSheet(null)
+    setMenuOpen(false); setManageOpen(false); setMemberSheet(null); setInviteOpen(false)
   }, [])
+
+  const openInvite = () => { closeOverlays(); setInviteOpen(true) }
 
   const openSearch = () => { closeOverlays(); setSearchQuery(''); setSearchOpen(true); refreshShareStatus() }
 
@@ -488,7 +492,7 @@ export default function CalendarPage() {
 
   if (!session) return <div className="min-h-[100dvh] bg-surface" />
 
-  const overlayOpen = detailOpen || searchOpen || uploadOpen || menuOpen || manageOpen || !!memberSheet
+  const overlayOpen = detailOpen || searchOpen || uploadOpen || menuOpen || manageOpen || inviteOpen || !!memberSheet
   const compareColorOf = (c: CompareEntry) => cssColor(c.color)
   const hasGroups = groupsState.groups.length > 0
   const atCompareCap = compares.length >= MAX_PER_GROUP
@@ -769,7 +773,18 @@ export default function CalendarPage() {
           compareCount={compares.length}
           hasPending={pendingCount > 0}
           onManageSchedule={openUpload}
+          onInvite={openInvite}
           onLogout={handleLogout}
+        />
+      </BottomSheet>
+
+      {/* ── 친구 초대 ── */}
+      <BottomSheet open={inviteOpen} onClose={() => setInviteOpen(false)}>
+        <InviteCreateSheet
+          groups={groupsState.groups}
+          activeGroupId={groupsState.activeGroupId}
+          onClose={() => setInviteOpen(false)}
+          showToast={showToast}
         />
       </BottomSheet>
 
