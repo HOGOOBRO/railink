@@ -4,7 +4,7 @@
  * (railink/project/screens-c.jsx). Deterministic so the calendar,
  * compare strip, search and timeline all show meaningful content.
  */
-import type { ScheduleEntry } from '@/lib/types/schedule'
+import type { ScheduleEntry, ProfileType } from '@/lib/types/schedule'
 
 export interface Colleague {
   uid: string
@@ -13,6 +13,9 @@ export interface Colleague {
   office: string
   email: string
   photo?: string
+  /** Identity type for the search badge. Absent → treat as 'ktx_attendant'
+   *  (legacy/demo KTX colleagues). personal users have no 사번/office. */
+  profileType?: ProfileType
 }
 
 /** Seeded "me" — the demo account (이서연). Uses an @railink.app address:
@@ -50,6 +53,9 @@ export const DEMO_COLLEAGUES: Colleague[] = [
   { uid: 'u10', name: '서가온', employeeId: '118330', office: '부산 · C',  email: 'demo.gaon@railink.app',   photo: '/avatars/avatar-11.svg' },
   { uid: 'u11', name: '장태리', employeeId: '127015', office: '대전 · B',  email: 'demo.taeri@railink.app' },
   { uid: 'u12', name: '임도하', employeeId: '116602', office: '서울 · A',  email: 'demo.doha@railink.app',   photo: '/avatars/avatar-12.svg' },
+  // One personal contact so the badge + email-only-discovery model is visible in
+  // demo. No 사번/office; reachable by email/name, no "KTX 승무원" chip.
+  { uid: 'u13', name: '이수진', employeeId: '', office: '', email: 'demo.sujin@railink.app', profileType: 'personal' },
 ]
 
 const DIAS = ['H1055', 'H1G37', 'H1130', 'H1091', 'H1048', 'H1007', 'H1082', 'H1071', 'H1095']

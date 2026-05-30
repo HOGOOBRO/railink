@@ -12,6 +12,8 @@ import {
 import { CalCell, type CellBar } from '@/components/calendar/CalCell'
 import { DetailSheet } from '@/components/calendar/DetailSheet'
 import { MenuSheet } from '@/components/calendar/MenuSheet'
+import { InviteCreateSheet } from '@/components/calendar/InviteCreateSheet'
+import { PersonalHintCard } from '@/components/calendar/PersonalHintCard'
 import { SearchOverlay } from '@/components/calendar/SearchOverlay'
 import { UploadModal } from '@/components/calendar/UploadModal'
 import { GroupTabs } from '@/components/calendar/GroupTabs'
@@ -35,9 +37,11 @@ import {
   findColleagueInDirectory,
   getColleagueDirectory,
   findProfileByEmployeeId,
+  findProfileByEmail,
   isDemoColleagueUid,
 } from '@/lib/store/colleagues'
 import { myViewerShareStatuses, requestShare, cancelShare, listShares } from '@/lib/store/shares'
+import { consumePendingInvite } from '@/lib/store/invites'
 import { getMemberColors, setMemberColor } from '@/lib/store/member-colors'
 import type { Colleague } from '@/lib/demo-data'
 import {
@@ -110,6 +114,10 @@ export default function CalendarPage() {
   const [uploadStep, setUploadStep] = useState<'pick' | 'preview' | 'manual'>('pick')
   const [manageOpen, setManageOpen] = useState(false)
   const [manageStartCreate, setManageStartCreate] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  // Default true = hidden, so the personal first-entry card never flashes for
+  // KTX users or before the session resolves. Set from localStorage in the loader.
+  const [hintDismissed, setHintDismissed] = useState(true)
   const [memberSheet, setMemberSheet] = useState<CompareEntry | null>(null)
 
   // Loader: resolve the session (demo localStorage OR Supabase), then read
@@ -153,6 +161,11 @@ export default function CalendarPage() {
       setMySched(mine)
       setColSched(cols)
       setColorOverrides(getMemberColors(s.uid))
+      // Personal first-entry hint: shown until dismissed (persisted per uid).
+      setHintDismissed(
+        s.profileType !== 'personal' ||
+        (typeof window !== 'undefined' && localStorage.getItem(`railink_hint_dismissed_${s.uid}`) === '1'),
+      )
 
       if (s.isDemo) {
         for (const uid of memberUids) cols[uid] = getMonthSchedules(uid, year, month)
@@ -179,11 +192,22 @@ export default function CalendarPage() {
         setColSched(cols)
       }
 
-      setColleagueLoading(true)
-      try {
-        const directory = await getColleagueDirectory(s)
+      // Invite connect — runs before the directory fetch so a freshly-created
+      // accepted share's counterpart is included in the directory below (used to
+      // resolve their name for auto-grouping). No-op (no network) when there's
+      // no stashed token, so non-invited mounts pay nothing.
+      if (!s.isDemo) {
+        const invitedOwner = await consumePendingInvite()
         if (!alive) return
-        setColleagues(directory)
+        if (invitedOwner) showToast(`${invitedOwner.name} 님과 연결됐어요!`, 'success')
+      }
+
+      setColleagueLoading(true)
+      let directoryList: Colleague[] = []
+      try {
+        directoryList = await getColleagueDirectory(s)
+        if (!alive) return
+        setColleagues(directoryList)
       } catch {
         if (alive) setColleagues([])
       } finally {
@@ -198,6 +222,32 @@ export default function CalendarPage() {
           if (!alive) return
           setShareStatus(statuses)
           setPendingCount(shares.incoming.length)
+
+          // Invite auto-grouping: an accepted share I can view whose counterpart
+          // isn't in any of my groups only arises from consume_invite (normal
+          // adds put the person in a group first, then request). Add them to the
+          // active/기본 group so inviter↔invitee both surface in compare. Reload
+          // to pull the new member's schedule.
+          const inGroupUids = new Set(allMemberUids(nextGroups))
+          const ungrouped = shares.viewing.filter(v => !inGroupUids.has(v.ownerId))
+          if (ungrouped.length) {
+            let addedAny = false
+            for (const v of ungrouped) {
+              const prof = directoryList.find(d => d.uid === v.ownerId)
+              const res = addToActiveGroup(s.uid, {
+                uid: v.ownerId,
+                name: prof?.name ?? '동료',
+                employeeId: prof?.employeeId ?? '',
+                photo: prof?.photo,
+                office: prof?.office,
+              })
+              // entry set OR alreadyIn → it's grouped; null+!alreadyIn means the
+              // active group is at the 10-person cap. Guard the reload on a real
+              // change so a capped group can't loop the mount effect forever.
+              if (res.entry || res.alreadyIn) addedAny = true
+            }
+            if (addedAny) { if (alive) setReload(n => n + 1); return }
+          }
 
           // Reconciler: groups ≡ share intent. Any pending outgoing whose owner
           // isn't in any of my groups (legacy / failed-cancel / cross-device drift)
@@ -230,7 +280,7 @@ export default function CalendarPage() {
       }
     })()
     return () => { alive = false }
-  }, [router, year, month, reload])
+  }, [router, year, month, reload, showToast])
 
   function dismissMigration() {
     if (typeof window !== 'undefined') localStorage.setItem(MIGRATION_KEY, 'dismissed')
@@ -320,8 +370,17 @@ export default function CalendarPage() {
 
   const closeOverlays = useCallback(() => {
     setDetailOpen(false); setSearchOpen(false); setUploadOpen(false)
-    setMenuOpen(false); setManageOpen(false); setMemberSheet(null)
+    setMenuOpen(false); setManageOpen(false); setMemberSheet(null); setInviteOpen(false)
   }, [])
+
+  const openInvite = () => { closeOverlays(); setInviteOpen(true) }
+
+  function dismissHint() {
+    if (session && typeof window !== 'undefined') {
+      localStorage.setItem(`railink_hint_dismissed_${session.uid}`, '1')
+    }
+    setHintDismissed(true)
+  }
 
   const openSearch = () => { closeOverlays(); setSearchQuery(''); setSearchOpen(true); refreshShareStatus() }
 
@@ -330,6 +389,7 @@ export default function CalendarPage() {
   }
 
   const lookupSabun = useCallback((employeeId: string) => findProfileByEmployeeId(employeeId), [])
+  const lookupEmail = useCallback((email: string) => findProfileByEmail(email), [])
   const openUpload = () => { closeOverlays(); setUploadStep('pick'); setUploadOpen(true) }
   const openManualEdit = () => { closeOverlays(); setUploadStep('manual'); setUploadOpen(true) }
   const openManage = (startCreate = false) => {
@@ -488,7 +548,7 @@ export default function CalendarPage() {
 
   if (!session) return <div className="min-h-[100dvh] bg-surface" />
 
-  const overlayOpen = detailOpen || searchOpen || uploadOpen || menuOpen || manageOpen || !!memberSheet
+  const overlayOpen = detailOpen || searchOpen || uploadOpen || menuOpen || manageOpen || inviteOpen || !!memberSheet
   const compareColorOf = (c: CompareEntry) => cssColor(c.color)
   const hasGroups = groupsState.groups.length > 0
   const atCompareCap = compares.length >= MAX_PER_GROUP
@@ -746,6 +806,15 @@ export default function CalendarPage() {
         </button>
       )}
 
+      {/* ── Personal first-entry hint (non-blocking, dismissible) ── */}
+      {!overlayOpen && session.profileType === 'personal' && !hasMySchedule && !hintDismissed && (
+        <PersonalHintCard
+          ownerName={compares[0]?.name}
+          onRegister={() => { dismissHint(); openUpload() }}
+          onDismiss={dismissHint}
+        />
+      )}
+
       {/* ── Date detail ── */}
       <BottomSheet open={detailOpen} onClose={() => setDetailOpen(false)}>
         {selectedDate && (
@@ -769,7 +838,18 @@ export default function CalendarPage() {
           compareCount={compares.length}
           hasPending={pendingCount > 0}
           onManageSchedule={openUpload}
+          onInvite={openInvite}
           onLogout={handleLogout}
+        />
+      </BottomSheet>
+
+      {/* ── 친구 초대 ── */}
+      <BottomSheet open={inviteOpen} onClose={() => setInviteOpen(false)}>
+        <InviteCreateSheet
+          groups={groupsState.groups}
+          activeGroupId={groupsState.activeGroupId}
+          onClose={() => setInviteOpen(false)}
+          showToast={showToast}
         />
       </BottomSheet>
 
@@ -815,6 +895,7 @@ export default function CalendarPage() {
           shareGated={!session.isDemo}
           shareStatus={shareStatus}
           lookupSabun={lookupSabun}
+          lookupEmail={lookupEmail}
         />
       )}
 
