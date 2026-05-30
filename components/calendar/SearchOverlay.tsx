@@ -27,12 +27,14 @@ interface SearchOverlayProps {
   shareStatus: Record<string, ShareStatus>
   /** Exact-사번 lookup (real accounts only). */
   lookupSabun: (employeeId: string) => Promise<ProfileLookup | null>
+  /** Exact-email lookup (real accounts only). */
+  lookupEmail: (email: string) => Promise<ProfileLookup | null>
 }
 
 export function SearchOverlay({
   query, setQuery, colleagues, loading = false, comparedUids,
   activeGroupName, onOpenManage, onClose, onToggle,
-  shareGated, shareStatus, lookupSabun,
+  shareGated, shareStatus, lookupSabun, lookupEmail,
 }: SearchOverlayProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { inputRef.current?.focus() }, [])
@@ -44,7 +46,9 @@ export function SearchOverlay({
 
   const raw = query.trim()
   const q = raw.toLowerCase()
-  const isSabun = /^\d{4,8}$/.test(raw)
+  // Auto-detect the lookup mode: @ → email, all-digits → 사번, else → 이름.
+  const isEmail = raw.includes('@')
+  const isSabun = !isEmail && /^\d{4,8}$/.test(raw)
 
   const filtered = useMemo(() => (
     q
@@ -75,6 +79,24 @@ export function SearchOverlay({
   const sabunLoading = showSabun && !sabunReady
   const sabunDup = sabunResult != null && filtered.some(u => u.uid === sabunResult.uid)
 
+  // Exact-email lookup → "이메일로 찾음" group. Same shape/policy as 사번.
+  const showEmail = shareGated && isEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)
+  const [emailState, setEmailState] = useState<{ q: string; result: ProfileLookup | null } | null>(null)
+  useEffect(() => {
+    if (!showEmail) return
+    let alive = true
+    const t = setTimeout(async () => {
+      const result = await lookupEmail(raw)
+      if (alive) setEmailState({ q: raw, result })
+    }, 250)
+    return () => { alive = false; clearTimeout(t) }
+  }, [showEmail, raw, lookupEmail])
+
+  const emailReady = showEmail && emailState?.q === raw
+  const emailResult = emailReady ? emailState!.result : null
+  const emailLoading = showEmail && !emailReady
+  const emailDup = emailResult != null && filtered.some(u => u.uid === emailResult.uid)
+
   const count = comparedUids.size
   const pendingOf = (uid: string) => shareGated && shareStatus[uid] === 'pending'
 
@@ -93,7 +115,7 @@ export function SearchOverlay({
             ref={inputRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="이름 또는 사번을 입력해 주세요"
+            placeholder="사번·이메일, 또는 이름"
             className={`w-full h-10 pl-9 pr-3.5 rounded-pill text-callout text-ink-900 font-kr outline-none ${
               query ? 'bg-surface border border-line-2' : 'bg-bg border border-transparent'
             }`}
@@ -133,7 +155,7 @@ export function SearchOverlay({
           <p className="py-16 px-4 text-center text-callout text-ink-500">
             검색 가능한 동료를 확인하고 있어요.
           </p>
-        ) : colleagues.length === 0 && !showSabun ? (
+        ) : colleagues.length === 0 && !showSabun && !showEmail ? (
           // Directory 자체가 비어있음 — 다른 가입자가 없거나, 가입은 했지만 모두
           // 공개 범위 = 비공개라 RLS가 가린 경우. (옛 share_schedule=false 사용자가
           // 마이그레이션으로 자동 private이 된 케이스가 흔함.)
@@ -145,9 +167,9 @@ export function SearchOverlay({
               <span className="text-ink-500 font-semibold">‘공개’</span>로 설정해야 검색에 나타나요.
             </p>
           </div>
-        ) : filtered.length === 0 && !showSabun ? (
+        ) : filtered.length === 0 && !showSabun && !showEmail ? (
           <p className="py-16 px-4 text-center text-callout text-ink-500">
-            검색 결과가 없어요. 이름이나 사번을 다시 확인해 주세요.
+            검색 결과가 없어요. 사번·이메일·이름을 다시 확인해 주세요.
           </p>
         ) : (
           filtered.map(u => (
@@ -182,6 +204,33 @@ export function SearchOverlay({
                 <p>그 사번으로 등록된 동료가 없어요.</p>
                 <p className="mt-1.5 text-[11px] text-ink-300">
                   사번이 정확한지, 그 동료가 RaiLink에 가입했는지 확인해 주세요.
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* 이메일로 찾음 — exact email match (KTX or personal, public or private) */}
+        {showEmail && (
+          <>
+            <p className="px-2 pt-3 pb-1.5 text-caption font-semibold text-ink-500 border-t border-line mt-2">
+              이메일로 찾음
+            </p>
+            {emailLoading ? (
+              <p className="py-6 px-4 text-center text-caption text-ink-500">이메일로 찾는 중…</p>
+            ) : emailResult && !emailDup ? (
+              <ResultRow
+                u={emailResult}
+                visibility={emailResult.visibility}
+                added={comparedUids.has(emailResult.uid)}
+                pending={pendingOf(emailResult.uid)}
+                onToggle={onToggle}
+              />
+            ) : emailResult ? null : (
+              <div className="py-6 px-4 text-center text-caption text-ink-500 leading-relaxed">
+                <p>그 이메일로 등록된 사람이 없어요.</p>
+                <p className="mt-1.5 text-[11px] text-ink-300">
+                  이메일이 정확한지, 그 사람이 RaiLink에 가입했는지 확인해 주세요.
                 </p>
               </div>
             )}
@@ -232,6 +281,8 @@ function ResultRow({
   onToggle: (uid: string, meta?: Colleague) => void
 }) {
   const isPrivate = visibility === 'private'
+  // KTX 식별 배지. personal은 칩·사번 없이 이름만 — 위계 어휘는 쓰지 않는다.
+  const isKtx = u.profileType !== 'personal'
   const label = added ? '✓ 비교 중' : '+ 추가'
   const tone: 'brand' | 'muted' = added ? 'muted' : 'brand'
   return (
@@ -244,7 +295,12 @@ function ResultRow({
         <div className="flex items-center gap-1.5">
           <span className="font-semibold text-callout text-ink-900 truncate">{u.name}</span>
           {isPrivate && <LockIcon className="text-ink-300 shrink-0" />}
-          <span className="font-en text-caption text-ink-500">{u.employeeId}</span>
+          {isKtx ? (
+            <>
+              {u.employeeId && <span className="font-en text-caption text-ink-500">{u.employeeId}</span>}
+              <span className="shrink-0 text-[10px] font-bold text-brand bg-brand-050 px-1.5 py-0.5 rounded-xs">KTX 승무원</span>
+            </>
+          ) : null}
         </div>
         {isPrivate ? (
           <p className="text-[11px] text-ink-500 mt-0.5">비공개 계정 · 사번이 정확히 일치해야 추가할 수 있어요</p>

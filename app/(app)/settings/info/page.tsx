@@ -25,7 +25,7 @@ import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
 import type { Visibility } from '@/lib/types/schedule'
 
 const VIS_OPTIONS: RadioOption<Visibility>[] = [
-  { value: 'public', title: '공개', desc: '이름·사업소·사진이 동료 검색에 떠요. 일정은 따로 수락이 필요해요.' },
+  { value: 'public', title: '공개', desc: '이름·사진이 동료 검색에 떠요. 일정은 따로 수락이 필요해요.' },
   { value: 'private', title: '비공개', desc: '검색에는 안 떠요. 사번을 정확히 아는 동료만 공유를 요청할 수 있어요.' },
 ]
 
@@ -230,8 +230,10 @@ export default function SettingsInfoPage() {
             </Link>
           </div>
           <p className="mt-3 text-[20px] font-bold tracking-tight text-ink-900">{session.name}</p>
-          <p className="mt-0.5 font-en text-caption text-ink-500">
-            {session.employeeId}{session.part ? ` · ${session.part}파트` : ''}
+          <p className={`mt-0.5 text-caption text-ink-500 ${session.profileType === 'personal' ? 'font-kr' : 'font-en'}`}>
+            {session.profileType === 'personal'
+              ? '개인 계정'
+              : `${session.employeeId}${session.part ? ` · ${session.part}파트` : ''}`}
           </p>
           <div className="mt-3.5 flex items-stretch gap-5">
             <Stat label="비교 동료" value={compareCount} />
@@ -244,15 +246,20 @@ export default function SettingsInfoPage() {
 
         {/* 기본 정보 */}
         <Section title="기본 정보">
-          <FieldRow label="이름">
+          <FieldRow label="이름" hint={session.profileType === 'personal' ? '친구가 보는 이름이에요.' : undefined}>
             <FlatInput value={name} onChange={setName} />
           </FieldRow>
-          <FieldRow label="사번" lock>
-            <FlatInput value={session.employeeId} onChange={() => {}} mono readOnly />
-          </FieldRow>
-          <FieldRow label="소속 파트" hint="A · B · C 중에서 입력해 주세요.">
-            <FlatInput value={part} onChange={setPart} placeholder="예: B" />
-          </FieldRow>
+          {/* 사번·소속 파트는 KTX 전용 식별 정보 — personal 계정에는 숨김. */}
+          {session.profileType !== 'personal' && (
+            <>
+              <FieldRow label="사번" lock>
+                <FlatInput value={session.employeeId} onChange={() => {}} mono readOnly />
+              </FieldRow>
+              <FieldRow label="소속 파트" hint="A · B · C 중에서 입력해 주세요.">
+                <FlatInput value={part} onChange={setPart} placeholder="예: B" />
+              </FieldRow>
+            </>
+          )}
           <FieldRow label="이메일" lock last>
             <FlatInput value={email} onChange={() => {}} mono readOnly />
           </FieldRow>

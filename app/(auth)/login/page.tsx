@@ -53,6 +53,8 @@ export default function LoginPage() {
     const s = await getCurrentSession()
     setLoading(false)
     showToast(`환영합니다, ${s?.name || '이서연'} 님!`, 'success')
+    // An invite stashed at /signup?invite= is consumed on the calendar mount
+    // (single chokepoint that also handles signup + already-logged-in entry).
     router.push('/calendar')
   }
 
@@ -88,7 +90,7 @@ export default function LoginPage() {
 
         <div className="mt-16">
           <p className="font-en text-[11px] font-semibold tracking-[0.12em] text-ink-500 uppercase mb-3.5">
-            FOR KTX CREW
+            FOR EVERY SCHEDULE
           </p>
           <h1 className="font-en text-[52px] font-[400] tracking-[-0.04em] leading-[0.95] text-ink-900">
             Schedule,
@@ -96,7 +98,7 @@ export default function LoginPage() {
             <span className="text-brand">together.</span>
           </h1>
           <p className="mt-3.5 pt-3.5 border-t border-line text-[13px] text-ink-700 leading-relaxed">
-            내 근무와 동료 근무를 한 화면에서.
+            내 일정과 함께 보는 사람의 일정을 한 화면에서.
           </p>
         </div>
       </div>
@@ -161,6 +163,11 @@ export default function LoginPage() {
             계정 만들기
           </Button>
         </Link>
+        {/* Positive framing of "non-KTX people can sign up too" — phrased as a
+            capability, never "KTX가 아니어도" (negative framing was rejected). */}
+        <p className="mt-2.5 text-center text-[12.5px] text-ink-300 leading-relaxed">
+          어떤 근무 스케줄이든 함께 맞춰볼 수 있어요.
+        </p>
 
         <div className="flex items-center justify-center my-3.5 text-[13px]">
           <Link

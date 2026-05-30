@@ -4,7 +4,7 @@ import { ReactNode } from 'react'
 import Link from 'next/link'
 import { Avatar } from '@/components/ui/Avatar'
 import {
-  UserIcon, UploadIcon, InfoIcon, LogoutIcon, ChevronRightIcon, EditIcon,
+  UserIcon, UserPlusIcon, UploadIcon, InfoIcon, LogoutIcon, ChevronRightIcon, EditIcon,
 } from '@/components/ui/icons'
 import type { Session } from '@/lib/auth'
 
@@ -14,10 +14,12 @@ interface MenuSheetProps {
   /** Pending share requests waiting for my response → dot on the 내 정보 row. */
   hasPending?: boolean
   onManageSchedule: () => void
+  onInvite: () => void
   onLogout: () => void
 }
 
-export function MenuSheet({ session, compareCount, hasPending, onManageSchedule, onLogout }: MenuSheetProps) {
+export function MenuSheet({ session, compareCount, hasPending, onManageSchedule, onInvite, onLogout }: MenuSheetProps) {
+  const isPersonal = session.profileType === 'personal'
   return (
     <div className="flex flex-col pb-7">
       <div className="px-4 pt-3.5 pb-2">
@@ -25,8 +27,8 @@ export function MenuSheet({ session, compareCount, hasPending, onManageSchedule,
           <Avatar name={session.name} photo={session.photo} size="xl" color="brand" />
           <div className="flex-1 min-w-0">
             <p className="text-subtitle font-bold tracking-tight text-ink-900">{session.name}</p>
-            <p className="font-en text-caption text-ink-700 mt-0.5">
-              {session.employeeId}{session.part ? ` · ${session.part}파트` : ''}
+            <p className={`text-caption text-ink-700 mt-0.5 ${isPersonal ? 'font-kr' : 'font-en'}`}>
+              {isPersonal ? '개인 계정' : `${session.employeeId}${session.part ? ` · ${session.part}파트` : ''}`}
             </p>
             <p className="font-en text-caption text-ink-500 mt-px truncate">{session.email}</p>
           </div>
@@ -40,6 +42,7 @@ export function MenuSheet({ session, compareCount, hasPending, onManageSchedule,
 
       <div className="px-2 pb-3">
         <MenuRow icon={<UserIcon size={18} />} label="내 정보" href="/settings/info" indicator={hasPending} />
+        <MenuRow icon={<UserPlusIcon size={18} />} label="친구 초대" onClick={onInvite} />
         <MenuRow icon={<UploadIcon size={18} />} label="내 근무표 관리" onClick={onManageSchedule} />
         <MenuRow icon={<EditIcon size={18} />} label="내 근무 코드" href="/settings/codebook" />
         <MenuRow icon={<InfoIcon size={18} />} label="도움말 · 약관" href="/settings/help" />

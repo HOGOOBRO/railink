@@ -16,6 +16,12 @@ export type CompareColor =
 // which always goes through schedule_shares consent). See RaiLink_Sharing_Spec.
 export type Visibility = 'public' | 'private'
 
+// Account identity type. Both are 100% equal in rights/features — this only
+// records whether the user has KTX identity data (사번·파트) or not. personal
+// users sign up freely or via an invite link. Never surface as a hierarchy
+// ("외부/게스트") in copy.
+export type ProfileType = 'ktx_attendant' | 'personal'
+
 // schedule_shares consent status.
 export type ShareStatus = 'pending' | 'accepted' | 'revoked'
 
