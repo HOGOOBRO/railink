@@ -37,6 +37,45 @@ interface FormErrors {
 
 const PW_LABELS = ['', '약함', '보통', '좋음', '강함']
 
+// Required-agreement row: checkbox + label + "보기" link to the full document.
+// We don't use <Checkbox> here because a nested <Link> inside its <label> would
+// also toggle the checkbox on click. The label stays inside its own <label>
+// element; the link sits outside it.
+function AgreementRow({
+  label,
+  checked,
+  onChange,
+  href,
+}: {
+  label: string
+  checked: boolean
+  onChange: () => void
+  href: string
+}) {
+  return (
+    <div className="flex items-center gap-2.5 py-2 text-callout text-ink-900">
+      <label className="flex items-center gap-2.5 flex-1 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={onChange}
+          className="w-[18px] h-[18px] accent-brand cursor-pointer"
+        />
+        <span className="flex-1">{label}</span>
+      </label>
+      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-xs bg-brand-050 text-brand">필수</span>
+      <Link
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="text-caption text-ink-500 underline underline-offset-2 hover:text-ink-700"
+      >
+        보기
+      </Link>
+    </div>
+  )
+}
+
 function pwStrength(pw: string): number {
   if (!pw) return 0
   let s = 0
@@ -359,13 +398,17 @@ export default function SignupPage() {
               checked={allAgrees}
               onChange={e => setAll(e.target.checked)}
             />
-            <Checkbox
-              label="이용약관에 동의합니다." badge="required"
-              checked={terms.tos} onChange={() => toggle('tos')}
+            <AgreementRow
+              label="이용약관에 동의합니다."
+              checked={terms.tos}
+              onChange={() => toggle('tos')}
+              href="/legal/terms"
             />
-            <Checkbox
-              label="개인정보 수집·이용에 동의합니다." badge="required"
-              checked={terms.privacy} onChange={() => toggle('privacy')}
+            <AgreementRow
+              label="개인정보 수집·이용에 동의합니다."
+              checked={terms.privacy}
+              onChange={() => toggle('privacy')}
+              href="/legal/privacy"
             />
             <Checkbox
               label="업데이트·이벤트 알림 수신에 동의합니다." badge="optional"
