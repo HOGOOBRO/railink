@@ -30,6 +30,13 @@ export function isDemoCreds(email: string, pw: string): boolean {
   return email === DEMO_LOGIN.email && pw === DEMO_LOGIN.pw
 }
 
+/** True when the local demo session is active (localStorage, not Supabase).
+ *  Stores that hit auth-only RPCs use this to short-circuit with a demo-safe
+ *  response instead of calling Supabase with no real session. */
+export function isDemoActive(): boolean {
+  return typeof window !== 'undefined' && !!localStorage.getItem(DEMO_SESSION_KEY)
+}
+
 function getDemoPhotoOverride(): { has: boolean; value?: string } {
   if (typeof window === 'undefined') return { has: false }
   const raw = localStorage.getItem(DEMO_PHOTO_KEY)
