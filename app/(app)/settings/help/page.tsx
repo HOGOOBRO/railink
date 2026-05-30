@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useToast } from '@/components/ui/Toast'
 import { BrandMark, ChevronLeftIcon, ChevronRightIcon, MailIcon } from '@/components/ui/icons'
 
 const CONTACT_EMAIL = 'hello@railink.app'
@@ -26,15 +25,13 @@ const FAQS: { q: string; a: string }[] = [
   },
 ]
 
-const TERMS: { label: string; sub?: string }[] = [
-  { label: '서비스 이용약관', sub: '2026.03.10 개정' },
-  { label: '개인정보 처리방침', sub: '2026.03.10 개정' },
-  { label: '위치기반 서비스 이용약관', sub: '2026.01.02 개정' },
-  { label: '오픈소스 라이선스' },
+const TERMS: { label: string; sub?: string; href: string }[] = [
+  { label: '서비스 이용약관', sub: '2026.06.01 시행', href: '/legal/terms' },
+  { label: '개인정보 처리방침', sub: '2026.06.01 시행', href: '/legal/privacy' },
+  { label: '오픈소스 라이선스', href: '/legal/oss' },
 ]
 
 export default function HelpPage() {
-  const { showToast } = useToast()
   const [open, setOpen] = useState<number>(0)
 
   return (
@@ -128,10 +125,10 @@ export default function HelpPage() {
         </p>
         <section className="bg-surface border border-line rounded-lg overflow-hidden">
           {TERMS.map((t, i) => (
-            <button
+            <Link
               key={t.label}
-              onClick={() => showToast(`${t.label} 화면은 곧 추가될 예정이에요.`)}
-              className={`w-full flex items-center gap-2.5 px-3.5 py-3.5 text-left ${
+              href={t.href}
+              className={`w-full flex items-center gap-2.5 px-3.5 py-3.5 text-left active:bg-bg transition-colors ${
                 i < TERMS.length - 1 ? 'border-b border-line' : ''
               }`}
             >
@@ -140,7 +137,7 @@ export default function HelpPage() {
                 {t.sub && <p className="mt-0.5 font-en text-[11px] text-ink-500">{t.sub}</p>}
               </div>
               <span className="text-ink-300"><ChevronRightIcon size={16} /></span>
-            </button>
+            </Link>
           ))}
         </section>
 
