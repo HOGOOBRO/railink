@@ -13,6 +13,7 @@ import { CalCell, type CellBar } from '@/components/calendar/CalCell'
 import { DetailSheet } from '@/components/calendar/DetailSheet'
 import { MenuSheet } from '@/components/calendar/MenuSheet'
 import { InviteCreateSheet } from '@/components/calendar/InviteCreateSheet'
+import { PersonalHintCard } from '@/components/calendar/PersonalHintCard'
 import { SearchOverlay } from '@/components/calendar/SearchOverlay'
 import { UploadModal } from '@/components/calendar/UploadModal'
 import { GroupTabs } from '@/components/calendar/GroupTabs'
@@ -113,6 +114,9 @@ export default function CalendarPage() {
   const [manageOpen, setManageOpen] = useState(false)
   const [manageStartCreate, setManageStartCreate] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  // Default true = hidden, so the personal first-entry card never flashes for
+  // KTX users or before the session resolves. Set from localStorage in the loader.
+  const [hintDismissed, setHintDismissed] = useState(true)
   const [memberSheet, setMemberSheet] = useState<CompareEntry | null>(null)
 
   // Loader: resolve the session (demo localStorage OR Supabase), then read
@@ -156,6 +160,11 @@ export default function CalendarPage() {
       setMySched(mine)
       setColSched(cols)
       setColorOverrides(getMemberColors(s.uid))
+      // Personal first-entry hint: shown until dismissed (persisted per uid).
+      setHintDismissed(
+        s.profileType !== 'personal' ||
+        (typeof window !== 'undefined' && localStorage.getItem(`railink_hint_dismissed_${s.uid}`) === '1'),
+      )
 
       if (s.isDemo) {
         for (const uid of memberUids) cols[uid] = getMonthSchedules(uid, year, month)
@@ -364,6 +373,13 @@ export default function CalendarPage() {
   }, [])
 
   const openInvite = () => { closeOverlays(); setInviteOpen(true) }
+
+  function dismissHint() {
+    if (session && typeof window !== 'undefined') {
+      localStorage.setItem(`railink_hint_dismissed_${session.uid}`, '1')
+    }
+    setHintDismissed(true)
+  }
 
   const openSearch = () => { closeOverlays(); setSearchQuery(''); setSearchOpen(true); refreshShareStatus() }
 
@@ -786,6 +802,15 @@ export default function CalendarPage() {
         >
           <PlusIcon size={22} />
         </button>
+      )}
+
+      {/* ── Personal first-entry hint (non-blocking, dismissible) ── */}
+      {!overlayOpen && session.profileType === 'personal' && !hasMySchedule && !hintDismissed && (
+        <PersonalHintCard
+          ownerName={compares[0]?.name}
+          onRegister={() => { dismissHint(); openUpload() }}
+          onDismiss={dismissHint}
+        />
       )}
 
       {/* ── Date detail ── */}
