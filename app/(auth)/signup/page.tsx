@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/Toast'
 import { signup, getCurrentSession, resendConfirmation } from '@/lib/auth'
 import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
 import type { Visibility, ProfileType } from '@/lib/types/schedule'
-import { savePendingInvite, consumePendingInvite } from '@/lib/store/invites'
+import { savePendingInvite, consumePendingInvite, peekInvite } from '@/lib/store/invites'
 
 // The very first question — branches the whole form. Both options are equal;
 // "아니에요" describes the persona ("개인"), never the signup method, and never
@@ -53,6 +53,7 @@ export default function SignupPage() {
 
   const [profileType, setProfileType] = useState<ProfileType>('ktx_attendant')
   const [inviteToken, setInviteToken] = useState<string | null>(null)
+  const [inviterName, setInviterName] = useState<string | null>(null)
   const [form, setForm] = useState({
     email: '', employeeId: '', name: '', part: '',
     password: '', passwordConfirm: '',
@@ -90,6 +91,8 @@ export default function SignupPage() {
     setInviteToken(token)
     savePendingInvite(token)
     setProfileType('personal')
+    // Resolve the inviter's name (anon RPC) for the header; null → generic copy.
+    peekInvite(token).then(setInviterName)
   }, [])
 
   function set(field: keyof typeof form) {
@@ -221,18 +224,24 @@ export default function SignupPage() {
         </div>
 
         {inviteToken ? (
-          /* Inviter header — replaces the "계정 만들기" h1 when arriving via an
-             invite link. The inviter's name isn't resolvable before auth, so the
-             copy is name-agnostic; the name surfaces after consume (greeting). */
-          <div className="mt-4 mb-5 bg-brand-050 border border-brand-100 rounded-lg px-4 py-5 flex flex-col items-center text-center">
-            <div className="w-11 h-11 rounded-full bg-brand text-ink-on-brand grid place-items-center mb-3">
-              <BrandMark size={20} />
+          /* Inviter header — replaces the visible "계정 만들기" h1 when arriving via
+             an invite link. Body text only (no headline). The inviter name comes
+             from peek_invite (anon); until it resolves / if the token is unusable
+             we use name-agnostic copy. */
+          <>
+            <h1 className="sr-only">계정 만들기</h1>
+            <div className="mt-4 mb-5 bg-brand-050 border border-brand-100 rounded-lg px-4 py-5 flex flex-col items-center text-center">
+              <div className="w-11 h-11 rounded-full bg-brand text-ink-on-brand grid place-items-center mb-3">
+                <BrandMark size={20} />
+              </div>
+              <p className="text-callout text-ink-700 leading-relaxed">
+                {inviterName
+                  ? <><span className="font-bold text-ink-900">{inviterName} 님</span>이 RaiLink로 초대했어요.</>
+                  : 'RaiLink로 초대받았어요.'}
+                <br />가입하면 서로의 근무 일정을 한 화면에서 맞춰볼 수 있어요.
+              </p>
             </div>
-            <h1 className="text-[20px] font-bold tracking-tighter text-ink-900">RaiLink 초대를 받았어요</h1>
-            <p className="mt-2 text-callout text-ink-700 leading-relaxed">
-              가입하면 초대한 분과 서로의 근무 일정을<br />한 화면에서 맞춰볼 수 있어요.
-            </p>
-          </div>
+          </>
         ) : (
           <h1 className="text-center mt-3.5 mb-5 text-[26px] leading-tight font-bold tracking-tighter text-ink-900">
             계정 만들기
@@ -253,7 +262,7 @@ export default function SignupPage() {
             {inviteToken && (
               <p className="mt-2.5 flex items-start gap-1 text-[11px] text-ink-300 leading-relaxed">
                 <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-ink-300 text-ink-on-brand text-[9px] font-bold grid place-items-center mt-px">i</span>
-                어느 쪽을 고르든 초대한 분과 자동으로 연결돼요. KTX 승무원이면 ‘네’를 골라 주세요.
+                어느 쪽을 고르든 {inviterName ? `${inviterName} 님` : '초대한 분'}과 자동으로 연결돼요. KTX 승무원이면 ‘네’를 골라 주세요.
               </p>
             )}
           </div>
