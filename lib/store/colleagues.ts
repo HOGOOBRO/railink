@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { DEMO_COLLEAGUES, DEMO_ME, type Colleague } from '@/lib/demo-data'
 import type { Session } from '@/lib/auth'
-import type { Visibility } from '@/lib/types/schedule'
+import type { Visibility, ProfileType } from '@/lib/types/schedule'
 
 /** A colleague resolved by exact 사번 lookup — carries visibility so the search
  *  card can flag a 비공개 계정. Directory entries are always public (RLS hides
@@ -18,6 +18,11 @@ interface RemoteProfile {
   employee_id: unknown
   part: unknown
   photo: unknown
+  profile_type: unknown
+}
+
+function toProfileType(v: unknown): ProfileType {
+  return v === 'personal' ? 'personal' : 'ktx_attendant'
 }
 
 function officeFromPart(part?: string): string {
@@ -57,6 +62,7 @@ function mapProfile(profile: RemoteProfile): Colleague | null {
     office: officeFromPart(part),
     email: '',
     photo,
+    profileType: toProfileType(profile.profile_type),
   }
 }
 
@@ -64,7 +70,7 @@ async function getRemoteDirectory(currentUid: string): Promise<Colleague[] | nul
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id,name,employee_id,part,photo')
+      .select('id,name,employee_id,part,photo,profile_type')
       .neq('id', currentUid)
       // Admin (operations) accounts are hidden from the directory. RLS already
       // blocks them; this explicit filter makes the intent visible and is a
@@ -153,6 +159,36 @@ export async function findProfileByEmployeeId(employeeId: string): Promise<Profi
     email: '',
     photo: r.photo ?? undefined,
     visibility: r.visibility,
+    // 사번 lookup only matches accounts that have a 사번 → always KTX.
+    profileType: 'ktx_attendant',
+  }
+}
+
+/** Exact-email lookup via find_profile_by_email (real accounts only). Finds even
+ *  private accounts (directory hides them) so the requester can connect. Carries
+ *  profileType for the search badge. Returns null when nothing matches. */
+export async function findProfileByEmail(email: string): Promise<ProfileLookup | null> {
+  const { data, error } = await supabase.rpc('find_profile_by_email', {
+    target_email: email,
+  })
+  if (error) {
+    console.error('[colleagues] email RPC failed', error)
+    return null
+  }
+  if (!Array.isArray(data) || data.length === 0) return null
+  const r = data[0] as {
+    id: string; name: string; employee_id: string
+    part: string | null; photo: string | null; visibility: Visibility; profile_type: string
+  }
+  return {
+    uid: r.id,
+    name: r.name,
+    employeeId: r.employee_id,
+    office: officeFromPart(r.part ?? undefined),
+    email: '',
+    photo: r.photo ?? undefined,
+    visibility: r.visibility,
+    profileType: toProfileType(r.profile_type),
   }
 }
 

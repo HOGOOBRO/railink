@@ -37,6 +37,7 @@ import {
   findColleagueInDirectory,
   getColleagueDirectory,
   findProfileByEmployeeId,
+  findProfileByEmail,
   isDemoColleagueUid,
 } from '@/lib/store/colleagues'
 import { myViewerShareStatuses, requestShare, cancelShare, listShares } from '@/lib/store/shares'
@@ -388,6 +389,7 @@ export default function CalendarPage() {
   }
 
   const lookupSabun = useCallback((employeeId: string) => findProfileByEmployeeId(employeeId), [])
+  const lookupEmail = useCallback((email: string) => findProfileByEmail(email), [])
   const openUpload = () => { closeOverlays(); setUploadStep('pick'); setUploadOpen(true) }
   const openManualEdit = () => { closeOverlays(); setUploadStep('manual'); setUploadOpen(true) }
   const openManage = (startCreate = false) => {
@@ -893,6 +895,7 @@ export default function CalendarPage() {
           shareGated={!session.isDemo}
           shareStatus={shareStatus}
           lookupSabun={lookupSabun}
+          lookupEmail={lookupEmail}
         />
       )}
 
