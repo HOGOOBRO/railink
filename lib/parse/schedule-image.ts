@@ -231,8 +231,11 @@ async function getImageAuthToken(): Promise<string> {
       throw new Error('AI 이미지 인식은 실제 로그인 계정에서만 사용할 수 있어요.')
     }
 
-    await supabase.auth.signOut().catch(() => undefined)
-    throw new Error('로그인 세션이 손상되어 이미지 업로드를 시작하지 못했어요. 다시 로그인한 뒤 시도해 주세요.')
+    // Reading the session failed (flaky network) or the stored token looked
+    // malformed. Neither is a reason to forcibly sign the user out — that turns
+    // a transient hiccup into a surprise logout. Surface a retry message; a
+    // genuinely broken session is caught by the route guard on next navigation.
+    throw new Error('로그인 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.')
   }
 }
 
@@ -243,8 +246,10 @@ async function uploadImages(form: FormData): Promise<Response> {
       body: form,
     })
   } catch {
-    await supabase.auth.signOut().catch(() => undefined)
-    throw new Error('이미지 업로드 요청을 만들지 못했어요. 다시 로그인한 뒤 시도해 주세요.')
+    // A fetch rejection here means the request never reached the server
+    // (offline, flaky signal) — NOT an auth problem. Don't sign the user out;
+    // just ask them to retry.
+    throw new Error('네트워크가 불안정해 이미지 업로드를 시작하지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.')
   }
 }
 
