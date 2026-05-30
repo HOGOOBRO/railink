@@ -10,7 +10,16 @@ import { BrandMark, ChevronLeftIcon, EyeIcon } from '@/components/ui/icons'
 import { useToast } from '@/components/ui/Toast'
 import { signup, getCurrentSession, resendConfirmation } from '@/lib/auth'
 import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
-import type { Visibility } from '@/lib/types/schedule'
+import type { Visibility, ProfileType } from '@/lib/types/schedule'
+import { savePendingInvite, consumePendingInvite } from '@/lib/store/invites'
+
+// The very first question — branches the whole form. Both options are equal;
+// "아니에요" describes the persona ("개인"), never the signup method, and never
+// uses hierarchy words ("외부/게스트").
+const KTX_OPTIONS: RadioOption<ProfileType>[] = [
+  { value: 'ktx_attendant', title: '네', desc: 'KTX 객실승무원이에요.' },
+  { value: 'personal', title: '아니에요', desc: '개인으로 가입해요.' },
+]
 
 const VIS_OPTIONS: RadioOption<Visibility>[] = [
   { value: 'public', title: '공개', desc: '이름·사진이 동료 검색에 떠요. 일정은 따로 수락이 필요해요.' },
@@ -42,6 +51,8 @@ export default function SignupPage() {
   const router = useRouter()
   const { showToast } = useToast()
 
+  const [profileType, setProfileType] = useState<ProfileType>('ktx_attendant')
+  const [inviteToken, setInviteToken] = useState<string | null>(null)
   const [form, setForm] = useState({
     email: '', employeeId: '', name: '', part: '',
     password: '', passwordConfirm: '',
@@ -55,11 +66,31 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const [sentTo, setSentTo] = useState<string | null>(null)
 
+  const isKtx = profileType === 'ktx_attendant'
+
   useEffect(() => {
     let alive = true
     getCurrentSession().then(s => { if (alive && s) router.replace('/calendar') })
     return () => { alive = false }
   }, [router])
+
+  // Invite entry (/signup?invite=TOKEN). We read window.location directly to
+  // avoid useSearchParams' Suspense requirement. The token is stashed so it
+  // survives the email-verification round trip (consumed at login). The toggle
+  // DEFAULTS to personal but is NOT locked — a KTX colleague invited by another
+  // KTX crew member can still pick "네" and keep their KTX identity; the invite
+  // auto-connects either way (consume_invite is track-agnostic).
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get('invite')
+    if (!token) return
+    // Deferring this client-only URL read to an effect is the hydration-safe
+    // pattern (a lazy useState initializer reading window would mismatch SSR).
+    // The rule's cascading-render concern doesn't apply to a one-shot mount read.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInviteToken(token)
+    savePendingInvite(token)
+    setProfileType('personal')
+  }, [])
 
   function set(field: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -85,9 +116,13 @@ export default function SignupPage() {
     const e: FormErrors = {}
     if (!form.email) e.email = '이메일을 입력해 주세요.'
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = '이메일 형식을 확인해 주세요.'
-    if (!form.employeeId) e.employeeId = '사번을 입력해 주세요.'
-    else if (!/^\d{4,8}$/.test(form.employeeId)) e.employeeId = '사번은 숫자 4~8자리로 입력해 주세요.'
+    // 사번 is KTX-only.
+    if (isKtx) {
+      if (!form.employeeId) e.employeeId = '사번을 입력해 주세요.'
+      else if (!/^\d{4,8}$/.test(form.employeeId)) e.employeeId = '사번은 숫자 4~8자리로 입력해 주세요.'
+    }
     if (!form.name) e.name = '이름을 입력해 주세요.'
+    else if (!isKtx && form.name.length > 30) e.name = '이름은 30자 이내로 입력해 주세요.'
     if (!form.password) e.password = '비밀번호를 입력해 주세요.'
     else if (form.password.length < 8) e.password = '비밀번호는 8자 이상으로 설정해 주세요.'
     else if (!/[A-Za-z]/.test(form.password) || !/\d/.test(form.password)) e.password = '영문과 숫자를 모두 포함해 주세요.'
@@ -100,28 +135,35 @@ export default function SignupPage() {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
-    if (!visibility) return  // guarded by the disabled submit button
+    if (isKtx && !visibility) return  // guarded by the disabled submit button
 
     setLoading(true)
     const result = await signup({
       email: form.email,
       password: form.password,
-      employeeId: form.employeeId,
+      // personal has no 사번/파트; trigger clamps personal visibility to private.
+      employeeId: isKtx ? form.employeeId : '',
       name: form.name,
-      part: form.part || undefined,
-      visibility,
+      part: isKtx ? (form.part || undefined) : undefined,
+      visibility: isKtx ? (visibility as Visibility) : 'private',
+      profileType,
     })
-    setLoading(false)
     if (!result.ok) {
+      setLoading(false)
       if (result.field) setErrors({ [result.field]: result.message })
       else showToast(result.message, 'danger')
       return
     }
     if (result.needsConfirm) {
+      setLoading(false)
       setSentTo(form.email)
       return
     }
-    showToast(`환영합니다, ${form.name} 님!`, 'success')
+    // Immediate session (email confirm disabled): consume the invite now so the
+    // inviter is connected before the calendar loads.
+    const owner = await consumePendingInvite()
+    setLoading(false)
+    showToast(owner ? `${owner.name} 님과 연결됐어요!` : `환영합니다, ${form.name} 님!`, 'success')
     router.push('/calendar')
   }
 
@@ -177,32 +219,72 @@ export default function SignupPage() {
         <div className="flex items-center justify-center gap-1.5 font-en text-[18px] font-[400] text-ink-900">
           <BrandMark size={16} className="text-brand" /> RaiLink
         </div>
-        <h1 className="text-center mt-3.5 mb-5 text-[26px] leading-tight font-bold tracking-tighter text-ink-900">
-          계정 만들기
-        </h1>
+
+        {inviteToken ? (
+          /* Inviter header — replaces the "계정 만들기" h1 when arriving via an
+             invite link. The inviter's name isn't resolvable before auth, so the
+             copy is name-agnostic; the name surfaces after consume (greeting). */
+          <div className="mt-4 mb-5 bg-brand-050 border border-brand-100 rounded-lg px-4 py-5 flex flex-col items-center text-center">
+            <div className="w-11 h-11 rounded-full bg-brand text-ink-on-brand grid place-items-center mb-3">
+              <BrandMark size={20} />
+            </div>
+            <h1 className="text-[20px] font-bold tracking-tighter text-ink-900">RaiLink 초대를 받았어요</h1>
+            <p className="mt-2 text-callout text-ink-700 leading-relaxed">
+              가입하면 초대한 분과 서로의 근무 일정을<br />한 화면에서 맞춰볼 수 있어요.
+            </p>
+          </div>
+        ) : (
+          <h1 className="text-center mt-3.5 mb-5 text-[26px] leading-tight font-bold tracking-tighter text-ink-900">
+            계정 만들기
+          </h1>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3.5" noValidate>
+          {/* The first question — branch toggle */}
+          <div className="border-b border-line pb-3.5 mb-1">
+            <p className="text-[15px] font-bold text-ink-900">코레일 KTX 승무원이세요?</p>
+            <RadioGroup
+              options={KTX_OPTIONS}
+              value={profileType}
+              onChange={setProfileType}
+              ariaLabel="가입 분기"
+              className="grid grid-cols-2 gap-2 mt-3"
+            />
+            {inviteToken && (
+              <p className="mt-2.5 flex items-start gap-1 text-[11px] text-ink-300 leading-relaxed">
+                <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-ink-300 text-ink-on-brand text-[9px] font-bold grid place-items-center mt-px">i</span>
+                어느 쪽을 고르든 초대한 분과 자동으로 연결돼요. KTX 승무원이면 ‘네’를 골라 주세요.
+              </p>
+            )}
+          </div>
+
           <Input
             id="email" label="이메일" required type="email" autoComplete="email"
             className="font-en" placeholder="이메일을 입력해 주세요"
             value={form.email} onChange={set('email')} error={errors.email}
           />
-          <Input
-            id="employeeId" label="사번" required inputMode="numeric"
-            className="font-en" placeholder="숫자 4~8자리"
-            value={form.employeeId} onChange={set('employeeId')} error={errors.employeeId}
-          />
+          {isKtx && (
+            <Input
+              id="employeeId" label="사번" required inputMode="numeric"
+              className="font-en" placeholder="숫자 4~8자리"
+              value={form.employeeId} onChange={set('employeeId')} error={errors.employeeId}
+            />
+          )}
           <Input
             id="name" label="이름" required autoComplete="name"
+            maxLength={isKtx ? undefined : 30}
+            hint={isKtx ? undefined : '친구가 보는 이름이에요.'}
             placeholder="이름을 입력해 주세요"
             value={form.name} onChange={set('name')} error={errors.name}
           />
-          <Input
-            id="part" label="소속 파트"
-            hint="팀 내 사용하는 파트 명칭이 있으면 적어 주세요."
-            placeholder="예: A · B · C"
-            value={form.part} onChange={set('part')}
-          />
+          {isKtx && (
+            <Input
+              id="part" label="소속 파트"
+              hint="팀 내 사용하는 파트 명칭이 있으면 적어 주세요."
+              placeholder="예: A · B · C"
+              value={form.part} onChange={set('part')}
+            />
+          )}
 
           <div className="flex flex-col gap-2">
             <Input
@@ -277,11 +359,6 @@ export default function SignupPage() {
               label="개인정보 수집·이용에 동의합니다." badge="required"
               checked={terms.privacy} onChange={() => toggle('privacy')}
             />
-            {/* The required "스케줄 공개 동의" checkbox was removed — schedules are
-                no longer auto-shared; visibility is the explicit radio below.
-                TODO(PR follow-up): the 약관 본문(app/(app)/settings/help/page.tsx)
-                still describes auto-sharing and needs rewording to the
-                consent-based model. Out of scope for PR-2. */}
             <Checkbox
               label="업데이트·이벤트 알림 수신에 동의합니다." badge="optional"
               checked={terms.marketing} onChange={() => toggle('marketing')}
@@ -294,25 +371,35 @@ export default function SignupPage() {
             )}
           </div>
 
-          {/* Visibility — search exposure only; separate from schedule sharing */}
-          <div className="border-t border-line pt-3.5 mt-1">
-            <p className="text-[15px] font-bold text-ink-900">내 계정을 동료가 검색할 수 있게 할까요?</p>
-            <p className="mt-1 text-caption text-ink-500 leading-relaxed">
-              이건 일정 공유와는 별개예요. 일정은 나중에 동료가 요청하고 내가 수락할 때만 공개돼요.
-            </p>
-            <RadioGroup
-              options={VIS_OPTIONS}
-              value={visibility}
-              onChange={setVisibility}
-              ariaLabel="공개 범위"
-              className="flex flex-col gap-2 mt-3"
-            />
-            <p className="mt-2 text-[11px] text-ink-300">설정 → 공개 범위에서 언제든 바꿀 수 있어요.</p>
-          </div>
+          {isKtx ? (
+            /* Visibility — search exposure only; separate from schedule sharing.
+               KTX-only: personal accounts always start private (settable later). */
+            <div className="border-t border-line pt-3.5 mt-1">
+              <p className="text-[15px] font-bold text-ink-900">내 계정을 동료가 검색할 수 있게 할까요?</p>
+              <p className="mt-1 text-caption text-ink-500 leading-relaxed">
+                이건 일정 공유와는 별개예요. 일정은 나중에 동료가 요청하고 내가 수락할 때만 공개돼요.
+              </p>
+              <RadioGroup
+                options={VIS_OPTIONS}
+                value={visibility}
+                onChange={setVisibility}
+                ariaLabel="공개 범위"
+                className="flex flex-col gap-2 mt-3"
+              />
+              <p className="mt-2 text-[11px] text-ink-300">설정 → 공개 범위에서 언제든 바꿀 수 있어요.</p>
+            </div>
+          ) : (
+            <div className="border-t border-line pt-3.5 mt-1 bg-brand-050 -mx-5 px-5 py-3.5">
+              <p className="text-caption text-ink-700 leading-relaxed">
+                가입 시 내 일정은 <span className="font-bold text-ink-900">비공개로 시작</span>해요.
+                공개 범위는 설정에서 언제든 바꿀 수 있어요.
+              </p>
+            </div>
+          )}
 
           <div className="h-1" />
-          <Button type="submit" block disabled={loading || !visibility}>
-            {loading ? '가입 중…' : '가입하기'}
+          <Button type="submit" block disabled={loading || (isKtx && !visibility)}>
+            {loading ? '가입 중…' : isKtx ? '가입하기' : '가입하고 시작하기'}
           </Button>
 
           <p className="text-center text-callout text-ink-700 mt-2">
@@ -323,10 +410,12 @@ export default function SignupPage() {
           </p>
         </form>
 
-        <div className="mt-4 bg-brand-050 border-2 border-line rounded-sm px-4 py-3.5 text-caption text-ink-700 leading-relaxed">
-          <p className="text-[13px] font-bold text-ink-900 mb-1">가입 후 바로 시작할 수 있어요</p>
-          내 근무표를 등록하고 동료와 일정을 공유할 수 있어요.
-        </div>
+        {!inviteToken && (
+          <div className="mt-4 bg-brand-050 border-2 border-line rounded-sm px-4 py-3.5 text-caption text-ink-700 leading-relaxed">
+            <p className="text-[13px] font-bold text-ink-900 mb-1">가입 후 바로 시작할 수 있어요</p>
+            내 근무표를 등록하고 동료와 일정을 공유할 수 있어요.
+          </div>
+        )}
       </div>
     </div>
   )

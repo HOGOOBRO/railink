@@ -136,3 +136,41 @@ export async function revokeInvite(token: string): Promise<{ ok: boolean; messag
   if (error) return { ok: false, message: CODE_COPY[parseCode(error.message)] }
   return { ok: true }
 }
+
+/* ── Pending invite (survives the email-verification round trip) ──────────────
+ * Email confirmation is ON, so a user who lands on /signup?invite=TOKEN is not
+ * authenticated until they click the email link and log in — by which point the
+ * URL (and its token) is gone. We stash the token here on entry and consume it
+ * at the first authenticated moment (login success, or an immediate session). */
+const PENDING_INVITE_KEY = 'railink_pending_invite'
+
+export function savePendingInvite(token: string): void {
+  if (typeof window !== 'undefined') localStorage.setItem(PENDING_INVITE_KEY, token)
+}
+
+export function getPendingInvite(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(PENDING_INVITE_KEY)
+}
+
+export function clearPendingInvite(): void {
+  if (typeof window !== 'undefined') localStorage.removeItem(PENDING_INVITE_KEY)
+}
+
+const TERMINAL_CODES: InviteErrorCode[] = [
+  'invite_not_found', 'invite_used', 'invite_revoked',
+  'invite_expired', 'invite_self', 'invite_email_mismatch',
+]
+
+/** Consume the stashed token now that the user is authenticated. Clears it on
+ *  success or any terminal failure (dead token); keeps it for retryable ones
+ *  (no session yet / transient) so the next login can try again. Returns the
+ *  inviter on success — for a greeting and (PR-4) auto-adding to a group. */
+export async function consumePendingInvite(): Promise<InviteOwner | null> {
+  const token = getPendingInvite()
+  if (!token || isDemoActive()) return null
+  const res = await consumeInvite(token)
+  if (res.ok) { clearPendingInvite(); return res.owner }
+  if (TERMINAL_CODES.includes(res.code)) clearPendingInvite()
+  return null
+}

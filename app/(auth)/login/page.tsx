@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/Toast'
 import { BrandMark, EyeIcon } from '@/components/ui/icons'
 import { InstallLoginBanner } from '@/components/InstallLoginBanner'
 import { login, getCurrentSession, resendConfirmation } from '@/lib/auth'
+import { consumePendingInvite } from '@/lib/store/invites'
 import { DEMO_LOGIN } from '@/lib/demo-data'
 
 export default function LoginPage() {
@@ -51,8 +52,14 @@ export default function LoginPage() {
       return
     }
     const s = await getCurrentSession()
+    // If this login follows an invite signup (token stashed at /signup?invite=),
+    // connect the inviter now — the email-verification round trip dropped the URL.
+    const owner = await consumePendingInvite()
     setLoading(false)
-    showToast(`환영합니다, ${s?.name || '이서연'} 님!`, 'success')
+    showToast(
+      owner ? `${owner.name} 님과 연결됐어요!` : `환영합니다, ${s?.name || '이서연'} 님!`,
+      'success',
+    )
     router.push('/calendar')
   }
 
