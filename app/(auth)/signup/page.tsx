@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/Toast'
 import { signup, getCurrentSession, resendConfirmation } from '@/lib/auth'
 import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
 import type { Visibility, ProfileType } from '@/lib/types/schedule'
-import { savePendingInvite, consumePendingInvite, peekInvite } from '@/lib/store/invites'
+import { savePendingInvite, peekInvite } from '@/lib/store/invites'
 
 // The very first question — branches the whole form. Both options are equal;
 // "아니에요" describes the persona ("개인"), never the signup method, and never
@@ -162,11 +162,10 @@ export default function SignupPage() {
       setSentTo(form.email)
       return
     }
-    // Immediate session (email confirm disabled): consume the invite now so the
-    // inviter is connected before the calendar loads.
-    const owner = await consumePendingInvite()
+    // Immediate session (email confirm disabled). The stashed invite token is
+    // consumed on the calendar mount (single chokepoint for all entry paths).
     setLoading(false)
-    showToast(owner ? `${owner.name} 님과 연결됐어요!` : `환영합니다, ${form.name} 님!`, 'success')
+    showToast(`환영합니다, ${form.name} 님!`, 'success')
     router.push('/calendar')
   }
 

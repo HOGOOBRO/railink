@@ -39,6 +39,7 @@ import {
   isDemoColleagueUid,
 } from '@/lib/store/colleagues'
 import { myViewerShareStatuses, requestShare, cancelShare, listShares } from '@/lib/store/shares'
+import { consumePendingInvite } from '@/lib/store/invites'
 import { getMemberColors, setMemberColor } from '@/lib/store/member-colors'
 import type { Colleague } from '@/lib/demo-data'
 import {
@@ -181,11 +182,22 @@ export default function CalendarPage() {
         setColSched(cols)
       }
 
-      setColleagueLoading(true)
-      try {
-        const directory = await getColleagueDirectory(s)
+      // Invite connect — runs before the directory fetch so a freshly-created
+      // accepted share's counterpart is included in the directory below (used to
+      // resolve their name for auto-grouping). No-op (no network) when there's
+      // no stashed token, so non-invited mounts pay nothing.
+      if (!s.isDemo) {
+        const invitedOwner = await consumePendingInvite()
         if (!alive) return
-        setColleagues(directory)
+        if (invitedOwner) showToast(`${invitedOwner.name} 님과 연결됐어요!`, 'success')
+      }
+
+      setColleagueLoading(true)
+      let directoryList: Colleague[] = []
+      try {
+        directoryList = await getColleagueDirectory(s)
+        if (!alive) return
+        setColleagues(directoryList)
       } catch {
         if (alive) setColleagues([])
       } finally {
@@ -200,6 +212,32 @@ export default function CalendarPage() {
           if (!alive) return
           setShareStatus(statuses)
           setPendingCount(shares.incoming.length)
+
+          // Invite auto-grouping: an accepted share I can view whose counterpart
+          // isn't in any of my groups only arises from consume_invite (normal
+          // adds put the person in a group first, then request). Add them to the
+          // active/기본 group so inviter↔invitee both surface in compare. Reload
+          // to pull the new member's schedule.
+          const inGroupUids = new Set(allMemberUids(nextGroups))
+          const ungrouped = shares.viewing.filter(v => !inGroupUids.has(v.ownerId))
+          if (ungrouped.length) {
+            let addedAny = false
+            for (const v of ungrouped) {
+              const prof = directoryList.find(d => d.uid === v.ownerId)
+              const res = addToActiveGroup(s.uid, {
+                uid: v.ownerId,
+                name: prof?.name ?? '동료',
+                employeeId: prof?.employeeId ?? '',
+                photo: prof?.photo,
+                office: prof?.office,
+              })
+              // entry set OR alreadyIn → it's grouped; null+!alreadyIn means the
+              // active group is at the 10-person cap. Guard the reload on a real
+              // change so a capped group can't loop the mount effect forever.
+              if (res.entry || res.alreadyIn) addedAny = true
+            }
+            if (addedAny) { if (alive) setReload(n => n + 1); return }
+          }
 
           // Reconciler: groups ≡ share intent. Any pending outgoing whose owner
           // isn't in any of my groups (legacy / failed-cancel / cross-device drift)
@@ -232,7 +270,7 @@ export default function CalendarPage() {
       }
     })()
     return () => { alive = false }
-  }, [router, year, month, reload])
+  }, [router, year, month, reload, showToast])
 
   function dismissMigration() {
     if (typeof window !== 'undefined') localStorage.setItem(MIGRATION_KEY, 'dismissed')
