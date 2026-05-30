@@ -25,7 +25,7 @@ import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
 import type { Visibility } from '@/lib/types/schedule'
 
 const VIS_OPTIONS: RadioOption<Visibility>[] = [
-  { value: 'public', title: '공개', desc: '이름·사업소·사진이 동료 검색에 떠요. 일정은 따로 수락이 필요해요.' },
+  { value: 'public', title: '공개', desc: '이름·사진이 동료 검색에 떠요. 일정은 따로 수락이 필요해요.' },
   { value: 'private', title: '비공개', desc: '검색에는 안 떠요. 사번을 정확히 아는 동료만 공유를 요청할 수 있어요.' },
 ]
 

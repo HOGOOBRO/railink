@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
 import { DEMO_ME, DEMO_LOGIN } from './demo-data'
 import { seedDemo } from './demo-seed'
-import type { Visibility } from './types/schedule'
+import type { Visibility, ProfileType } from './types/schedule'
 
 export interface Session {
   uid: string
@@ -10,6 +10,10 @@ export interface Session {
   employeeId: string
   part?: string
   photo?: string
+  /** 'ktx_attendant' (사번·파트 있음) or 'personal' (없음). Read from
+   *  user_metadata; defaults to 'ktx_attendant' for legacy rows / pre-migration
+   *  accounts so existing KTX users are unaffected. */
+  profileType: ProfileType
   /** True when this session is the local demo (localStorage), not Supabase. */
   isDemo: boolean
 }
@@ -39,6 +43,7 @@ function demoSession(): Session {
   return {
     uid: DEMO_ME.uid, email: DEMO_ME.email, name: DEMO_ME.name,
     employeeId: DEMO_ME.employeeId, part: DEMO_ME.part, photo,
+    profileType: 'ktx_attendant',
     isDemo: true,
   }
 }
@@ -88,6 +93,7 @@ export async function getCurrentSession(): Promise<Session | null> {
     employeeId: m.employee_id ?? '',
     part: m.part || undefined,
     photo,
+    profileType: m.profile_type === 'personal' ? 'personal' : 'ktx_attendant',
     isDemo: false,
   }
 }
@@ -126,6 +132,10 @@ export interface SignupInput {
   name: string
   part?: string
   visibility: Visibility
+  /** Defaults to 'ktx_attendant'. The signup form's KTX toggle sets this (PR-3).
+   *  For 'personal' the trigger clamps visibility to 'private' regardless of the
+   *  value passed here. */
+  profileType?: ProfileType
 }
 
 export type SignupResult =
@@ -144,9 +154,11 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
         employee_id: input.employeeId,
         name: input.name,
         part: input.part ?? null,
-        // Read by handle_new_user_profile() → profiles.visibility
-        // (see 20260526010000_signup_visibility_trigger.sql).
+        // Read by handle_new_user_profile() → profiles.visibility / profile_type
+        // (see 20260530000000_profile_type.sql). profile_type defaults to
+        // 'ktx_attendant'; personal signups are clamped to private by the trigger.
         visibility: input.visibility,
+        profile_type: input.profileType ?? 'ktx_attendant',
       },
     },
   })
