@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useMemo, useState } from 'react'
+import { useEffect, useRef, useMemo, useState, type ReactNode } from 'react'
 import { Avatar } from '@/components/ui/Avatar'
+import { Button } from '@/components/ui/Button'
 import { SearchIcon, ArrowRightIcon } from '@/components/ui/icons'
 import type { Colleague } from '@/lib/demo-data'
 import type { ProfileLookup } from '@/lib/store/colleagues'
@@ -100,6 +101,10 @@ export function SearchOverlay({
   const count = comparedUids.size
   const pendingOf = (uid: string) => shareGated && shareStatus[uid] === 'pending'
 
+  // 결과를 탭하면 곧바로 신청/제거하지 않고 확인을 한 번 받는다 — 실수 탭 방지.
+  const [confirmTarget, setConfirmTarget] = useState<Colleague | null>(null)
+  const confirmAdding = confirmTarget ? !comparedUids.has(confirmTarget.uid) : false
+
   return (
     <div
       className="fixed inset-y-0 left-1/2 -translate-x-1/2 w-full max-w-app-frame bg-surface z-[55] flex flex-col"
@@ -131,7 +136,7 @@ export function SearchOverlay({
 
       {/* Active-group target chip */}
       {activeGroupName && (
-        <div className="shrink-0 px-4 pt-2.5">
+        <div className="shrink-0 px-4 pt-2.5 pb-2">
           <button
             onClick={onOpenManage}
             className="inline-flex items-center text-[12px] font-semibold text-brand bg-brand-050 px-2.5 py-1 rounded-xs"
@@ -178,7 +183,7 @@ export function SearchOverlay({
               u={u}
               added={comparedUids.has(u.uid)}
               pending={pendingOf(u.uid)}
-              onToggle={onToggle}
+              onPick={setConfirmTarget}
             />
           ))
         )}
@@ -197,7 +202,7 @@ export function SearchOverlay({
                 visibility={sabunResult.visibility}
                 added={comparedUids.has(sabunResult.uid)}
                 pending={pendingOf(sabunResult.uid)}
-                onToggle={onToggle}
+                onPick={setConfirmTarget}
               />
             ) : sabunResult ? null : (
               <div className="py-6 px-4 text-center text-caption text-ink-500 leading-relaxed">
@@ -224,7 +229,7 @@ export function SearchOverlay({
                 visibility={emailResult.visibility}
                 added={comparedUids.has(emailResult.uid)}
                 pending={pendingOf(emailResult.uid)}
-                onToggle={onToggle}
+                onPick={setConfirmTarget}
               />
             ) : emailResult ? null : (
               <div className="py-6 px-4 text-center text-caption text-ink-500 leading-relaxed">
@@ -262,6 +267,56 @@ export function SearchOverlay({
           </div>
         )}
       </div>
+
+      {/* 추가/제거 확인 — 실수 탭으로 공유 신청·제거가 바로 일어나지 않도록 */}
+      {confirmTarget && (
+        <ConfirmDialog
+          title={
+            confirmAdding
+              ? `${confirmTarget.name}님을 비교에 추가할까요?`
+              : `${confirmTarget.name}님을 비교에서 뺄까요?`
+          }
+          body={
+            confirmAdding
+              ? shareGated
+                ? '추가하면 상대에게 일정 공유 신청이 전송돼요.'
+                : '비교 목록에 추가합니다.'
+              : '비교 목록에서 제거합니다.'
+          }
+          confirmLabel={confirmAdding ? '추가' : '빼기'}
+          onCancel={() => setConfirmTarget(null)}
+          onConfirm={() => { onToggle(confirmTarget.uid, confirmTarget); setConfirmTarget(null) }}
+        />
+      )}
+    </div>
+  )
+}
+
+function ConfirmDialog({
+  title, body, confirmLabel, onCancel, onConfirm,
+}: {
+  title: string
+  body?: ReactNode
+  confirmLabel: string
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-modal flex items-center justify-center px-4">
+      <button
+        aria-label="배경 닫기"
+        onClick={onCancel}
+        className="absolute inset-0"
+        style={{ background: 'rgba(13,30,55,0.55)' }}
+      />
+      <div className="relative w-full max-w-[340px] bg-surface rounded-lg shadow-sh4 px-5 pt-[18px] pb-4">
+        <h3 className="text-center text-[16px] font-bold tracking-tight text-ink-900">{title}</h3>
+        {body && <p className="mt-1.5 text-center text-caption text-ink-500 leading-relaxed">{body}</p>}
+        <div className="flex gap-2.5 mt-4">
+          <Button variant="outline" className="flex-1" onClick={onCancel}>취소</Button>
+          <Button variant="brand" className="flex-1" onClick={onConfirm}>{confirmLabel}</Button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -272,13 +327,13 @@ const pillCls = (tone: 'brand' | 'muted') =>
   }`
 
 function ResultRow({
-  u, visibility, added, pending, onToggle,
+  u, visibility, added, pending, onPick,
 }: {
   u: Colleague
   visibility?: Visibility
   added: boolean
   pending: boolean
-  onToggle: (uid: string, meta?: Colleague) => void
+  onPick: (u: Colleague) => void
 }) {
   const isPrivate = visibility === 'private'
   // KTX 식별 배지. personal은 칩·사번 없이 이름만 — 위계 어휘는 쓰지 않는다.
@@ -287,7 +342,7 @@ function ResultRow({
   const tone: 'brand' | 'muted' = added ? 'muted' : 'brand'
   return (
     <button
-      onClick={() => onToggle(u.uid, u)}
+      onClick={() => onPick(u)}
       className="w-full flex items-center gap-3 px-2 py-3 rounded-md text-left hover:bg-bg transition-colors"
     >
       <Avatar name={u.name} photo={u.photo} size="lg" color="brand" />
