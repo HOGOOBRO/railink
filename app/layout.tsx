@@ -13,8 +13,8 @@ const jetbrainsMono = JetBrains_Mono({
   variable: '--jetbrains-mono',
 })
 
-const SITE_TITLE = 'RaiLink · 코레일 승무원 스케줄 공유'
-const SITE_DESC = '내 근무와 동료 근무를 한 화면에서 보는 KTX 승무원용 스케줄 도구.'
+const SITE_TITLE = 'RaiLink · 근무 스케줄 공유'
+const SITE_DESC = '내 일정과 함께 보는 사람의 일정을 한 화면에서. 동료와 근무 스케줄을 맞춰보는 앱.'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://railink.app'),

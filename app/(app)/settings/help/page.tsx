@@ -58,7 +58,7 @@ export default function HelpPage() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[15px] font-bold text-ink-900">RaiLink</p>
-            <p className="mt-0.5 text-caption text-ink-500">KTX 승무팀을 위한 근무표 비교 앱</p>
+            <p className="mt-0.5 text-caption text-ink-500">동료와 근무 스케줄을 맞춰보는 앱</p>
             <p className="mt-1 font-en text-[11px] text-ink-300">V1.0 · BUILD 2026.05</p>
           </div>
         </section>
