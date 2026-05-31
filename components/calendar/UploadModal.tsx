@@ -10,6 +10,7 @@ import { parseScheduleFile, type ParsedScheduleRow } from '@/lib/parse/schedule-
 import { recognizeScheduleImage, type OcrProgress } from '@/lib/parse/schedule-image'
 import { fmtClock, hmToDecimal, canonicalEnd, isOvernight, normalizeTimeInput } from '@/lib/schedule-utils'
 import { getCodebook, type CodebookEntry } from '@/lib/store/codebook'
+import { AnalyzeTableSkeleton } from '@/components/calendar/AnalyzeTableSkeleton'
 import Link from 'next/link'
 
 // Show overnight ends as a real next-day clock ("11:49") in the editable preview
@@ -476,25 +477,29 @@ export function UploadModal({
               </StatusBox>
             )}
             {busy === 'image' && (
-              <div className="mt-4 px-3.5 py-3 rounded-md bg-bg text-caption text-ink-700 leading-relaxed">
-                <div className="flex items-center gap-2">
-                  <span className="text-brand shrink-0"><InfoIcon size={16} /></span>
-                  <span>
-                    <strong>{fileName}</strong> · {ocr?.status ?? '이미지를 분석하고 있어요'}
-                  </span>
+              <>
+                <div className="mt-4 px-3.5 py-3 rounded-md bg-bg text-caption text-ink-700 leading-relaxed">
+                  <div className="flex items-center gap-2">
+                    <span className="text-brand shrink-0"><InfoIcon size={16} /></span>
+                    <span>
+                      <strong>{fileName}</strong> · {ocr?.status ?? '이미지를 분석하고 있어요'}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 rounded-pill bg-line overflow-hidden">
+                    <div
+                      className="h-full rounded-pill bg-brand transition-[width] duration-200"
+                      style={{ width: `${Math.round((ocr?.progress ?? 0) * 100)}%` }}
+                    />
+                  </div>
+                  {ocr?.hint && (
+                    <p className="mt-2 text-ink-500">
+                      {ocr.hint}
+                    </p>
+                  )}
                 </div>
-                <div className="mt-2 h-1.5 rounded-pill bg-line overflow-hidden">
-                  <div
-                    className="h-full rounded-pill bg-brand transition-[width] duration-200"
-                    style={{ width: `${Math.round((ocr?.progress ?? 0) * 100)}%` }}
-                  />
-                </div>
-                {ocr?.hint && (
-                  <p className="mt-2 text-ink-500">
-                    {ocr.hint}
-                  </p>
-                )}
-              </div>
+                {/* ③ 채워질 미리보기 표 모양 스켈레톤 — 진행률 표시는 위에 유지. */}
+                <AnalyzeTableSkeleton />
+              </>
             )}
             {error && (
               <StatusBox tone="danger">

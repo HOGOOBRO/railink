@@ -139,3 +139,36 @@
     overflow: hidden;
   }
 }
+
+/* ─── Loading / skeleton motion (design_handoff_loading_states §3) ───
+   Infinite-loop only (one-shot intro anims can land on a frozen frame).
+   Spinner rotation reuses Tailwind's built-in `animate-spin`. */
+@keyframes rl-dot-pulse {
+  0%, 80%, 100% { opacity: .22; transform: translateY(0); }
+  40%           { opacity: 1;   transform: translateY(-3px); }
+}
+@keyframes rl-skel {
+  0%   { background-position: 180% 0; }
+  100% { background-position: -40% 0; }
+}
+@keyframes rl-float-soft {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+
+/* Shimmer block — put on any element; size/radius via utility classes. */
+.rl-skel {
+  background: linear-gradient(
+    90deg,
+    var(--line) 0%, var(--line) 30%,
+    var(--surface-2) 50%,
+    var(--line) 70%, var(--line) 100%
+  );
+  background-size: 220% 100%;
+  animation: rl-skel 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rl-skel { animation: none; }
+  .rl-float-soft { animation: none !important; }
+}
