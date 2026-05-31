@@ -29,7 +29,7 @@ async function loadGoogleFont(family: string, text: string): Promise<ArrayBuffer
 }
 
 const WORDMARK = 'RAILINK'
-const TAGLINE = 'KTX 승무팀 근무표 비교'
+const TAGLINE = '동료와 함께 일정 맞추기'
 const CAPTION = 'RAILINK · 2026 / V1.0'
 
 export async function GET() {

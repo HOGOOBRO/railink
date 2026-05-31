@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'RaiLink · 코레일 승무원 스케줄',
+    name: 'RaiLink · 근무 스케줄 공유',
     short_name: 'RaiLink',
-    description: '내 근무와 동료 근무를 한 화면에서 보는 KTX 승무원용 스케줄 도구.',
+    description: '내 일정과 함께 보는 사람의 일정을 한 화면에서. 동료와 근무 스케줄을 맞춰보는 앱.',
     // Installed-app users are almost always logged in, so start at /calendar:
     // its loader shows a neutral surface while the session resolves, then the
     // calendar. Starting at /login instead flashed the login form on every cold
