@@ -21,6 +21,11 @@ export function CalendarSkeleton({
   month: number
 }) {
   const weeks = buildMonthCells(year, month)
+  // 본 캘린더와 동일하게 지난 날짜는 전경만 톤다운 — 스켈레톤→로드 전환에서
+  // 과거 셀이 깜빡이지 않도록. 날짜 위치(과거/오늘)는 fetch 없이도 아는 정보라
+  // §5.5(근무 데이터 위조 금지)에 어긋나지 않는다.
+  const now = new Date()
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
   return (
     <div className="relative flex flex-col min-h-[100dvh] bg-bg">
@@ -103,14 +108,17 @@ export function CalendarSkeleton({
         <div className="flex flex-col gap-px bg-bg">
           {weeks.map((wk, wi) => (
             <div key={wi} className="grid grid-cols-7 gap-px">
-              {wk.map((c, ci) => (
-                <div key={ci} className="bg-surface h-14 flex flex-col items-center justify-center gap-1.5">
-                  <span className={`font-en text-[15px] leading-none ${c.isOther ? 'text-ink-300' : 'text-ink-700'}`}>
-                    {c.d}
-                  </span>
-                  {!c.isOther && <Skeleton className="w-7 h-1.5 rounded-full" />}
-                </div>
-              ))}
+              {wk.map((c, ci) => {
+                const dimCls = !!c.iso && c.iso < todayIso ? ' opacity-40' : ''
+                return (
+                  <div key={ci} className="bg-surface h-14 flex flex-col items-center justify-center gap-1.5">
+                    <span className={`font-en text-[15px] leading-none ${c.isOther ? 'text-ink-300' : 'text-ink-700'}${dimCls}`}>
+                      {c.d}
+                    </span>
+                    {!c.isOther && <Skeleton className={`w-7 h-1.5 rounded-full${dimCls}`} />}
+                  </div>
+                )
+              })}
             </div>
           ))}
         </div>
