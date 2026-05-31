@@ -10,6 +10,8 @@ import { BrandMark, EyeIcon } from '@/components/ui/icons'
 import { InstallLoginBanner } from '@/components/InstallLoginBanner'
 import { login, getCurrentSession, resendConfirmation } from '@/lib/auth'
 import { DEMO_LOGIN } from '@/lib/demo-data'
+import { BootSplash } from '@/components/loading/BootSplash'
+import { useDelayedFlag } from '@/lib/use-delayed-flag'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -76,16 +78,13 @@ export default function LoginPage() {
     showToast('인증 메일을 다시 보냈어요. 메일함을 확인해 주세요.', 'success')
   }
 
-  // Neutral hold while we decide login-vs-calendar — mirrors the calendar
-  // loader's blank surface so a cold boot transitions surface→surface, never
-  // flashing the form.
+  // Hold while we decide login-vs-calendar. A fast resolve (logged-out: no
+  // token) shows a neutral surface for a beat then the form — never flashing it.
+  // A slow resolve (logged-in: session refresh round-trip) reveals the brand
+  // splash (①) before bouncing to /calendar, matching the calendar cold boot.
+  const showBoot = useDelayedFlag(checkingSession, 200)
   if (checkingSession) {
-    return (
-      <div
-        className="min-h-[100dvh] bg-surface"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
-      />
-    )
+    return showBoot ? <BootSplash /> : <div className="min-h-[100dvh] bg-surface" style={{ paddingTop: 'env(safe-area-inset-top)' }} />
   }
 
   return (

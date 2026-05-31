@@ -19,6 +19,10 @@ import { UploadModal } from '@/components/calendar/UploadModal'
 import { GroupTabs } from '@/components/calendar/GroupTabs'
 import { ManageGroupsSheet } from '@/components/calendar/ManageGroupsSheet'
 import { CompareMemberSheet } from '@/components/calendar/CompareMemberSheet'
+import { CalendarSkeleton } from '@/components/calendar/CalendarSkeleton'
+import { BootSplash } from '@/components/loading/BootSplash'
+import { Spinner } from '@/components/ui/Spinner'
+import { useDelayedFlag } from '@/lib/use-delayed-flag'
 import type { MonthPerson, MonthShift } from '@/components/calendar/MonthTimeline'
 import { getCurrentSession, logout, type Session } from '@/lib/auth'
 import {
@@ -119,6 +123,13 @@ export default function CalendarPage() {
   // KTX users or before the session resolves. Set from localStorage in the loader.
   const [hintDismissed, setHintDismissed] = useState(true)
   const [memberSheet, setMemberSheet] = useState<CompareEntry | null>(null)
+  // First-load gate for the calendar skeleton (⑤). True until the initial
+  // month data resolves; stays false afterwards so month/reload navigation
+  // keeps the previous content visible instead of re-flashing a skeleton.
+  const [booting, setBooting] = useState(true)
+  // Name of the colleague whose schedule is being fetched right now (④) — drives
+  // the inline "불러오는 중" chip + bar. null when nothing is mid-fetch.
+  const [loadingColleague, setLoadingColleague] = useState<string | null>(null)
 
   // Loader: resolve the session (demo localStorage OR Supabase), then read
   // the localStorage schedule/compare stores. setState runs after the await,
@@ -161,6 +172,11 @@ export default function CalendarPage() {
       setMySched(mine)
       setColSched(cols)
       setColorOverrides(getMemberColors(s.uid))
+      // Have a locally-cached month already? Show it immediately and let the
+      // remote sync update in place — never make a returning user stare at a
+      // skeleton for data we already hold. The skeleton (⑤) is reserved for a
+      // genuine empty first load, where booting stays true until remote lands.
+      if (mine.length > 0) setBooting(false)
       // Personal first-entry hint: shown until dismissed (persisted per uid).
       setHintDismissed(
         s.profileType !== 'personal' ||
@@ -191,6 +207,12 @@ export default function CalendarPage() {
         setMySched(mine)
         setColSched(cols)
       }
+
+      // Primary month data is on screen now — drop the first-load skeleton (⑤)
+      // and clear any inline colleague-fetch indicator (④). Subsequent
+      // month/reload runs leave booting false, so navigation keeps the prior
+      // content rather than re-flashing a skeleton.
+      if (alive) { setBooting(false); setLoadingColleague(null) }
 
       // Invite connect — runs before the directory fetch so a freshly-created
       // accepted share's counterpart is included in the directory below (used to
@@ -476,6 +498,10 @@ export default function CalendarPage() {
     }
     setReload(n => n + 1)
     if (res.alreadyIn) return
+    // Newly added → the reload effect is now fetching their month schedule.
+    // Show the inline "불러오는 중" bar (④) without covering my calendar; it
+    // clears when the loader finishes (setLoadingColleague(null) in the effect).
+    setLoadingColleague(meta.name)
 
     if (session.isDemo) {
       showToast(`${meta.name} 님을 ${res.group.name} 그룹에 추가했어요.`, 'success')
@@ -546,7 +572,19 @@ export default function CalendarPage() {
     }
   }
 
-  if (!session) return <div className="min-h-[100dvh] bg-surface" />
+  // Cold-boot loading visuals are delay-gated: a fast resolve (session/data
+  // already warm) shows a neutral surface for a beat, never flashing a loader.
+  // Only a genuinely slow resolve reveals the splash (①) / skeleton (⑤).
+  const showBoot = useDelayedFlag(!session, 200)
+  const showSkeleton = useDelayedFlag(!!session && booting, 150)
+  if (!session) {
+    return showBoot ? <BootSplash /> : <div className="min-h-[100dvh] bg-surface" />
+  }
+  if (booting) {
+    return showSkeleton
+      ? <CalendarSkeleton name={session.name} photo={session.photo} year={year} month={month} />
+      : <div className="min-h-[100dvh] bg-surface" />
+  }
 
   const overlayOpen = detailOpen || searchOpen || uploadOpen || menuOpen || manageOpen || inviteOpen || !!memberSheet
   const compareColorOf = (c: CompareEntry) => cssColor(c.color)
@@ -794,8 +832,23 @@ export default function CalendarPage() {
 
       <div className="flex-1" />
 
-      {/* ── FAB ── 빈 상태에선 footer 인라인 링크가 단일 진입점이라 숨김. */}
-      {!overlayOpen && hasMySchedule && (
+      {/* ── ④ 동료 불러오기 인라인 바 ── 추가한 동료 일정을 페치하는 동안만.
+          전체화면 가림 없이 내 캘린더 유지. FAB와 겹치지 않게 FAB는 잠시 숨김. */}
+      {loadingColleague && !overlayOpen && (
+        <div
+          className="absolute left-4 right-4 z-fab flex items-center gap-2.5 bg-surface border border-line rounded-md px-3.5 py-3 shadow-[0_8px_24px_rgba(13,30,55,0.12)]"
+          style={{ bottom: 'calc(30px + env(safe-area-inset-bottom))' }}
+        >
+          <Spinner size={20} color="var(--c1)" />
+          <div className="text-[13px] font-medium text-ink-700">
+            <strong className="text-ink-900">{loadingColleague}</strong>님 근무표를 불러오는 중…
+          </div>
+        </div>
+      )}
+
+      {/* ── FAB ── 빈 상태에선 footer 인라인 링크가 단일 진입점이라 숨김.
+          동료 로딩 바가 뜬 동안엔 겹침 방지로 숨김. */}
+      {!overlayOpen && hasMySchedule && !loadingColleague && (
         <button
           onClick={openUpload}
           aria-label="근무표 등록"
