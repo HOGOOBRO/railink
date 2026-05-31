@@ -174,9 +174,13 @@ export default function CalendarPage() {
       setColorOverrides(getMemberColors(s.uid))
       // Have a locally-cached month already? Show it immediately and let the
       // remote sync update in place — never make a returning user stare at a
-      // skeleton for data we already hold. The skeleton (⑤) is reserved for a
-      // genuine empty first load, where booting stays true until remote lands.
-      if (mine.length > 0) setBooting(false)
+      // skeleton for data we already hold. When the target month has *no* local
+      // cache (e.g. navigating to a not-yet-visited month) re-arm the skeleton (⑤)
+      // so the remote fetch shows loading feedback instead of a bare empty grid.
+      // Cleared unconditionally at the end of this effect (covers demo + remote +
+      // empty-remote paths), so it can never hang. Cached months stay instant —
+      // the demo's local-sync branch resolves before the 150ms gate, no flash.
+      setBooting(mine.length === 0)
       // Personal first-entry hint: shown until dismissed (persisted per uid).
       setHintDismissed(
         s.profileType !== 'personal' ||
