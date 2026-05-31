@@ -21,10 +21,22 @@ export default function LoginPage() {
   const [error, setError]       = useState<string | null>(null)
   const [unconfirmed, setUnconfirmed] = useState(false)
   const [loading, setLoading]   = useState(false)
+  // While the existing-session check is in flight, render a neutral surface
+  // instead of the form. On a PWA cold boot the session resolves async (a
+  // refresh round-trip on cold start), and showing the form first made the
+  // login screen flash before bouncing an already-logged-in user to /calendar.
+  // Only reveal the form once we know there is no session.
+  const [checkingSession, setCheckingSession] = useState(true)
 
   useEffect(() => {
     let alive = true
-    getCurrentSession().then(s => { if (alive && s) router.replace('/calendar') })
+    getCurrentSession()
+      .then(s => {
+        if (!alive) return
+        if (s) router.replace('/calendar')
+        else setCheckingSession(false)
+      })
+      .catch(() => { if (alive) setCheckingSession(false) })
     return () => { alive = false }
   }, [router])
 
@@ -62,6 +74,18 @@ export default function LoginPage() {
     if (!email) return
     await resendConfirmation(email)
     showToast('인증 메일을 다시 보냈어요. 메일함을 확인해 주세요.', 'success')
+  }
+
+  // Neutral hold while we decide login-vs-calendar — mirrors the calendar
+  // loader's blank surface so a cold boot transitions surface→surface, never
+  // flashing the form.
+  if (checkingSession) {
+    return (
+      <div
+        className="min-h-[100dvh] bg-surface"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      />
+    )
   }
 
   return (
