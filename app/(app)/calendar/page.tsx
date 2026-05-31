@@ -344,6 +344,9 @@ export default function CalendarPage() {
   const weeks = buildMonthCells(year, month)
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1
   const todayD = isCurrentMonth ? today.getDate() : null
+  // 단일 "now" 소스(today)로 오늘 이전 날짜를 판정. 셀 iso(YYYY-MM-DD)와 사전순 비교 —
+  // 엄격한 '<' 이므로 오늘은 과거가 아니고, 월 경계도 자동 처리된다(이전 달 셀은 전부 과거).
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
   const workDays = useMemo(
     () => [...myByDate.values()].filter(e => !e.isOff).length,
@@ -790,6 +793,7 @@ export default function CalendarPage() {
                     bars={c.iso ? barsByIso.get(c.iso) ?? [] : []}
                     dow={ci}
                     holiday={holidayNameFor(c.iso)}
+                    isPast={!!c.iso && c.iso < todayIso}
                   />
                 </button>
               ))}
