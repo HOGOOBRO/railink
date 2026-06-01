@@ -4,6 +4,7 @@
  * the midnight divider. The whole thing lives in ONE scroll area (both axes), and
  * the time gutter is sticky-left — so you can scroll down while panned right to
  * the colleagues on the far side. */
+import { useEffect, useRef, useState } from 'react'
 import { fmtClock } from '@/lib/schedule-utils'
 import { toInitials } from '@/components/ui/Avatar'
 
@@ -48,14 +49,33 @@ export function MonthTimeline({
   // flat list of {top, day, hour} marks
   const marks = dayList.flatMap(d => HOUR_TICKS.map(h => ({ d, h, top: yOf((d - 1) * 24 + h) })))
 
+  // Gridlines must span the full content width — but Safari/WebKit ignores
+  // `width: max-content` under `min-width: 100%` inside an overflow scroller and
+  // clamps the flex container to the viewport, so columns past the fold overflow it
+  // and `right: 0` lines stop short. Measure the real content width and size the
+  // lines to it so they reach the last column on every engine.
+  const ref = useRef<HTMLDivElement>(null)
+  const [contentW, setContentW] = useState<number | null>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const update = () => setContentW(el.scrollWidth)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [people.length])
+
   return (
-    <div className="relative flex" style={{ height: monthH, width: 'max-content', minWidth: '100%', gap: LANE_GAP }}>
+    <div ref={ref} className="relative flex" style={{ height: monthH, width: 'max-content', minWidth: '100%', gap: LANE_GAP }}>
       {/* gridlines (span all columns, behind the cards) */}
       {marks.map(({ d, h, top }) => (
         <div
           key={`grid-${d}-${h}`}
           className={`absolute border-t ${h === 0 ? 'border-line-2' : 'border-dashed border-line'}`}
-          style={{ left: LABEL_W, right: 0, top }}
+          style={contentW != null
+            ? { left: LABEL_W, width: contentW - LABEL_W, top }
+            : { left: LABEL_W, right: 0, top }}
         />
       ))}
 
