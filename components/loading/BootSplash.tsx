@@ -22,8 +22,12 @@ export function BootSplash() {
 
       <div className="flex-1 flex flex-col items-center justify-center">
         <div
-          className="w-28 h-28 rounded-[32px] bg-brand text-white grid place-items-center rl-float-soft"
-          style={{ animation: 'rl-float-soft 3.2s ease-in-out infinite' }}
+          className="w-28 h-28 rounded-[32px] bg-white grid place-items-center rl-float-soft"
+          style={{
+            animation: 'rl-float-soft 3.2s ease-in-out infinite',
+            boxShadow:
+              '0 8px 24px -8px rgba(12,60,96,0.20), 0 2px 6px rgba(0,0,0,0.06)',
+          }}
         >
           <BrandMark size={54} />
         </div>
