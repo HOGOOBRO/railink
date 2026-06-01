@@ -214,13 +214,19 @@ export function AddSquareIcon({ size = 16, className }: IconProps) {
 }
 
 /** RaiLink mark — two people (flat, brand color, no gradient/shadow). */
+// 로고 — Figma node 378:476 "icon" (2인 그룹). 투톤: 연블루 채움 + 네이비 라인.
+// 색은 디자인 고정값이라 currentColor를 따르지 않음(className은 호환용으로 유지).
 export function BrandMark({ size = 18, className }: IconProps) {
+  const FILL = '#D6E2EC'
+  const LINE = '#0C3C60'
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base} className={className} aria-hidden>
-      <circle cx="9" cy="8" r="3.2" />
-      <path d="M3.5 19c.6-3 3-4.6 5.5-4.6s4.9 1.6 5.5 4.6" />
-      <circle cx="17" cy="9" r="2.6" />
-      <path d="M14.5 17.5c.6-2.4 2.7-3.5 4.5-3.5s2 1.1 2 3.5" />
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className} aria-hidden>
+      <path d="M10.7395 8.0099C12.2536 8.0099 13.481 6.78245 13.481 5.26832C13.481 3.7542 12.2536 2.52676 10.7395 2.52676C9.22534 2.52676 7.9979 3.7542 7.9979 5.26832C7.9979 6.78245 9.22534 8.0099 10.7395 8.0099Z" fill={FILL} />
+      <path d="M10.7394 8.01004C12.2536 8.01004 13.481 6.78259 13.481 5.26847C13.481 4.0972 12.7465 3.09748 11.713 2.70479" stroke={LINE} strokeWidth="0.666667" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14.4841 11.8612C15.8251 12.7544 14.9196 14.477 13.3083 14.477H7.25762C5.64636 14.477 4.74082 12.7544 6.08186 11.8612C7.28474 11.0601 8.72933 10.5932 10.283 10.5932C11.8367 10.5932 13.2812 11.0601 14.4841 11.8612Z" fill={FILL} />
+      <path d="M6.12623 7.46652C7.76753 7.46652 9.09806 6.13598 9.09806 4.49469C9.09806 2.85339 7.76753 1.52285 6.12623 1.52285C4.48493 1.52285 3.15439 2.85339 3.15439 4.49469C3.15439 6.13598 4.48493 7.46652 6.12623 7.46652Z" fill={FILL} stroke={LINE} strokeWidth="0.666667" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10.8118 11.3745C12.2655 12.3428 11.2839 14.2101 9.53732 14.2101H2.97838C1.2318 14.2101 0.250206 12.3428 1.70388 11.3745C3.0078 10.5061 4.57372 10 6.25785 10C7.94199 10 9.50792 10.5061 10.8118 11.3745Z" fill={FILL} stroke={LINE} strokeWidth="0.666667" />
+      <path d="M9.15115 14.4772H13.3083C14.9197 14.4772 15.8251 12.7546 14.4841 11.8613C14.1138 11.6147 13.7206 11.3998 13.3083 11.2204" stroke={LINE} strokeWidth="0.666667" strokeLinecap="round" />
     </svg>
   )
 }
