@@ -84,7 +84,11 @@ function buildInitialManualRows(
   year: number, month: number, existing: ParsedScheduleRow[],
 ): ManualRow[] {
   const total = daysInMonth(year, month)
-  const max = Math.min(12, total)
+  // Editing an existing schedule loads the WHOLE month so every saved day is visible
+  // and editable. This is critical: save replaces the entire month, so any existing
+  // day not loaded here (e.g. 13~말일) would be silently wiped. A blank first-time
+  // entry stays capped at 12 rows (+ "행 추가") to avoid overwhelming the input.
+  const max = existing.length ? total : Math.min(12, total)
   const byDay = new Map<number, ParsedScheduleRow>()
   for (const r of existing) byDay.set(Number(r.date.slice(8, 10)), r)
   const rows: ManualRow[] = []
