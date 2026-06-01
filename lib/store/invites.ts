@@ -96,16 +96,19 @@ export async function consumeInvite(token: string): Promise<ConsumeInviteResult>
     const code = parseCode(error.message)
     return { ok: false, code, message: CODE_COPY[code] }
   }
+  // Result keys are inviter_id/inviter_name/inviter_group_id since the
+  // 20260601010000 ambiguity fix renamed the RPC's OUT params (the old
+  // owner_* names collided with schedule_shares columns → 42702).
   const row = Array.isArray(data) ? data[0] : data
-  if (!row || typeof row.owner_id !== 'string') {
+  if (!row || typeof row.inviter_id !== 'string') {
     return { ok: false, code: 'invite_not_found', message: CODE_COPY.invite_not_found }
   }
   return {
     ok: true,
     owner: {
-      id: row.owner_id as string,
-      name: (row.owner_name as string) ?? '',
-      groupId: (row.owner_group_id as string | null) ?? null,
+      id: row.inviter_id as string,
+      name: (row.inviter_name as string) ?? '',
+      groupId: (row.inviter_group_id as string | null) ?? null,
     },
   }
 }
