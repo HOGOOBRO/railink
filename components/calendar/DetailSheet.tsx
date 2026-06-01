@@ -25,6 +25,12 @@ export function DetailSheet({
   const dim = new Date(year, month, 0).getDate()
   const [topDay, setTopDay] = useState(date.getDate())
 
+  // Drop columns with no schedule this month at all — they'd reserve dead horizontal
+  // space to the right. Anyone with a shift somewhere in the month (or a pending share,
+  // which shows a "수락 대기 중" notice) keeps their column, so scrolling to other days
+  // still surfaces their shifts. The remaining columns grow to fill the width.
+  const shownPeople = people.filter(p => p.pending || p.shifts.length > 0)
+
   // Open scrolled to the tapped day; time runs continuously above/below it.
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
@@ -46,7 +52,7 @@ export function DetailSheet({
   // Weekday hue: red for Sun/holiday, blue for Sat, muted otherwise — same rule
   // as the calendar grid so the sheet heading reads consistently.
   const dowClass = holiday || dow === 0 ? 'text-danger' : dow === 6 ? 'text-c1' : 'text-ink-500'
-  const workN = people.filter(p => p.shifts.some(s => s.day === topDay)).length
+  const workN = shownPeople.filter(p => p.shifts.some(s => s.day === topDay)).length
 
   return (
     <div className="flex flex-col" style={{ height: '88dvh' }}>
@@ -73,8 +79,8 @@ export function DetailSheet({
       </div>
 
       <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-auto overscroll-contain">
-        {people.some(p => p.shifts.length > 0 || p.pending)
-          ? <MonthTimeline people={people} year={year} month={month} today={today} />
+        {shownPeople.length > 0
+          ? <MonthTimeline people={shownPeople} year={year} month={month} today={today} />
           : <p className="px-5 py-12 text-center text-callout text-ink-500">비교 중인 일정이 없어요.</p>}
       </div>
 
