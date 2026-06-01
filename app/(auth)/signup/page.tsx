@@ -189,6 +189,8 @@ export default function SignupPage() {
       part: isKtx ? (form.part || undefined) : undefined,
       visibility: isKtx ? (visibility as Visibility) : 'private',
       profileType,
+      // Survives the email-confirm redirect via ?invite= even on another browser.
+      inviteToken,
     })
     if (!result.ok) {
       setLoading(false)

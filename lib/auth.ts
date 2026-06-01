@@ -143,6 +143,10 @@ export interface SignupInput {
    *  For 'personal' the trigger clamps visibility to 'private' regardless of the
    *  value passed here. */
   profileType?: ProfileType
+  /** Invite token from /signup?invite=. Threaded into emailRedirectTo so it
+   *  survives the email-confirmation round trip even when the link opens in a
+   *  different browser than signup (where localStorage wouldn't carry it). */
+  inviteToken?: string | null
 }
 
 export type SignupResult =
@@ -150,8 +154,16 @@ export type SignupResult =
   | { ok: false; field?: 'email'; message: string }
 
 export async function signup(input: SignupInput): Promise<SignupResult> {
+  // After confirmation Supabase redirects here. Carrying ?invite= on the URL
+  // makes the invite token origin/browser-independent — /login re-stashes it and
+  // the calendar mount consumes it. (Requires this URL to be in Supabase's
+  // redirect allowlist, else it falls back to Site URL — see URL Configuration.)
   const emailRedirectTo =
-    typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/login${
+          input.inviteToken ? `?invite=${encodeURIComponent(input.inviteToken)}` : ''
+        }`
+      : undefined
   const { data, error } = await supabase.auth.signUp({
     email: input.email,
     password: input.password,
@@ -166,6 +178,10 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
         // 'ktx_attendant'; personal signups are clamped to private by the trigger.
         visibility: input.visibility,
         profile_type: input.profileType ?? 'ktx_attendant',
+        // Read by consume_invite_on_signup() → creates the bidirectional accepted
+        // share at account creation (20260601000000), independent of the email
+        // redirect. The client-side localStorage/URL path stays as a fallback.
+        ...(input.inviteToken ? { invite_token: input.inviteToken } : {}),
       },
     },
   })

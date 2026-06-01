@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/Toast'
 import { BrandMark, EyeIcon } from '@/components/ui/icons'
 import { InstallLoginBanner } from '@/components/InstallLoginBanner'
 import { login, getCurrentSession, resendConfirmation } from '@/lib/auth'
+import { savePendingInvite } from '@/lib/store/invites'
 import { DEMO_LOGIN } from '@/lib/demo-data'
 import { BootSplash } from '@/components/loading/BootSplash'
 import { useDelayedFlag } from '@/lib/use-delayed-flag'
@@ -31,6 +32,14 @@ export default function LoginPage() {
   const [checkingSession, setCheckingSession] = useState(true)
 
   useEffect(() => {
+    // Invite arriving via the email-confirm redirect (/login?invite=TOKEN). Stash
+    // it BEFORE the session check below — a confirmed user is bounced straight to
+    // /calendar, where the token is consumed. Works regardless of which browser
+    // opened the email, since the token rides the URL, not localStorage.
+    if (typeof window !== 'undefined') {
+      const token = new URLSearchParams(window.location.search).get('invite')
+      if (token) savePendingInvite(token)
+    }
     let alive = true
     getCurrentSession()
       .then(s => {
