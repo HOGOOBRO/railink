@@ -41,12 +41,12 @@ export const DEMO_LOGIN = {
 
 /** Demo colleagues (search directory). Half intentionally have no photo. */
 export const DEMO_COLLEAGUES: Colleague[] = [
-  { uid: 'u1',  name: '김민준', employeeId: '102204', office: '서울 · B',  email: 'demo.minjun@railink.app', photo: '/avatars/avatar-1.svg' },
-  { uid: 'u2',  name: '박지호', employeeId: '108839', office: '서울 · A',  email: 'demo.jiho@railink.app',   photo: '/avatars/avatar-6.svg' },
+  { uid: 'u1',  name: '고양이가', employeeId: '102204', office: '서울 · B',  email: 'demo.minjun@railink.app', photo: '/avatars/cat-1.jpg' },
+  { uid: 'u2',  name: '세상을', employeeId: '108839', office: '서울 · A',  email: 'demo.jiho@railink.app',   photo: '/avatars/cat-2.jpg' },
   { uid: 'u3',  name: '최예진', employeeId: '113207', office: '광명 · B',  email: 'demo.yejin@railink.app' },
-  { uid: 'u4',  name: '정도윤', employeeId: '105621', office: '서울 · C',  email: 'demo.doyoon@railink.app', photo: '/avatars/avatar-4.svg' },
+  { uid: 'u4',  name: '구한다', employeeId: '105621', office: '서울 · C',  email: 'demo.doyoon@railink.app', photo: '/avatars/cat-3.jpg' },
   { uid: 'u5',  name: '한가람', employeeId: '120044', office: '부산 · B',  email: 'demo.garam@railink.app' },
-  { uid: 'u6',  name: '오수빈', employeeId: '117788', office: '대전 · A',  email: 'demo.subin@railink.app',  photo: '/avatars/avatar-9.svg' },
+  { uid: 'u6',  name: '얍', employeeId: '117788', office: '대전 · A',  email: 'demo.subin@railink.app',  photo: '/avatars/cat-4.jpg' },
   { uid: 'u7',  name: '윤하늘', employeeId: '123456', office: '동대구 · B', email: 'demo.haneul@railink.app' },
   { uid: 'u8',  name: '강예나', employeeId: '129002', office: '서울 · B',  email: 'demo.yena@railink.app',   photo: '/avatars/avatar-8.svg' },
   { uid: 'u9',  name: '문지원', employeeId: '104871', office: '광명 · A',  email: 'demo.jiwon@railink.app' },
@@ -79,85 +79,118 @@ function hm(h: number): string {
   return `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`
 }
 
-const YEAR = 2026
-const MONTH = 5 // May 2026
-
-function iso(day: number): string {
-  return `${YEAR}-${String(MONTH).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+function daysOfMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate()
 }
 
-/** Deterministic per-user May 2026 schedule (ported from prototype). */
-function generateForUser(uid: string, userSeed: number, intensity: number): ScheduleEntry[] {
-  let s = userSeed
+function iso(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+/** Months the demo seeds, anchored on today: previous, current, next — so the
+ * calendar always opens onto a populated month and prev/next navigation has data.
+ * (Demo data used to be pinned to a fixed past month, leaving "today" empty.) */
+function demoMonths(): { year: number; month: number }[] {
+  const now = new Date()
+  return [-1, 0, 1].map(off => {
+    const d = new Date(now.getFullYear(), now.getMonth() + off, 1)
+    return { year: d.getFullYear(), month: d.getMonth() + 1 }
+  })
+}
+
+const TODAY_DIA = {
+  diaNr: 'H1055', trainNr: '16 · 216', startTime: hm(10.97), endTime: hm(20.17),
+} as const
+
+/** Deterministic per-user month schedule (ported from prototype), anchored to the
+ * given year/month so demo data tracks "today" instead of a fixed past month. */
+function generateForUser(
+  uid: string, userSeed: number, intensity: number, year: number, month: number,
+): ScheduleEntry[] {
+  let s = userSeed + (year * 12 + month) * 131   // vary per month, stay deterministic
   const rand = () => { s = (s * 9301 + 49297) % 233280; return s / 233280 }
 
   const out: ScheduleEntry[] = []
-  const lastDay = 31
+  const lastDay = daysOfMonth(year, month)
   let i = 1
   while (i <= lastDay) {
     const r = rand()
     if (r < 0.22 * (1 / intensity)) {
       const type = rand() < 0.4 ? 'S(주휴)' : 'S'
-      out.push({ uid, date: iso(i), diaNr: type, isOff: true })
+      out.push({ uid, date: iso(year, month, i), diaNr: type, isOff: true })
       i++
-    } else if (r < 0.32) {
-      // Night shift spans 2 days
-      const t = TR[Math.floor(rand() * TR.length)]
-      const dia = DIAS[Math.floor(rand() * DIAS.length)]
-      out.push({
-        uid, date: iso(i), diaNr: dia, trainNr: `${t[0]} · ${t[1]}`,
-        startTime: hm(t[2]), endTime: hm(t[3]), isOff: false,
-      })
+      continue
+    }
+    const t = TR[Math.floor(rand() * TR.length)]
+    const dia = DIAS[Math.floor(rand() * DIAS.length)]
+    out.push({
+      uid, date: iso(year, month, i), diaNr: dia, trainNr: `${t[0]} · ${t[1]}`,
+      startTime: hm(t[2]), endTime: hm(t[3]), isOff: false,
+    })
+    // Overnight (박차) = end hour past 24. The card bleeds into the next morning,
+    // so reserve the next day as a continuation (~) and skip it — otherwise a fresh
+    // shift on that day would visually overlap the bleed-over (한 사람 두 카드 겹침).
+    if (t[3] > 24) {
       if (i + 1 <= lastDay) {
         out.push({
-          uid, date: iso(i + 1), diaNr: `~(${dia})`, trainNr: `${t[0]} · ${t[1]}`,
+          uid, date: iso(year, month, i + 1), diaNr: `~(${dia})`, trainNr: `${t[0]} · ${t[1]}`,
           startTime: hm(t[2]), endTime: hm(t[3]), isOff: false,
         })
       }
       i += 2
     } else {
-      const t = TR[Math.floor(rand() * TR.length)]
-      const dia = DIAS[Math.floor(rand() * DIAS.length)]
-      out.push({
-        uid, date: iso(i), diaNr: dia, trainNr: `${t[0]} · ${t[1]}`,
-        startTime: hm(t[2]), endTime: hm(t[3]), isOff: false,
-      })
       i++
     }
   }
   return out
 }
 
-/** All demo schedules: me + 12 colleagues, for May 2026. */
-export function buildDemoSchedules(): ScheduleEntry[] {
-  const me = generateForUser(DEMO_ME.uid, 42, 1.0)
-  // Force May 19 (today) to be a workday for me, with H1055.
-  const may19 = me.find(e => e.date === iso(19))
-  const forced: ScheduleEntry = {
-    uid: DEMO_ME.uid, date: iso(19), diaNr: 'H1055',
-    trainNr: '16 · 216', startTime: hm(10.97), endTime: hm(20.17), isOff: false,
-  }
-  if (may19) Object.assign(may19, forced)
-  else me.push(forced)
-
-  const colleagues = DEMO_COLLEAGUES.flatMap((c, i) =>
-    generateForUser(c.uid, 100 + i * 7, 1.1 + (i % 3) * 0.1),
-  )
-  return [...me, ...colleagues]
+/** "HH:MM" → hour number (hour may exceed 24 for 익일 종료). */
+function endHour(t?: string): number {
+  return t ? parseInt(t.slice(0, t.indexOf(':')), 10) : 0
 }
 
-/** "My" May 2026 schedule for an arbitrary uid (used when a user
- * "uploads" their sheet — same deterministic data as the demo me). */
-export function buildMyScheduleFor(uid: string): ScheduleEntry[] {
-  const me = generateForUser(uid, 42, 1.0)
-  const forced: ScheduleEntry = {
-    uid, date: iso(19), diaNr: 'H1055',
-    trainNr: '16 · 216', startTime: hm(10.97), endTime: hm(20.17), isOff: false,
+/** Force a uid's `todayIso()` entry to the canonical (non-overnight) "today" shift
+ * so the opening month always shows a shift. If the previous day is an overnight
+ * shift, trim its bleed-over so it can't overlap today's forced card. */
+function forceToday(rows: ScheduleEntry[], uid: string): void {
+  const now = new Date()
+  const date = iso(now.getFullYear(), now.getMonth() + 1, now.getDate())
+  const forced: ScheduleEntry = { uid, date, isOff: false, ...TODAY_DIA }
+  const hit = rows.find(e => e.uid === uid && e.date === date)
+  if (hit) Object.assign(hit, forced)
+  else rows.push(forced)
+
+  const y = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+  const prevDate = iso(y.getFullYear(), y.getMonth() + 1, y.getDate())
+  const prev = rows.find(e => e.uid === uid && e.date === prevDate)
+  if (prev && !prev.isOff && endHour(prev.endTime) > 24) {
+    prev.endTime = '23:30'   // keep yesterday a workday, but no bleed into today
   }
-  const may19 = me.find(e => e.date === iso(19))
-  if (may19) Object.assign(may19, forced)
-  else me.push(forced)
-  return me
+}
+
+/** All demo schedules: me + 12 colleagues, across prev/current/next month. */
+export function buildDemoSchedules(): ScheduleEntry[] {
+  const out: ScheduleEntry[] = []
+  for (const { year, month } of demoMonths()) {
+    out.push(...generateForUser(DEMO_ME.uid, 42, 1.0, year, month))
+    DEMO_COLLEAGUES.forEach((c, i) =>
+      out.push(...generateForUser(c.uid, 100 + i * 7, 1.1 + (i % 3) * 0.1, year, month)),
+    )
+  }
+  forceToday(out, DEMO_ME.uid)
+  return out
+}
+
+/** "My" schedule for an arbitrary uid (used when a user "uploads" their sheet) —
+ * same deterministic data as the demo me, anchored to the current month range. */
+export function buildMyScheduleFor(uid: string): ScheduleEntry[] {
+  const out: ScheduleEntry[] = []
+  for (const { year, month } of demoMonths()) {
+    out.push(...generateForUser(uid, 42, 1.0, year, month))
+  }
+  forceToday(out, uid)
+  return out
 }
 
 export function findColleague(uid: string): Colleague | undefined {
