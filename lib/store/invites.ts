@@ -117,7 +117,7 @@ export async function consumeInvite(token: string): Promise<ConsumeInviteResult>
  *  Returns null for unusable/unknown tokens so the header can fall back to
  *  name-agnostic copy. Demo token resolves to a sample name for the demo story. */
 export async function peekInvite(token: string): Promise<string | null> {
-  if (token === DEMO_INVITE_TOKEN) return '김민준'
+  if (token === DEMO_INVITE_TOKEN) return 'Theo'
   const { data, error } = await supabase.rpc('peek_invite', { token_param: token })
   if (error || typeof data !== 'string' || !data) return null
   return data

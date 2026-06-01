@@ -75,7 +75,7 @@ export default function LoginPage() {
     }
     const s = await getCurrentSession()
     setLoading(false)
-    showToast(`환영합니다, ${s?.name || '이서연'} 님!`, 'success')
+    showToast(`환영합니다, ${s?.name || 'Theo'} 님!`, 'success')
     // An invite stashed at /signup?invite= is consumed on the calendar mount
     // (single chokepoint that also handles signup + already-logged-in entry).
     router.push('/calendar')

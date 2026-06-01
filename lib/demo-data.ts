@@ -18,24 +18,23 @@ export interface Colleague {
   profileType?: ProfileType
 }
 
-/** Seeded "me" — the demo account (이서연). Uses an @railink.app address:
+/** Seeded "me" — the demo account (Theo). Uses an @railink.app address:
  * RaiLink is an independent app, so demo data must not imply a @korail.com
  * (official Korail) identity. */
 export const DEMO_ME = {
   uid: 'demo-me-001',
-  email: 'seoyeon.lee@railink.app',
+  email: 'theo@railink.app',
   pw: 'demo1234',
-  name: '이서연',
+  name: 'Theo',
   employeeId: '110512',
   part: 'B',
   photo: '/avatars/avatar-5.svg',
 } as const
 
 /** Memorable demo credentials shown on the login card / prefilled.
- * These alias to the DEMO_ME account at sign-in (prototype parity:
- * the prototype's login card shows these, the menu shows the real email). */
+ * Same identity as DEMO_ME so the card, sign-in and menu all read "Theo". */
 export const DEMO_LOGIN = {
-  email: 'demo.minjun@railink.app',
+  email: 'demo.theo@railink.app',
   pw: 'demo1234',
 } as const
 
