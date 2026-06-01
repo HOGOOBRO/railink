@@ -4,6 +4,35 @@ import { BrandMark, SearchIcon, ChevronLeftIcon, ChevronRightIcon } from '@/comp
 import { Skeleton } from '@/components/ui/Skeleton'
 import { LoadDots } from '@/components/ui/LoadDots'
 
+/* 그리드만 시머 처리하는 공용 조각. 콜드부트 전체 스켈레톤(⑤)과, 이미 로드된
+ * 크롬(상단바·그룹탭·비교 칩)을 유지한 채 캐시 없는 달로 이동할 때 그리드만
+ * 교체하는 인라인 로딩 양쪽에서 재사용한다. 날짜 위치·과거 톤다운은 fetch 없이
+ * 아는 정보라 §5.5(근무 데이터 위조 금지)에 어긋나지 않는다. */
+export function CalendarGridSkeleton({ year, month }: { year: number; month: number }) {
+  const weeks = buildMonthCells(year, month)
+  const now = new Date()
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  return (
+    <div className="flex flex-col gap-px bg-bg">
+      {weeks.map((wk, wi) => (
+        <div key={wi} className="grid grid-cols-7 gap-px">
+          {wk.map((c, ci) => {
+            const dimCls = !!c.iso && c.iso < todayIso ? ' opacity-40' : ''
+            return (
+              <div key={ci} className="bg-surface h-14 flex flex-col items-center justify-center gap-1.5">
+                <span className={`font-en text-[15px] leading-none ${c.isOther ? 'text-ink-300' : 'text-ink-700'}${dimCls}`}>
+                  {c.d}
+                </span>
+                {!c.isOther && <Skeleton className={`w-7 h-1.5 rounded-full${dimCls}`} />}
+              </div>
+            )
+          })}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /* ⑤ 캘린더 스켈레톤 — design_handoff_loading_states §5.
  * Mirrors the real calendar's static chrome (top bar, compare strip, month bar,
  * DOW, 6×7 grid with real date numbers) and shimmers only the data areas.
@@ -20,13 +49,6 @@ export function CalendarSkeleton({
   year: number
   month: number
 }) {
-  const weeks = buildMonthCells(year, month)
-  // 본 캘린더와 동일하게 지난 날짜는 전경만 톤다운 — 스켈레톤→로드 전환에서
-  // 과거 셀이 깜빡이지 않도록. 날짜 위치(과거/오늘)는 fetch 없이도 아는 정보라
-  // §5.5(근무 데이터 위조 금지)에 어긋나지 않는다.
-  const now = new Date()
-  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-
   return (
     <div className="relative flex flex-col min-h-[100dvh] bg-bg">
       {/* Top bar — real chrome; avatar is the real user */}
@@ -105,23 +127,7 @@ export function CalendarSkeleton({
           ))}
         </div>
 
-        <div className="flex flex-col gap-px bg-bg">
-          {weeks.map((wk, wi) => (
-            <div key={wi} className="grid grid-cols-7 gap-px">
-              {wk.map((c, ci) => {
-                const dimCls = !!c.iso && c.iso < todayIso ? ' opacity-40' : ''
-                return (
-                  <div key={ci} className="bg-surface h-14 flex flex-col items-center justify-center gap-1.5">
-                    <span className={`font-en text-[15px] leading-none ${c.isOther ? 'text-ink-300' : 'text-ink-700'}${dimCls}`}>
-                      {c.d}
-                    </span>
-                    {!c.isOther && <Skeleton className={`w-7 h-1.5 rounded-full${dimCls}`} />}
-                  </div>
-                )
-              })}
-            </div>
-          ))}
-        </div>
+        <CalendarGridSkeleton year={year} month={month} />
       </div>
 
       {/* Footer hint */}
