@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useState, useEffect, useMemo, useCallback } from 'react'
+import { type ReactNode, useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
@@ -19,7 +19,7 @@ import { UploadModal } from '@/components/calendar/UploadModal'
 import { GroupTabs } from '@/components/calendar/GroupTabs'
 import { ManageGroupsSheet } from '@/components/calendar/ManageGroupsSheet'
 import { CompareMemberSheet } from '@/components/calendar/CompareMemberSheet'
-import { CalendarSkeleton } from '@/components/calendar/CalendarSkeleton'
+import { CalendarSkeleton, CalendarGridSkeleton } from '@/components/calendar/CalendarSkeleton'
 import { BootSplash } from '@/components/loading/BootSplash'
 import { Spinner } from '@/components/ui/Spinner'
 import { useDelayedFlag } from '@/lib/use-delayed-flag'
@@ -127,6 +127,12 @@ export default function CalendarPage() {
   // month data resolves; stays false afterwards so month/reload navigation
   // keeps the previous content visible instead of re-flashing a skeleton.
   const [booting, setBooting] = useState(true)
+  // True once the real calendar has rendered at least once. Distinguishes the
+  // cold boot (full-page skeleton ⑤ per design §5) from a later cache-less month
+  // navigation, where the chrome (top bar · group tabs · compare pills) is
+  // already on screen and unchanged — there we keep it and skeleton only the grid
+  // so the group chips don't disappear/reappear (the flicker users reported).
+  const bootedOnce = useRef(false)
   // Name of the colleague whose schedule is being fetched right now (④) — drives
   // the inline "불러오는 중" chip + bar. null when nothing is mid-fetch.
   const [loadingColleague, setLoadingColleague] = useState<string | null>(null)
@@ -216,7 +222,7 @@ export default function CalendarPage() {
       // and clear any inline colleague-fetch indicator (④). Subsequent
       // month/reload runs leave booting false, so navigation keeps the prior
       // content rather than re-flashing a skeleton.
-      if (alive) { setBooting(false); setLoadingColleague(null) }
+      if (alive) { setBooting(false); bootedOnce.current = true; setLoadingColleague(null) }
 
       // Invite connect — runs before the directory fetch so a freshly-created
       // accepted share's counterpart is included in the directory below (used to
@@ -587,7 +593,10 @@ export default function CalendarPage() {
   if (!session) {
     return showBoot ? <BootSplash /> : <div className="min-h-[100dvh] bg-surface" />
   }
-  if (booting) {
+  // Cold boot only: nothing has rendered yet, so the full skeleton (⑤) is right.
+  // A cache-less month navigation also flips `booting`, but there the chrome is
+  // already loaded — we fall through and skeleton only the grid (below).
+  if (booting && !bootedOnce.current) {
     return showSkeleton
       ? <CalendarSkeleton name={session.name} photo={session.photo} year={year} month={month} />
       : <div className="min-h-[100dvh] bg-surface" />
@@ -770,7 +779,13 @@ export default function CalendarPage() {
           ))}
         </div>
 
-        {/* Grid */}
+        {/* Grid — cache-less month navigation shows a grid-only skeleton (keeps the
+            already-loaded chrome/chips fixed). The sub-150ms window before
+            `showSkeleton` arms renders the real empty grid (date numbers, no bars),
+            which has identical cell height (h-14) so neither path jumps. */}
+        {booting && showSkeleton ? (
+          <CalendarGridSkeleton year={year} month={month} />
+        ) : (
         <div className="flex flex-col gap-px bg-bg">
           {weeks.map((wk, wi) => (
             <div key={wi} className="grid grid-cols-7 gap-px">
@@ -804,6 +819,7 @@ export default function CalendarPage() {
             </div>
           ))}
         </div>
+        )}
       </div>
 
       {/* ── Footer ── 근무표 유무 양쪽 모두 한 줄 인라인. 없을 땐 등록 진입점, 있을 땐 카운터. */}
