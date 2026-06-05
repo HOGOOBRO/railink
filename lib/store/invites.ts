@@ -67,6 +67,18 @@ const CODE_COPY: Record<InviteErrorCode, string> = {
   unknown: '잠시 후 다시 시도해 주세요.',
 }
 
+/** The KakaoTalk-ready invite message: a value-prop line + the link. Shared by
+ *  copy and Web Share so both carry the same 문구 (not a bare URL). The link
+ *  itself unfurls a branded RaiLink card via the root-layout OG tags. When the
+ *  inviter's name is known it leads ("○○님이…"); otherwise a neutral opener. */
+export function buildInviteMessage(inviterName: string | null | undefined, link: string): string {
+  const who = inviterName?.trim()
+  const lead = who
+    ? `${who}님이 RaiLink에서 근무 겹쳐보기를 요청했어요.`
+    : `RaiLink에서 근무 겹쳐보기 요청이 왔어요.`
+  return `${lead}\n가입하면 서로 일정이 자동으로 연결돼요 👇\n${link}`
+}
+
 /** Create an invite tagged with the active group (optional) and an optional
  *  invitee email for match-checking. Returns the token to assemble into a link. */
 export async function createInvite(
