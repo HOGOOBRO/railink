@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { useToast } from '@/components/ui/Toast'
 import {
-  BrandMark, SearchIcon, PlusIcon, ChevronLeftIcon, ChevronRightIcon, UploadIcon, ArrowRightIcon, EditIcon,
+  BrandMark, SearchIcon, PlusIcon, ChevronLeftIcon, ChevronRightIcon, UploadIcon, ArrowRightIcon, EditIcon, UserPlusIcon,
 } from '@/components/ui/icons'
 import { CalCell, type CellBar } from '@/components/calendar/CalCell'
 import { DetailSheet } from '@/components/calendar/DetailSheet'
@@ -119,6 +119,8 @@ export default function CalendarPage() {
   const [manageOpen, setManageOpen] = useState(false)
   const [manageStartCreate, setManageStartCreate] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  // Email to pre-scope the invite when opened from a failed email search.
+  const [invitePrefillEmail, setInvitePrefillEmail] = useState<string | null>(null)
   // Default true = hidden, so the personal first-entry card never flashes for
   // KTX users or before the session resolves. Set from localStorage in the loader.
   const [hintDismissed, setHintDismissed] = useState(true)
@@ -408,7 +410,12 @@ export default function CalendarPage() {
     setMenuOpen(false); setManageOpen(false); setMemberSheet(null); setInviteOpen(false)
   }, [])
 
-  const openInvite = () => { closeOverlays(); setInviteOpen(true) }
+  const openInvite = (prefillEmail?: string | null) => {
+    // Coerce: openInvite is also used directly as an onClick handler (MenuSheet),
+    // which would pass a click event here — only a real string should pre-fill.
+    const email = typeof prefillEmail === 'string' ? prefillEmail : null
+    closeOverlays(); setInvitePrefillEmail(email); setInviteOpen(true)
+  }
 
   function dismissHint() {
     if (session && typeof window !== 'undefined') {
@@ -676,14 +683,7 @@ export default function CalendarPage() {
         <div className="flex gap-2.5 overflow-x-auto px-4 pt-1 pb-1 items-start" style={{ scrollbarWidth: 'none' }}>
           <PersonPill name={session.name} photo={session.photo} ringColor={BRAND} avatarColor="brand" self />
 
-          {isEmptyGroup ? (
-            <div className="flex-1 self-stretch min-h-[60px] flex flex-col items-center justify-center gap-0.5 px-2">
-              <span className="text-[13px] text-ink-500">이 그룹에 동료를 추가해 보세요</span>
-              <button onClick={openSearch} className="text-[13px] font-semibold text-brand">
-                + 동료 찾기
-              </button>
-            </div>
-          ) : (
+          {isEmptyGroup ? null : (
             compares.map(c => {
               const pending = !session.isDemo && shareStatus[c.uid] === 'pending'
               return (
@@ -718,6 +718,26 @@ export default function CalendarPage() {
             <span className="text-[11px] font-semibold text-brand">추가</span>
           </button>
         </div>
+
+        {/* Empty compare group → invite-first CTA (P0): a 0-colleague calendar is
+            a dead end, so lead with 초대 (the viral move), 동료 찾기 as a fallback. */}
+        {compares.length === 0 && (
+          <div className="mx-4 mt-1 flex flex-col items-center text-center gap-1 rounded-lg bg-brand-050 border border-brand-100 px-5 py-5">
+            <p className="text-callout font-bold text-ink-900">아직 비교할 동료가 없어요</p>
+            <p className="text-caption text-ink-500 leading-relaxed">
+              동기를 초대하면 가입할 때<br />서로 일정이 자동으로 연결돼요
+            </p>
+            <button
+              onClick={() => openInvite()}
+              className="mt-3 w-full max-w-[260px] h-btn rounded-sm bg-brand text-ink-on-brand font-semibold text-callout inline-flex items-center justify-center gap-2"
+            >
+              <UserPlusIcon size={17} /> 친구 초대하기
+            </button>
+            <button onClick={openSearch} className="mt-1.5 text-caption font-semibold text-brand py-1">
+              동료 찾기
+            </button>
+          </div>
+        )}
       </section>
 
       {/* ── Inbox banner (§5): pending requests where I'm the owner ── */}
@@ -927,6 +947,8 @@ export default function CalendarPage() {
           activeGroupId={groupsState.activeGroupId}
           onClose={() => setInviteOpen(false)}
           showToast={showToast}
+          inviterName={session.name}
+          initialEmail={invitePrefillEmail}
         />
       </BottomSheet>
 
@@ -973,6 +995,7 @@ export default function CalendarPage() {
           shareStatus={shareStatus}
           lookupSabun={lookupSabun}
           lookupEmail={lookupEmail}
+          onInvite={openInvite}
         />
       )}
 

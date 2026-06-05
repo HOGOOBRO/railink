@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { UserIcon, CheckIcon, InfoIcon, ShareIosIcon, CloseIcon } from '@/components/ui/icons'
-import { createInvite } from '@/lib/store/invites'
+import { createInvite, buildInviteMessage } from '@/lib/store/invites'
 import type { Group } from '@/lib/types/schedule'
 
 type ToastType = 'default' | 'success' | 'danger'
@@ -12,16 +12,23 @@ interface InviteCreateSheetProps {
   activeGroupId: string | null
   onClose: () => void
   showToast: (message: string, type?: ToastType) => void
+  /** Inviter's display name — leads the shared message ("○○님이…"). */
+  inviterName?: string | null
+  /** Pre-fill the email-match field — set when opened from a failed email search
+   *  so the invite is scoped to that exact address with no extra typing. */
+  initialEmail?: string | null
 }
 
 /* 친구 초대 — pick a target group + optional email match → create_invite → a
  * shareable link. Same UI for KTX and personal (invite issuing is equal). The
  * link auto-connects the inviter on signup (consume_invite, track-agnostic). */
-export function InviteCreateSheet({ groups, activeGroupId, onClose, showToast }: InviteCreateSheetProps) {
+export function InviteCreateSheet({
+  groups, activeGroupId, onClose, showToast, inviterName, initialEmail,
+}: InviteCreateSheetProps) {
   const [stage, setStage] = useState<'setup' | 'created'>('setup')
   const [groupId, setGroupId] = useState<string | null>(activeGroupId ?? groups[0]?.id ?? null)
-  const [matchEmail, setMatchEmail] = useState(false)
-  const [email, setEmail] = useState('')
+  const [matchEmail, setMatchEmail] = useState(!!initialEmail?.trim())
+  const [email, setEmail] = useState(initialEmail?.trim() ?? '')
   const [loading, setLoading] = useState(false)
   const [link, setLink] = useState('')
 
@@ -44,8 +51,8 @@ export function InviteCreateSheet({ groups, activeGroupId, onClose, showToast }:
 
   async function copyLink() {
     try {
-      await navigator.clipboard.writeText(link)
-      showToast('초대 링크를 복사했어요.', 'success')
+      await navigator.clipboard.writeText(buildInviteMessage(inviterName, link))
+      showToast('초대 메시지를 복사했어요. 카톡에 붙여넣어 보내세요.', 'success')
     } catch {
       showToast('복사하지 못했어요. 링크를 길게 눌러 복사해 주세요.', 'danger')
     }
@@ -54,7 +61,9 @@ export function InviteCreateSheet({ groups, activeGroupId, onClose, showToast }:
   async function shareLink() {
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
-        await navigator.share({ title: 'RaiLink 초대', text: 'RaiLink에서 일정을 맞춰봐요', url: link })
+        // Pass both: `text` carries the full 문구+링크 for chat apps that paste
+        // the message, `url` lets targets like KakaoTalk render the OG card.
+        await navigator.share({ title: 'RaiLink 초대', text: buildInviteMessage(inviterName, link), url: link })
       } catch { /* user cancelled — no toast */ }
     } else {
       copyLink()

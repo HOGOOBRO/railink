@@ -3,7 +3,7 @@
 import { useEffect, useRef, useMemo, useState, type ReactNode } from 'react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
-import { SearchIcon, ArrowRightIcon } from '@/components/ui/icons'
+import { SearchIcon, ArrowRightIcon, UserPlusIcon } from '@/components/ui/icons'
 import type { Colleague } from '@/lib/demo-data'
 import type { ProfileLookup } from '@/lib/store/colleagues'
 import type { ShareStatus, Visibility } from '@/lib/types/schedule'
@@ -30,12 +30,15 @@ interface SearchOverlayProps {
   lookupSabun: (employeeId: string) => Promise<ProfileLookup | null>
   /** Exact-email lookup (real accounts only). */
   lookupEmail: (email: string) => Promise<ProfileLookup | null>
+  /** Open the invite sheet — offered on search misses so a not-found colleague
+   *  isn't a dead end. Passes the typed email (if any) to pre-scope the invite. */
+  onInvite?: (prefillEmail?: string | null) => void
 }
 
 export function SearchOverlay({
   query, setQuery, colleagues, loading = false, comparedUids,
   activeGroupName, onOpenManage, onClose, onToggle,
-  shareGated, shareStatus, lookupSabun, lookupEmail,
+  shareGated, shareStatus, lookupSabun, lookupEmail, onInvite,
 }: SearchOverlayProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { inputRef.current?.focus() }, [])
@@ -171,6 +174,7 @@ export function SearchOverlay({
               <span className="text-ink-500">내 메뉴 → 내 정보 → 공개 범위</span>에서<br />
               <span className="text-ink-500 font-semibold">‘공개’</span>로 설정해야 검색에 나타나요.
             </p>
+            <InviteMissButton onInvite={onInvite} label="동료 초대하기" />
           </div>
         ) : filtered.length === 0 && !showSabun && !showEmail ? (
           <p className="py-16 px-4 text-center text-callout text-ink-500">
@@ -208,8 +212,9 @@ export function SearchOverlay({
               <div className="py-6 px-4 text-center text-caption text-ink-500 leading-relaxed">
                 <p>그 사번으로 등록된 동료가 없어요.</p>
                 <p className="mt-1.5 text-[11px] text-ink-300">
-                  사번이 정확한지, 그 동료가 RaiLink에 가입했는지 확인해 주세요.
+                  아직 RaiLink에 가입하지 않았을 수 있어요.
                 </p>
+                <InviteMissButton onInvite={onInvite} />
               </div>
             )}
           </>
@@ -235,8 +240,9 @@ export function SearchOverlay({
               <div className="py-6 px-4 text-center text-caption text-ink-500 leading-relaxed">
                 <p>그 이메일로 등록된 사람이 없어요.</p>
                 <p className="mt-1.5 text-[11px] text-ink-300">
-                  이메일이 정확한지, 그 사람이 RaiLink에 가입했는지 확인해 주세요.
+                  아직 RaiLink에 가입하지 않았을 수 있어요.
                 </p>
+                <InviteMissButton onInvite={onInvite} prefillEmail={raw} />
               </div>
             )}
           </>
@@ -369,6 +375,22 @@ function ResultRow({
         )}
       </div>
       <span className={pillCls(tone)}>{label}</span>
+    </button>
+  )
+}
+
+/* Search-miss escape hatch — turns a "not found" dead end into an invite.
+ * Renders nothing when no handler is wired (e.g. a context without invites). */
+function InviteMissButton({
+  onInvite, prefillEmail, label = '초대 메시지 보내기',
+}: { onInvite?: (prefillEmail?: string | null) => void; prefillEmail?: string | null; label?: string }) {
+  if (!onInvite) return null
+  return (
+    <button
+      onClick={() => onInvite(prefillEmail ?? null)}
+      className="mt-3.5 inline-flex items-center gap-1.5 px-4 h-10 rounded-pill bg-brand-050 text-brand text-caption font-bold"
+    >
+      <UserPlusIcon size={15} /> {label}
     </button>
   )
 }
