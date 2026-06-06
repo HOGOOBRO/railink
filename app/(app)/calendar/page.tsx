@@ -412,23 +412,29 @@ export default function CalendarPage() {
   }, [weeks, myByDate, compares, compareByDate])
 
   // Birthdays falling in the visible month, keyed by day-of-month → [{name,color}].
-  // Only compared colleagues (active group) whose birthday I'm allowed to see
-  // (colBirthdays is already RLS-gated to accepted shares). Match on month+day,
-  // ignoring year, so it recurs every year. Sorted by compare order for a stable
-  // marker color when several share a day.
+  // The people currently on the calendar = me + compared colleagues (design
+  // handoff §6). My own birthday (myBirthday, brand color) is always mine to see;
+  // colleagues come from colBirthdays, which is already RLS-gated to accepted
+  // shares. Match on month+day, ignoring year, so it recurs every year. Me first
+  // so a shared day reads as mine.
   const birthdaysByDay = useMemo(() => {
-    const map = new Map<number, { name: string; color: CompareColor; photo?: string }[]>()
+    const map = new Map<number, { name: string; color: CompareColor | 'brand'; photo?: string }[]>()
     const mm = String(month).padStart(2, '0')
+    const add = (day: number, entry: { name: string; color: CompareColor | 'brand'; photo?: string }) => {
+      const list = map.get(day) ?? []
+      list.push(entry)
+      map.set(day, list)
+    }
+    if (session && myBirthday && myBirthday.slice(5, 7) === mm) {
+      add(Number(myBirthday.slice(8, 10)), { name: session.name, color: 'brand', photo: session.photo })
+    }
     for (const cmp of compares) {
       const b = colBirthdays[cmp.uid]
       if (!b || b.slice(5, 7) !== mm) continue
-      const day = Number(b.slice(8, 10))
-      const list = map.get(day) ?? []
-      list.push({ name: cmp.name, color: cmp.color, photo: cmp.photo })
-      map.set(day, list)
+      add(Number(b.slice(8, 10)), { name: cmp.name, color: cmp.color, photo: cmp.photo })
     }
     return map
-  }, [compares, colBirthdays, month])
+  }, [session, myBirthday, compares, colBirthdays, month])
 
   // Timeline items for the selected date.
   // People (columns) with their month-long shifts — fed to the continuous

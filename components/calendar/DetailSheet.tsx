@@ -15,8 +15,8 @@ interface DetailSheetProps {
   month: number         // 1-12
   today: Date
   people: MonthPerson[]
-  /** day-of-month → 그 날 생일인 동료들. 표시 중인 날(topDay)의 생일을 배너로 노출. */
-  birthdaysByDay?: Map<number, { name: string; color: CompareColor; photo?: string }[]>
+  /** day-of-month → 그 날 생일(나 + 비교 동료). 표시 중인 날(topDay)의 생일을 배너로 노출. */
+  birthdaysByDay?: Map<number, { name: string; color: CompareColor | 'brand'; photo?: string }[]>
   onClose: () => void
   onAddCompare: () => void
   onEdit: () => void
