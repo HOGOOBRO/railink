@@ -44,6 +44,16 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     startupImage: ['/apple-splash'],
   },
+  // Search engine site verification (rendered into <head> as <meta> tags).
+  // Naver 서치어드바이저 + Google Search Console "HTML 태그" method. (Google can
+  // also verify via the DNS TXT record in Vercel DNS — that path doesn't need
+  // this tag.)
+  verification: {
+    google: 'oETvNpqz_tZgbKyUYZ15GbF10AGg1RrhuwtWoFHE9s8',
+    other: {
+      'naver-site-verification': 'cfe75c133903a6b79a29b1988a77274b13df6758',
+    },
+  },
 }
 
 export const viewport = {
