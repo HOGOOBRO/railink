@@ -130,6 +130,46 @@ export async function login(email: string, password: string): Promise<LoginResul
   return { ok: false, code: 'error', message: '로그인 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
 }
 
+/* ── Google OAuth ──────────────────────────────────────────────────────────── */
+
+/** Start the Google OAuth flow (full-page redirect to Google → Supabase →
+ *  /auth/callback). Returns only on failure; on success the browser navigates
+ *  away. New Google users have no 사번/파트, so the new-user trigger classifies
+ *  them as profile_type='personal' (see 20260606000000_oauth_google_personal).
+ *
+ *  Why we rewrite the URL: in the browser the supabase client targets the
+ *  same-origin proxy (/api/sb-proxy) to dodge a CORS preflight on data calls.
+ *  But OAuth is a full-page navigation, not a fetch — there's no preflight, and
+ *  the proxy can't carry the browser through Google's redirect chain. So we ask
+ *  supabase-js to BUILD the authorize URL (skipBrowserRedirect) and then swap
+ *  the proxy prefix back to the direct Supabase host before navigating. The
+ *  PKCE code verifier was just written to localStorage by this same client, so
+ *  the /auth/callback exchange reads it back without trouble. */
+export async function signInWithGoogle(
+  inviteToken?: string | null,
+): Promise<{ ok: boolean; message?: string }> {
+  if (typeof window === 'undefined') return { ok: false }
+  localStorage.removeItem(DEMO_SESSION_KEY)
+  const redirectTo = `${window.location.origin}/auth/callback${
+    inviteToken ? `?invite=${encodeURIComponent(inviteToken)}` : ''
+  }`
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { skipBrowserRedirect: true, redirectTo },
+  })
+  if (error || !data?.url) {
+    return { ok: false, message: 'Google 로그인을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.' }
+  }
+  const directUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const proxyPrefix = `${window.location.origin}/api/sb-proxy`
+  let url = data.url
+  if (directUrl && url.startsWith(proxyPrefix)) {
+    url = directUrl.replace(/\/+$/, '') + url.slice(proxyPrefix.length)
+  }
+  window.location.assign(url)
+  return { ok: true }
+}
+
 /* ── Sign-up ───────────────────────────────────────────────────────────────── */
 
 export interface SignupInput {

@@ -6,9 +6,9 @@ import Link from 'next/link'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
-import { BrandMark, EyeIcon } from '@/components/ui/icons'
+import { BrandMark, EyeIcon, GoogleIcon } from '@/components/ui/icons'
 import { InstallLoginBanner } from '@/components/InstallLoginBanner'
-import { login, getCurrentSession, resendConfirmation } from '@/lib/auth'
+import { login, getCurrentSession, resendConfirmation, signInWithGoogle } from '@/lib/auth'
 import { savePendingInvite } from '@/lib/store/invites'
 import { DEMO_LOGIN } from '@/lib/demo-data'
 import { BootSplash } from '@/components/loading/BootSplash'
@@ -24,6 +24,7 @@ export default function LoginPage() {
   const [error, setError]       = useState<string | null>(null)
   const [unconfirmed, setUnconfirmed] = useState(false)
   const [loading, setLoading]   = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   // While the existing-session check is in flight, render a neutral surface
   // instead of the form. On a PWA cold boot the session resolves async (a
   // refresh round-trip on cold start), and showing the form first made the
@@ -79,6 +80,21 @@ export default function LoginPage() {
     // An invite stashed at /signup?invite= is consumed on the calendar mount
     // (single chokepoint that also handles signup + already-logged-in entry).
     router.push('/calendar')
+  }
+
+  async function handleGoogle() {
+    setError(null)
+    setGoogleLoading(true)
+    // Carry an invite arriving via ?invite= through the Google round trip.
+    const invite = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('invite')
+      : null
+    const res = await signInWithGoogle(invite)
+    // On success the browser navigates away; we only land here on failure.
+    if (!res.ok) {
+      setGoogleLoading(false)
+      setError(res.message ?? 'Google 로그인을 시작하지 못했어요.')
+    }
   }
 
   async function handleResend() {
@@ -189,6 +205,19 @@ export default function LoginPage() {
           <span className="text-[11px] font-semibold tracking-wider text-ink-500">또는</span>
           <div className="flex-1 h-px bg-line-2" />
         </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          block
+          onClick={handleGoogle}
+          disabled={googleLoading || loading}
+        >
+          <GoogleIcon size={18} />
+          {googleLoading ? '연결 중…' : 'Google로 계속하기'}
+        </Button>
+
+        <div className="h-2.5" />
 
         <Link href="/signup" className="w-full">
           <Button type="button" variant="outline-brand" block>
