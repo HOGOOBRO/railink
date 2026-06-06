@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { CloseIcon, PlusIcon, EditIcon } from '@/components/ui/icons'
+import { CloseIcon, PlusIcon, EditIcon, CakeIcon } from '@/components/ui/icons'
 import { MonthTimeline, DAY_PX, type MonthPerson } from './MonthTimeline'
 import { DOW_KR } from '@/lib/schedule-utils'
 import { holidayNameFor } from '@/lib/holidays-kr'
@@ -13,13 +13,15 @@ interface DetailSheetProps {
   month: number         // 1-12
   today: Date
   people: MonthPerson[]
+  /** day-of-month → 그 날 생일인 동료들. 표시 중인 날(topDay)의 생일을 헤더에 노출. */
+  birthdaysByDay?: Map<number, { name: string; color: string }[]>
   onClose: () => void
   onAddCompare: () => void
   onEdit: () => void
 }
 
 export function DetailSheet({
-  date, year, month, today, people, onClose, onAddCompare, onEdit,
+  date, year, month, today, people, birthdaysByDay, onClose, onAddCompare, onEdit,
 }: DetailSheetProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const dim = new Date(year, month, 0).getDate()
@@ -53,6 +55,7 @@ export function DetailSheet({
   // as the calendar grid so the sheet heading reads consistently.
   const dowClass = holiday || dow === 0 ? 'text-danger' : dow === 6 ? 'text-c1' : 'text-ink-500'
   const workN = shownPeople.filter(p => p.shifts.some(s => s.day === topDay)).length
+  const birthdays = birthdaysByDay?.get(topDay) ?? []
 
   return (
     <div className="flex flex-col" style={{ height: '88dvh' }}>
@@ -68,6 +71,12 @@ export function DetailSheet({
             )}
           </h3>
           <p className="text-caption text-ink-500 mt-0.5">근무 {workN}명 · 위아래로 넘겨 다른 날</p>
+          {birthdays.length > 0 && (
+            <p className="mt-1 flex items-center gap-1 text-caption font-semibold text-ink-700">
+              <span style={{ color: birthdays[0].color }}><CakeIcon size={13} /></span>
+              {birthdays.map(b => b.name).join(' · ')}님 생일
+            </p>
+          )}
         </div>
         <button
           onClick={onClose}

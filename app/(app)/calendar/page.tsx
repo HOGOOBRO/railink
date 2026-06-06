@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { useToast } from '@/components/ui/Toast'
 import {
-  BrandMark, SearchIcon, PlusIcon, ChevronLeftIcon, ChevronRightIcon, UploadIcon, ArrowRightIcon, EditIcon, UserPlusIcon,
+  BrandMark, SearchIcon, PlusIcon, ChevronLeftIcon, ChevronRightIcon, UploadIcon, ArrowRightIcon, EditIcon, UserPlusIcon, CakeIcon, CloseIcon,
 } from '@/components/ui/icons'
 import { CalCell, type CellBar } from '@/components/calendar/CalCell'
 import { DetailSheet } from '@/components/calendar/DetailSheet'
@@ -45,6 +45,7 @@ import {
   isDemoColleagueUid,
 } from '@/lib/store/colleagues'
 import { myViewerShareStatuses, requestShare, cancelShare, listShares } from '@/lib/store/shares'
+import { getMemberBirthdays, getMyBirthday } from '@/lib/store/birthdays'
 import { consumePendingInvite } from '@/lib/store/invites'
 import { getMemberColors, setMemberColor } from '@/lib/store/member-colors'
 import type { Colleague } from '@/lib/demo-data'
@@ -108,6 +109,11 @@ export default function CalendarPage() {
   const [colorOverrides, setColorOverrides] = useState<Record<string, CompareColor>>({})
   const [migrationOpen, setMigrationOpen] = useState(false)
   const [reload, setReload] = useState(0)
+  // Compared colleagues' birthdays I'm allowed to see (uid → 'YYYY-MM-DD'); RLS
+  // returns only accepted-share owners. My own birthday drives the nudge card.
+  const [colBirthdays, setColBirthdays] = useState<Record<string, string>>({})
+  const [myBirthday, setMyBirthday] = useState<string | null>(null)
+  const [bdayNudgeDismissed, setBdayNudgeDismissed] = useState(true)
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -218,6 +224,23 @@ export default function CalendarPage() {
         if (!alive) return
         setMySched(mine)
         setColSched(cols)
+
+        // Birthdays — fetched separately so a birthday error never blanks the
+        // calendar. RLS returns only colleagues who shared their schedule with
+        // me (accepted); my own row decides whether to show the nudge card.
+        try {
+          const [memberB, myB] = await Promise.all([
+            getMemberBirthdays(memberUids),
+            getMyBirthday(),
+          ])
+          if (!alive) return
+          setColBirthdays(memberB)
+          setMyBirthday(myB)
+          setBdayNudgeDismissed(
+            myB !== null ||
+            (typeof window !== 'undefined' && localStorage.getItem(`railink_bday_nudge_${s.uid}`) === '1'),
+          )
+        } catch { /* best-effort; leave markers/nudge off */ }
       }
 
       // Primary month data is on screen now — drop the first-load skeleton (⑤)
@@ -383,6 +406,25 @@ export default function CalendarPage() {
     return map
   }, [weeks, myByDate, compares, compareByDate])
 
+  // Birthdays falling in the visible month, keyed by day-of-month → [{name,color}].
+  // Only compared colleagues (active group) whose birthday I'm allowed to see
+  // (colBirthdays is already RLS-gated to accepted shares). Match on month+day,
+  // ignoring year, so it recurs every year. Sorted by compare order for a stable
+  // marker color when several share a day.
+  const birthdaysByDay = useMemo(() => {
+    const map = new Map<number, { name: string; color: string }[]>()
+    const mm = String(month).padStart(2, '0')
+    for (const cmp of compares) {
+      const b = colBirthdays[cmp.uid]
+      if (!b || b.slice(5, 7) !== mm) continue
+      const day = Number(b.slice(8, 10))
+      const list = map.get(day) ?? []
+      list.push({ name: cmp.name, color: cssColor(cmp.color) })
+      map.set(day, list)
+    }
+    return map
+  }, [compares, colBirthdays, month])
+
   // Timeline items for the selected date.
   // People (columns) with their month-long shifts — fed to the continuous
   // timeline so overnight shifts span the midnight divider as one card.
@@ -422,6 +464,13 @@ export default function CalendarPage() {
       localStorage.setItem(`railink_hint_dismissed_${session.uid}`, '1')
     }
     setHintDismissed(true)
+  }
+
+  function dismissBdayNudge() {
+    if (session && typeof window !== 'undefined') {
+      localStorage.setItem(`railink_bday_nudge_${session.uid}`, '1')
+    }
+    setBdayNudgeDismissed(true)
   }
 
   const openSearch = () => { closeOverlays(); setSearchQuery(''); setSearchOpen(true); refreshShareStatus() }
@@ -753,6 +802,27 @@ export default function CalendarPage() {
         </button>
       )}
 
+      {/* ── Birthday nudge ── one-time, dismissible. Shown to real accounts who
+          are comparing someone but haven't set their own birthday yet. */}
+      {!session.isDemo && compares.length > 0 && myBirthday === null && !bdayNudgeDismissed && (
+        <div className="w-full flex items-center gap-2 px-4 py-2.5 bg-surface border-b border-line">
+          <span className="text-brand shrink-0"><CakeIcon size={16} /></span>
+          <button
+            onClick={() => router.push('/settings/info?focus=birthday')}
+            className="flex-1 text-caption font-semibold text-ink-700 text-left"
+          >
+            내 생일을 등록하면 같이 보는 동료 캘린더에 표시돼요
+          </button>
+          <button
+            onClick={dismissBdayNudge}
+            aria-label="생일 안내 닫기"
+            className="shrink-0 text-ink-300 hover:text-ink-500 p-1"
+          >
+            <CloseIcon size={14} />
+          </button>
+        </div>
+      )}
+
       {/* ── Month bar ── */}
       <div className="bg-surface flex flex-col">
         <div className="flex items-center justify-between h-topbar px-4">
@@ -833,6 +903,7 @@ export default function CalendarPage() {
                     dow={ci}
                     holiday={holidayNameFor(c.iso)}
                     isPast={!!c.iso && c.iso < todayIso}
+                    birthdayColor={c.isOther ? null : birthdaysByDay.get(c.d)?.[0]?.color ?? null}
                   />
                 </button>
               ))}
@@ -921,6 +992,7 @@ export default function CalendarPage() {
             month={month}
             today={today}
             people={monthPeople}
+            birthdaysByDay={birthdaysByDay}
             onClose={() => setDetailOpen(false)}
             onAddCompare={openSearch}
             onEdit={openManualEdit}

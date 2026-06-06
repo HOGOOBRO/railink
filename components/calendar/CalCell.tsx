@@ -6,7 +6,11 @@
  * Today (filled brand circle) beats every state — it overrides the weekend/
  * holiday hue and the single-worker chip so it can never be mistaken for a
  * holiday. Holidays carry a red bar above the number (never a dot) + red
- * number. Selected (brand tint) shades the cell background. */
+ * number. Selected (brand tint) shades the cell background.
+ * Birthday (compared colleague, gated by accepted share) → a small cake glyph in
+ * the top-right corner, tinted to that colleague's compare color. Who it is shows
+ * in the day detail sheet. */
+import { CakeIcon } from '@/components/ui/icons'
 
 export interface CellBar {
   color: string   // CSS color value, e.g. 'var(--brand)' or 'var(--c3)'
@@ -25,9 +29,11 @@ interface CalCellProps {
   holiday?: string | null
   /** 오늘 이전 날짜. 전경(숫자·칩·도트·공휴일 바)만 톤다운한다 — 탭·편집은 그대로. */
   isPast?: boolean
+  /** 이 날 생일인 비교 동료의 색(들). 있으면 우상단에 케이크 마커(첫 색으로 틴트). */
+  birthdayColor?: string | null
 }
 
-export function CalCell({ d, isOther, today, selected, bars, dow, holiday, isPast }: CalCellProps) {
+export function CalCell({ d, isOther, today, selected, bars, dow, holiday, isPast, birthdayColor }: CalCellProps) {
   const work = bars.filter(b => !b.isOff)
   const offCount = bars.length - work.length
   const single = work.length === 1 ? work[0] : null
@@ -96,6 +102,16 @@ export function CalCell({ d, isOther, today, selected, bars, dow, holiday, isPas
           to stay distinct from today's filled circle). */}
       {holiday && !isOther && !today && (
         <span className={`absolute top-[5px] left-1/2 -translate-x-1/2 w-[10px] h-[2.5px] rounded-[2px] bg-danger pointer-events-none${dimCls}`} />
+      )}
+      {/* Birthday marker — top-right cake, tinted to the colleague's color.
+          Who it is shows in the day detail sheet. */}
+      {birthdayColor && !isOther && (
+        <span
+          className={`absolute top-[3px] right-[3px] pointer-events-none${dimCls}`}
+          style={{ color: birthdayColor }}
+        >
+          <CakeIcon size={12} />
+        </span>
       )}
       {inner}
       {work.length >= 2 && (

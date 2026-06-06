@@ -142,6 +142,20 @@ export function InfoIcon({ size = 14, className }: IconProps) {
   )
 }
 
+export function CakeIcon({ size = 14, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base} className={className}>
+      {/* candle flame + stick */}
+      <path d="M12 3c.8.7.8 1.6 0 2.3-.8-.7-.8-1.6 0-2.3Z" />
+      <line x1="12" y1="6" x2="12" y2="8.5" />
+      {/* cake body + plate */}
+      <path d="M6 13c0-1.4 1-2.3 2.4-2.3h7.2C17 10.7 18 11.6 18 13v5H6v-5Z" />
+      <path d="M6 14.5c1 0 1 1 2 1s1-1 2-1 1 1 2 1 1-1 2-1 1 1 2 1 1-1 2-1" />
+      <line x1="4.5" y1="18" x2="19.5" y2="18" />
+    </svg>
+  )
+}
+
 export function ArrowRightIcon({ size = 18, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2.2} {...base} className={className}>
