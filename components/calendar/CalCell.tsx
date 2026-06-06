@@ -7,10 +7,10 @@
  * holiday hue and the single-worker chip so it can never be mistaken for a
  * holiday. Holidays carry a red bar above the number (never a dot) + red
  * number. Selected (brand tint) shades the cell background.
- * Birthday (compared colleague, gated by accepted share) → a small cake glyph in
- * the top-right corner, tinted to that colleague's compare color. Who it is shows
- * in the day detail sheet. */
-import { CakeIcon } from '@/components/ui/icons'
+ * Birthday (compared colleague, gated by accepted share) → a small pink dot in
+ * the top-right corner (design handoff: a dot, never a cake glyph — at this size
+ * the icon collapses into noise). One dot per day regardless of how many; who it
+ * is shows in the day detail sheet's banner. */
 
 export interface CellBar {
   color: string   // CSS color value, e.g. 'var(--brand)' or 'var(--c3)'
@@ -29,11 +29,11 @@ interface CalCellProps {
   holiday?: string | null
   /** 오늘 이전 날짜. 전경(숫자·칩·도트·공휴일 바)만 톤다운한다 — 탭·편집은 그대로. */
   isPast?: boolean
-  /** 이 날 생일인 비교 동료의 색(들). 있으면 우상단에 케이크 마커(첫 색으로 틴트). */
-  birthdayColor?: string | null
+  /** 이 날 생일인 비교 동료가 1명 이상이면 우상단에 핑크 점. */
+  hasBirthday?: boolean
 }
 
-export function CalCell({ d, isOther, today, selected, bars, dow, holiday, isPast, birthdayColor }: CalCellProps) {
+export function CalCell({ d, isOther, today, selected, bars, dow, holiday, isPast, hasBirthday }: CalCellProps) {
   const work = bars.filter(b => !b.isOff)
   const offCount = bars.length - work.length
   const single = work.length === 1 ? work[0] : null
@@ -103,15 +103,14 @@ export function CalCell({ d, isOther, today, selected, bars, dow, holiday, isPas
       {holiday && !isOther && !today && (
         <span className={`absolute top-[5px] left-1/2 -translate-x-1/2 w-[10px] h-[2.5px] rounded-[2px] bg-danger pointer-events-none${dimCls}`} />
       )}
-      {/* Birthday marker — top-right cake, tinted to the colleague's color.
-          Who it is shows in the day detail sheet. */}
-      {birthdayColor && !isOther && (
+      {/* Birthday marker — top-right pink dot with a white ring. Independent of
+          all other cell content (today circle, work chips, holiday bar); the
+          corner position keeps it clear of them. Dims with past-date foreground. */}
+      {hasBirthday && !isOther && (
         <span
-          className={`absolute top-[3px] right-[3px] pointer-events-none${dimCls}`}
-          style={{ color: birthdayColor }}
-        >
-          <CakeIcon size={12} />
-        </span>
+          className={`absolute top-[7px] right-[8px] w-[7px] h-[7px] rounded-full pointer-events-none${dimCls}`}
+          style={{ background: '#E8669B', boxShadow: '0 0 0 1.5px #fff' }}
+        />
       )}
       {inner}
       {work.length >= 2 && (

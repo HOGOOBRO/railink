@@ -417,14 +417,14 @@ export default function CalendarPage() {
   // ignoring year, so it recurs every year. Sorted by compare order for a stable
   // marker color when several share a day.
   const birthdaysByDay = useMemo(() => {
-    const map = new Map<number, { name: string; color: string }[]>()
+    const map = new Map<number, { name: string; color: CompareColor; photo?: string }[]>()
     const mm = String(month).padStart(2, '0')
     for (const cmp of compares) {
       const b = colBirthdays[cmp.uid]
       if (!b || b.slice(5, 7) !== mm) continue
       const day = Number(b.slice(8, 10))
       const list = map.get(day) ?? []
-      list.push({ name: cmp.name, color: cssColor(cmp.color) })
+      list.push({ name: cmp.name, color: cmp.color, photo: cmp.photo })
       map.set(day, list)
     }
     return map
@@ -811,7 +811,7 @@ export default function CalendarPage() {
           are comparing someone but haven't set their own birthday yet. */}
       {!session.isDemo && compares.length > 0 && myBirthday === null && !bdayNudgeDismissed && (
         <div className="w-full flex items-center gap-2 px-4 py-2.5 bg-surface border-b border-line">
-          <span className="text-brand shrink-0"><CakeIcon size={16} /></span>
+          <span className="shrink-0" style={{ color: '#E8669B' }}><CakeIcon size={16} /></span>
           <button
             onClick={() => router.push('/settings/info?focus=birthday')}
             className="flex-1 text-caption font-semibold text-ink-700 text-left"
@@ -908,7 +908,7 @@ export default function CalendarPage() {
                     dow={ci}
                     holiday={holidayNameFor(c.iso)}
                     isPast={!!c.iso && c.iso < todayIso}
-                    birthdayColor={c.isOther ? null : birthdaysByDay.get(c.d)?.[0]?.color ?? null}
+                    hasBirthday={!c.isOther && birthdaysByDay.has(c.d)}
                   />
                 </button>
               ))}
