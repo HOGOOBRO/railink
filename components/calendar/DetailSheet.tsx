@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { CloseIcon, PlusIcon, EditIcon } from '@/components/ui/icons'
+import { Avatar } from '@/components/ui/Avatar'
+import { CloseIcon, PlusIcon, EditIcon, CakeIcon } from '@/components/ui/icons'
 import { MonthTimeline, DAY_PX, type MonthPerson } from './MonthTimeline'
 import { DOW_KR } from '@/lib/schedule-utils'
 import { holidayNameFor } from '@/lib/holidays-kr'
+import type { CompareColor } from '@/lib/types/schedule'
 
 interface DetailSheetProps {
   date: Date            // day to open scrolled to
@@ -13,13 +15,15 @@ interface DetailSheetProps {
   month: number         // 1-12
   today: Date
   people: MonthPerson[]
+  /** day-of-month → 그 날 생일인 동료들. 표시 중인 날(topDay)의 생일을 배너로 노출. */
+  birthdaysByDay?: Map<number, { name: string; color: CompareColor; photo?: string }[]>
   onClose: () => void
   onAddCompare: () => void
   onEdit: () => void
 }
 
 export function DetailSheet({
-  date, year, month, today, people, onClose, onAddCompare, onEdit,
+  date, year, month, today, people, birthdaysByDay, onClose, onAddCompare, onEdit,
 }: DetailSheetProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const dim = new Date(year, month, 0).getDate()
@@ -54,6 +58,16 @@ export function DetailSheet({
   const dowClass = holiday || dow === 0 ? 'text-danger' : dow === 6 ? 'text-c1' : 'text-ink-500'
   const workN = shownPeople.filter(p => p.shifts.some(s => s.day === topDay)).length
 
+  // Birthday banner (design handoff): names ` · `-joined + ` 님`; 3+ collapse to
+  // "{first} 외 N명". Eyebrow is "오늘 생일" when the shown day is the real today.
+  const birthdays = birthdaysByDay?.get(topDay) ?? []
+  const bdayNames = birthdays.map(b => b.name)
+  const bdayIsToday =
+    today.getFullYear() === year && today.getMonth() + 1 === month && today.getDate() === topDay
+  const bdayLabel = bdayNames.length <= 2
+    ? `${bdayNames.join(' · ')} 님`
+    : `${bdayNames[0]} 외 ${bdayNames.length - 1}명`
+
   return (
     <div className="flex flex-col" style={{ height: '88dvh' }}>
       <div className="flex items-start justify-between px-5 pt-2 pb-2 shrink-0 border-b border-line">
@@ -77,6 +91,59 @@ export function DetailSheet({
           <CloseIcon size={18} />
         </button>
       </div>
+
+      {/* Birthday banner — directly under the header, above the timeline. Shows
+          even on 근무 0명 days. Single pink accent (#E8669B family) ties it to the
+          calendar dot so "pink = birthday" reads after one tap. */}
+      {birthdays.length > 0 && (
+        <div
+          className="shrink-0 flex items-center gap-3 mx-4 mt-1 mb-3.5 px-3.5 py-3 rounded-[14px]"
+          style={{ background: '#FBEEF4' }}
+        >
+          <span
+            className="w-[42px] h-[42px] rounded-[13px] bg-white grid place-items-center shrink-0"
+            style={{ boxShadow: '0 1px 3px rgba(184,58,110,.12)' }}
+          >
+            <span style={{ color: '#E8669B' }}><CakeIcon size={24} /></span>
+          </span>
+          <div className="min-w-0">
+            <p
+              className="text-[10.5px] font-extrabold tracking-[0.06em] uppercase"
+              style={{ color: '#C24B82' }}
+            >
+              {bdayIsToday ? '오늘 생일' : '생일'}
+            </p>
+            <p className="text-[15px] font-bold mt-0.5 truncate" style={{ color: '#7E2A52' }}>
+              {bdayLabel}
+            </p>
+          </div>
+          <div className="ml-auto flex shrink-0 items-center">
+            {birthdays.slice(0, 3).map((b, i) => (
+              <span
+                key={i}
+                className="rounded-full"
+                style={{ boxShadow: '0 0 0 2px #FBEEF4', marginLeft: i > 0 ? -8 : 0 }}
+              >
+                <Avatar
+                  name={b.name}
+                  photo={b.photo}
+                  color={b.color}
+                  size="sm"
+                  className="!w-[30px] !h-[30px] !text-[11px]"
+                />
+              </span>
+            ))}
+            {birthdays.length > 3 && (
+              <span
+                className="grid place-items-center w-[30px] h-[30px] rounded-full bg-white text-[11px] font-bold"
+                style={{ boxShadow: '0 0 0 2px #FBEEF4', marginLeft: -8, color: '#C24B82' }}
+              >
+                +{birthdays.length - 3}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-auto overscroll-contain">
         {shownPeople.length > 0

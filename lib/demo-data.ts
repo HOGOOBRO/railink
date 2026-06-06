@@ -195,3 +195,31 @@ export function buildMyScheduleFor(uid: string): ScheduleEntry[] {
 export function findColleague(uid: string): Colleague | undefined {
   return DEMO_COLLEAGUES.find(c => c.uid === uid)
 }
+
+/** Demo colleagues' birthdays (uid → 'YYYY-MM-DD'). The four pre-compared
+ * colleagues (u1·u2·u4·u6, see demo-seed DEMO_COMPARE_UIDS) are placed in the
+ * *current* month on distinct days so the cake marker is visible the instant the
+ * demo calendar opens; the rest are spread across the year so navigating months
+ * still surfaces the occasional birthday. Year is cosmetic (display is month/day)
+ * — set ~28 years back so the detail copy reads a plausible age if ever shown. */
+export function buildDemoBirthdays(): Record<string, string> {
+  const now = new Date()
+  const yy = now.getFullYear() - 28
+  const mm = String(now.getMonth() + 1).padStart(2, '0')
+  const thisMonth = (day: number) => `${yy}-${mm}-${String(day).padStart(2, '0')}`
+  return {
+    u1: thisMonth(3),
+    u2: thisMonth(12),
+    u4: thisMonth(18),
+    u6: thisMonth(25),
+    u3: '1994-03-09',
+    u5: '1991-07-22',
+    u7: '1996-11-02',
+    u8: '1993-01-15',
+    u9: '1995-09-28',
+    u10: '1992-05-06',
+    u11: '1990-12-19',
+    u12: '1997-08-14',
+    u13: '1998-06-30',
+  }
+}

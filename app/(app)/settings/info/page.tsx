@@ -19,6 +19,7 @@ import {
   listSharesWithProfile, respondShare,
   type ShareListsWithProfile, type ShareWithProfile,
 } from '@/lib/store/shares'
+import { getMyBirthday, setMyBirthday as saveMyBirthday } from '@/lib/store/birthdays'
 import { DangerConfirm } from '@/components/ui/DangerConfirm'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
@@ -46,6 +47,9 @@ export default function SettingsInfoPage() {
   const [name, setName] = useState('')
   const [part, setPart] = useState('')
   const [email, setEmail] = useState('')
+  // Birthday ('' = unset). initialBirthday tracks the saved value for dirty-check.
+  const [birthday, setBirthday] = useState('')
+  const [initialBirthday, setInitialBirthday] = useState('')
 
   const [vis, setVis] = useState<Visibility>('public')
   const [pendingPrivate, setPendingPrivate] = useState(false)
@@ -55,15 +59,18 @@ export default function SettingsInfoPage() {
 
   const [confirmOpen, setConfirmOpen] = useState(false)
   const sharesRef = useRef<HTMLDivElement>(null)
+  const birthdayRef = useRef<HTMLDivElement>(null)
 
   // Inbox banner / badge deep-link (§5): /settings/info?focus=shares scrolls to
   // the 공유 중인 동료 section. Reads location directly (no useSearchParams) so
   // the page stays statically prerendered.
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (new URLSearchParams(window.location.search).get('focus') !== 'shares') return
+    const focus = new URLSearchParams(window.location.search).get('focus')
+    const target = focus === 'shares' ? sharesRef : focus === 'birthday' ? birthdayRef : null
+    if (!target) return
     const t = window.setTimeout(
-      () => sharesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      () => target.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
       120,
     )
     return () => window.clearTimeout(t)
@@ -101,6 +108,8 @@ export default function SettingsInfoPage() {
         }
         const lists = await listSharesWithProfile()
         if (alive) setShares(lists)
+        const b = await getMyBirthday()
+        if (alive) { setBirthday(b ?? ''); setInitialBirthday(b ?? '') }
       }
     })()
     return () => { alive = false }
@@ -143,8 +152,8 @@ export default function SettingsInfoPage() {
 
   const dirty = useMemo(() => {
     if (!session) return false
-    return name !== session.name || part !== (session.part ?? '')
-  }, [session, name, part])
+    return name !== session.name || part !== (session.part ?? '') || birthday !== initialBirthday
+  }, [session, name, part, birthday, initialBirthday])
 
   // Section B rows: 요청 받음 → 공유 중. "내가 요청 중"은 캘린더 비교 그룹이
   // 단일 진실 출처이므로 여기엔 노출하지 않는다 — 그룹에서 빼는 동작이 곧 취소다.
@@ -162,11 +171,22 @@ export default function SettingsInfoPage() {
       employeeId: session.employeeId,
       part: part.trim() || undefined,
     })
-    setSaving(false)
     if (!res.ok) {
+      setSaving(false)
       showToast(res.message ?? '저장에 실패했어요.', 'danger')
       return
     }
+    // Birthday lives in its own privacy-gated table — save only when changed.
+    if (birthday !== initialBirthday) {
+      const br = await saveMyBirthday(birthday || null)
+      if (!br.ok) {
+        setSaving(false)
+        showToast(br.message ?? '생일 저장에 실패했어요.', 'danger')
+        return
+      }
+      setInitialBirthday(birthday)
+    }
+    setSaving(false)
     setSession({ ...session, name: name.trim(), part: part.trim() || undefined })
     showToast('변경 사항을 저장했어요.', 'success')
   }
@@ -249,6 +269,17 @@ export default function SettingsInfoPage() {
           <FieldRow label="이름" hint={session.profileType === 'personal' ? '친구가 보는 이름이에요.' : undefined}>
             <FlatInput value={name} onChange={setName} />
           </FieldRow>
+          <div ref={birthdayRef}>
+            <FieldRow label="생일" hint="일정을 공유한 동료의 캘린더에만 표시돼요. 비우면 표시되지 않아요.">
+              <input
+                type="date"
+                value={birthday}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={e => setBirthday(e.target.value)}
+                className="w-full h-7 bg-transparent outline-none text-[15px] font-en text-ink-900"
+              />
+            </FieldRow>
+          </div>
           {/* 사번·소속 파트는 KTX 전용 식별 정보 — personal 계정에는 숨김. */}
           {session.profileType !== 'personal' && (
             <>
