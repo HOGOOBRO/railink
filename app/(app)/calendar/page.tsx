@@ -48,7 +48,7 @@ import { myViewerShareStatuses, requestShare, cancelShare, listShares } from '@/
 import { getMemberBirthdays, getMyBirthday } from '@/lib/store/birthdays'
 import { consumePendingInvite } from '@/lib/store/invites'
 import { getMemberColors, setMemberColor } from '@/lib/store/member-colors'
-import type { Colleague } from '@/lib/demo-data'
+import { buildDemoBirthdays, type Colleague } from '@/lib/demo-data'
 import {
   DOW_KR, buildMonthCells, hmToDecimal,
 } from '@/lib/schedule-utils'
@@ -205,6 +205,11 @@ export default function CalendarPage() {
         for (const uid of memberUids) cols[uid] = getMonthSchedules(uid, year, month)
         if (!alive) return
         setColSched(cols)
+        // Demo birthdays are local (no Supabase) so the cake marker is demoable.
+        const allB = buildDemoBirthdays()
+        const demoB: Record<string, string> = {}
+        for (const uid of memberUids) if (allB[uid]) demoB[uid] = allB[uid]
+        setColBirthdays(demoB)
       } else {
         try {
           const [remoteMine, remoteCols] = await Promise.all([
