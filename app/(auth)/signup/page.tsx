@@ -6,9 +6,9 @@ import Link from 'next/link'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { BrandMark, ChevronLeftIcon, EyeIcon } from '@/components/ui/icons'
+import { BrandMark, ChevronLeftIcon, EyeIcon, GoogleIcon } from '@/components/ui/icons'
 import { useToast } from '@/components/ui/Toast'
-import { signup, getCurrentSession, resendConfirmation } from '@/lib/auth'
+import { signup, getCurrentSession, resendConfirmation, signInWithGoogle } from '@/lib/auth'
 import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
 import type { Visibility, ProfileType } from '@/lib/types/schedule'
 import { savePendingInvite, peekInvite } from '@/lib/store/invites'
@@ -104,6 +104,7 @@ export default function SignupPage() {
   const [errors, setErrors] = useState<FormErrors>({})
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const [sentTo, setSentTo] = useState<string | null>(null)
 
   const isKtx = profileType === 'ktx_attendant'
@@ -210,6 +211,17 @@ export default function SignupPage() {
     router.push('/calendar')
   }
 
+  async function handleGoogle() {
+    setGoogleLoading(true)
+    // Google signups have no 사번/파트 → trigger classifies them as personal.
+    // Any invite token is threaded through so it survives the round trip.
+    const res = await signInWithGoogle(inviteToken)
+    if (!res.ok) {
+      setGoogleLoading(false)
+      showToast(res.message ?? 'Google 로그인을 시작하지 못했어요.', 'danger')
+    }
+  }
+
   async function handleResend() {
     if (!sentTo) return
     await resendConfirmation(sentTo)
@@ -287,6 +299,26 @@ export default function SignupPage() {
             계정 만들기
           </h1>
         )}
+
+        {/* Google — fastest path for personal users (no 사번 to type). KTX crew
+            can still use it and add their 사번 in 설정 later. */}
+        <Button
+          type="button"
+          variant="outline"
+          block
+          className="mt-4"
+          onClick={handleGoogle}
+          disabled={googleLoading || loading}
+        >
+          <GoogleIcon size={18} />
+          {googleLoading ? '연결 중…' : 'Google로 계속하기'}
+        </Button>
+
+        <div className="flex items-center gap-3 my-4">
+          <div className="flex-1 h-px bg-line-2" />
+          <span className="text-[11px] font-semibold tracking-wider text-ink-500">또는 이메일로 가입</span>
+          <div className="flex-1 h-px bg-line-2" />
+        </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3.5" noValidate>
           {/* The first question — branch toggle */}
