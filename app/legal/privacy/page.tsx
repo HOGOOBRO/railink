@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   description: 'RaiLink 개인정보 처리방침.',
 }
 
-const EFFECTIVE_DATE = '2026.06.01'
+const EFFECTIVE_DATE = '2026.06.08'
 
 export default function PrivacyPage() {
   return (
@@ -28,14 +28,17 @@ export default function PrivacyPage() {
           <strong className="text-ink-900">가. 회원가입 시 필수로 수집하는 항목</strong>
         </LegalP>
         <LegalList>
-          <li>공통: 전자우편 주소, 비밀번호(단방향 암호화 저장), 이름</li>
+          <li>공통: 전자우편 주소, 이름</li>
+          <li>이메일로 직접 가입하는 경우: 비밀번호(단방향 암호화 저장)</li>
+          <li>Google 계정으로 가입·로그인하는 경우: Google이 제공하는 전자우편 주소·이름(비밀번호는 수집하지 않습니다)</li>
           <li>KTX 승무원 회원: 사번(숫자 4~8자리)</li>
         </LegalList>
         <LegalP>
           <strong className="text-ink-900">나. 회원이 선택적으로 입력·등록하는 항목</strong>
         </LegalP>
         <LegalList>
-          <li>소속 사업소(서울/광명/부산/대전/동대구), 파트</li>
+          <li>소속 파트(KTX 승무원 회원에 한함)</li>
+          <li>생일(입력 시, 일정을 공유한 동료의 캘린더에만 표시됩니다)</li>
           <li>프로필 사진</li>
           <li>업데이트·이벤트 등 마케팅 알림 수신 동의 여부</li>
         </LegalList>
@@ -54,7 +57,6 @@ export default function PrivacyPage() {
         </LegalP>
         <LegalList>
           <li>쿠키 및 로컬 스토리지에 저장되는 세션 정보, 환경설정 값</li>
-          <li>Google Analytics를 통한 축약 IP 주소, 기기 식별값, 브라우저 정보, 페이지 이용 기록</li>
         </LegalList>
       </LegalSection>
 
@@ -64,7 +66,6 @@ export default function PrivacyPage() {
           <li>캘린더, 일정 공유, 동료 검색·비교 등 서비스 제공</li>
           <li>회원의 문의 및 민원 처리, 공지사항 전달</li>
           <li>부정 이용 방지, 서비스 운영 및 보안의 안정성 확보</li>
-          <li>서비스 개선을 위한 통계 분석(개인을 식별할 수 없는 형태로 가공)</li>
           <li>마케팅 알림 수신에 동의한 회원에 한하여, 신규 기능·이벤트 안내</li>
         </LegalOrdered>
       </LegalSection>
@@ -88,7 +89,8 @@ export default function PrivacyPage() {
         <LegalP>
           회사는 회원의 개인정보를 회원의 별도 동의 또는 법령에 정한 경우 외에는 외부에 제공하지 아니합니다. 회원이
           서비스 내에서 다른 회원에게 일정 공유를 수락한 경우, 정보주체가 직접 동의한 범위에 한하여 해당 열람자에게 본인의
-          근무 일정이 표시됩니다. 이는 회원이 직접 통제하는 처리에 해당하며, 회사의 제3자 제공이 아닙니다.
+          근무 일정(생일을 입력한 경우 생일을 포함합니다)이 표시됩니다. 이는 회원이 직접 통제하는 처리에 해당하며,
+          회사의 제3자 제공이 아닙니다.
         </LegalP>
       </LegalSection>
 
@@ -117,19 +119,24 @@ export default function PrivacyPage() {
             term="위탁계약 종료 시까지"
           />
           <PrivacyVendor
+            name="Resend, Inc."
+            scope="회원가입 인증·비밀번호 재설정 등 거래성 이메일 발송"
+            items="전자우편 주소"
+            term="발송 처리 완료 시까지(발송 로그 일정 기간 보관)"
+          />
+          <PrivacyVendor
             name="Google LLC"
-            scope="서비스 이용 통계 분석(Google Analytics)"
-            items="축약 IP 주소, 쿠키 식별값, 페이지 이용 기록"
-            term="26개월"
+            scope="Google 계정 연동 로그인(OAuth) 인증 — 회원이 Google 로그인을 선택한 경우에 한함"
+            items="전자우편 주소, 이름, Google 계정 식별자"
+            term="회원이 Google 로그인을 이용하는 동안(보관은 Google 정책에 따름)"
           />
         </div>
       </LegalSection>
 
       <LegalSection title="6. 개인정보의 국외 이전">
         <LegalP>
-          회사는 위 제5항의 처리위탁을 위하여 다음과 같이 개인정보를 국외로 이전합니다. 회원은 본 항의 국외 이전을 거부할
-          수 있으며, 거부 의사는 본 방침 제12항의 연락처로 표시할 수 있습니다. 다만 거부 시 AI 이미지 인식, 통계 분석 등
-          일부 기능의 이용이 제한될 수 있습니다.
+          회사는 위 제5항의 처리위탁을 위하여 다음과 같이 개인정보를 국외로 이전합니다. 아래 이전은 모두 서비스 제공에
+          필수적인 처리위탁으로서, 「개인정보 보호법」 제28조의8에 따라 본 방침을 통하여 공개합니다.
         </LegalP>
         <div className="rounded-lg border border-line bg-surface divide-y divide-line text-[12.5px] leading-relaxed">
           <PrivacyTransfer
@@ -157,12 +164,20 @@ export default function PrivacyPage() {
             term="위탁계약 종료 시까지"
           />
           <PrivacyTransfer
+            name="Resend, Inc."
+            country="미국"
+            purpose="거래성 이메일 발송"
+            items="전자우편 주소"
+            when="가입 인증·비밀번호 재설정 등 이메일 발송 시점, HTTPS 전송"
+            term="발송 처리 완료 시까지"
+          />
+          <PrivacyTransfer
             name="Google LLC"
             country="미국"
-            purpose="통계 분석"
-            items="축약 IP, 쿠키 식별값, 페이지 이용 기록"
-            when="페이지 로드 시점, HTTPS 전송"
-            term="26개월"
+            purpose="Google 계정 로그인(OAuth) 인증"
+            items="전자우편 주소, 이름, Google 계정 식별자"
+            when="회원이 Google 로그인을 선택한 시점, HTTPS 전송"
+            term="Google 정책에 따름"
           />
         </div>
       </LegalSection>
@@ -205,19 +220,11 @@ export default function PrivacyPage() {
 
       <LegalSection title="10. 자동수집장치(쿠키 등)의 설치·운영 및 거부에 관한 사항">
         <LegalP>
-          ① 회사는 회원의 인증 상태 유지, 환경설정 저장 및 이용 통계 분석을 위하여 쿠키, 로컬 스토리지 등 자동수집장치를
-          사용합니다.
+          ① 회사는 회원의 인증 상태 유지 및 환경설정 저장을 위하여 쿠키, 로컬 스토리지 등 자동수집장치를 사용합니다.
         </LegalP>
         <LegalP>
           ② 회원은 사용 중인 웹 브라우저의 설정을 통하여 쿠키 저장을 거부할 수 있습니다. 다만 인증 관련 쿠키를 거부하는
           경우 서비스 이용이 제한될 수 있습니다.
-        </LegalP>
-        <LegalP>
-          ③ Google Analytics 차단을 원하는 회원은 Google이 제공하는 차단 부가기능(
-          <a className="font-en text-brand" href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noreferrer">
-            tools.google.com/dlpage/gaoptout
-          </a>
-          )을 이용할 수 있습니다.
         </LegalP>
       </LegalSection>
 
