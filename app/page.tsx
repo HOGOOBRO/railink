@@ -14,7 +14,10 @@ import { BootSplash } from '@/components/loading/BootSplash'
 export default function RootPage() {
   const router = useRouter()
   useEffect(() => {
-    router.replace('/login')
+    // Forward the query string (utm_* campaign tags, ?invite=, etc.) so the
+    // redirect doesn't drop it. Analytics' initial page_view fires after this
+    // client redirect, so dropping the params here loses all attribution.
+    router.replace('/login' + window.location.search)
   }, [router])
   return <BootSplash />
 }
