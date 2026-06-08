@@ -45,7 +45,7 @@ export default function LoginPage() {
     getCurrentSession()
       .then(s => {
         if (!alive) return
-        if (s) router.replace('/calendar')
+        if (s) router.replace('/calendar' + window.location.search)
         else setCheckingSession(false)
       })
       .catch(() => { if (alive) setCheckingSession(false) })
