@@ -59,7 +59,18 @@ export function MonthTimeline({
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const update = () => setContentW(el.scrollWidth)
+    // Sizing the gridlines to a measured `contentW` feeds back into that very
+    // measurement: the absolutely-positioned lines extend to contentW, so they
+    // hold the scroller open and `scrollWidth` never shrinks when columns are
+    // removed — the timeline stays stretched sideways. Drop the explicit width
+    // first (lines fall back to `right: 0`), let that commit, then read the true
+    // width driven only by the columns.
+    const update = () => {
+      setContentW(null)
+      requestAnimationFrame(() => {
+        if (ref.current) setContentW(ref.current.scrollWidth)
+      })
+    }
     update()
     const ro = new ResizeObserver(update)
     ro.observe(el)
