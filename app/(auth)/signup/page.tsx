@@ -12,6 +12,7 @@ import { signup, getCurrentSession, resendConfirmation, signInWithGoogle } from 
 import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
 import type { Visibility, ProfileType } from '@/lib/types/schedule'
 import { savePendingInvite, peekInvite } from '@/lib/store/invites'
+import { track } from '@/lib/analytics'
 
 // The very first question — branches the whole form. Both options are equal;
 // "아니에요" describes the persona ("개인"), never the signup method, and never
@@ -199,6 +200,10 @@ export default function SignupPage() {
       else showToast(result.message, 'danger')
       return
     }
+    // GA4 conversion — a new account was just created (signup() only succeeds for
+    // a fresh account, so returning users never reach here). Gated on inviteToken
+    // so it counts pure invite-sourced signups, matching the in_app/invite UTM.
+    if (inviteToken) track('invite_signup')
     if (result.needsConfirm) {
       setLoading(false)
       setSentTo(form.email)

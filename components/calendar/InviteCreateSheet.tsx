@@ -44,7 +44,10 @@ export function InviteCreateSheet({
     const res = await createInvite(groupId, matchEmail ? email.trim() : null)
     setLoading(false)
     if (!res.ok) { showToast(res.message, 'danger'); return }
-    const url = `${window.location.origin}/signup?invite=${res.token}`
+    // UTM tags so GA4 attributes invite-link landings to the in-app invite
+    // feature (source/medium/campaign → 트래픽 획득 보고서). Both copy and share
+    // reuse this `url`, so every channel carries the tags.
+    const url = `${window.location.origin}/signup?invite=${res.token}&utm_source=in_app&utm_medium=invite&utm_campaign=friend_invite`
     setLink(url)
     setStage('created')
   }
