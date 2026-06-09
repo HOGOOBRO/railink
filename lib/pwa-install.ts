@@ -2,6 +2,8 @@
 // miss Chrome's beforeinstallprompt, which can fire before a component mounts.
 // Imported for its side effect from SwRegister (which lives in the root layout).
 
+import { track } from '@/lib/analytics'
+
 interface BeforeInstallPromptEvent extends Event {
   readonly userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
   prompt: () => Promise<void>
@@ -17,6 +19,7 @@ if (typeof window !== 'undefined') {
   })
   window.addEventListener('appinstalled', () => {
     deferredPrompt = null
+    track('pwa_install')
     try { localStorage.setItem('railink_installed', '1') } catch { /* ignore */ }
     window.dispatchEvent(new Event('railink:installed'))
   })

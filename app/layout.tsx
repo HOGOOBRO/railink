@@ -83,7 +83,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());
-            gtag('config', '${GA_ID}');
+            // Distinguish installed-PWA (home-screen, standalone) from in-browser
+            // visits. Sent on config so it rides along with every event; register
+            // 'display_mode' as a custom dimension in GA4 to segment by it.
+            var dm = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+              || window.navigator.standalone === true ? 'standalone' : 'browser';
+            gtag('config', '${GA_ID}', { display_mode: dm });
+            // Cold start from the home-screen icon = an app launch.
+            if (dm === 'standalone') gtag('event', 'pwa_launch');
           `}
         </Script>
       </body>
