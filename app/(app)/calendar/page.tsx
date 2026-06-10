@@ -464,7 +464,14 @@ export default function CalendarPage() {
 
   // Appointments → timeline cards. Decimal hours; untimed → a default 09:00 slot
   // (flagged) so it still gets a card; overnight end normalized to 24+.
-  const apptCards = useMemo<ApptCard[]>(() => appts.map(a => {
+  const apptCards = useMemo<ApptCard[]>(() => appts.filter(a => {
+    // 화면에 있는 사람(나+활성 그룹 비교 동료) 중 거절하지 않은 참여자가 있는
+    // 약속만. 없으면 핀만 뜨고 시트엔 카드가 없는 "고스트 핀"이 된다 — 비교
+    // 안 하는 share 동료의 solo busy, 내가 거절한 약속이 그 케이스.
+    if (!session) return false
+    const visible = new Set([session.uid, ...compares.map(c => c.uid)])
+    return a.participants.some(uid => visible.has(uid) && a.participantStatuses?.[uid] !== 'declined')
+  }).map(a => {
     const day = Number(a.date.slice(8, 10))
     const untimed = !a.start
     const start = a.start ? hmToDecimal(a.start) : 9
@@ -475,10 +482,11 @@ export default function CalendarPage() {
       participantStatuses: a.participantStatuses, myStatus: a.myStatus,
       day, title: a.title, start, end, untimed, hasEnd: !!a.end, place: a.place, memo: a.memo,
     }
-  }), [appts])
+  }), [appts, session, compares])
 
   // Days (of the visible month) carrying ≥1 appointment → CalCell pin marker.
-  const apptDays = useMemo(() => new Set(appts.map(a => Number(a.date.slice(8, 10)))), [appts])
+  // apptCards 기준(가시성 필터 후)이라 고스트 핀이 생기지 않는다.
+  const apptDays = useMemo(() => new Set(apptCards.map(c => c.day)), [apptCards])
 
   // Timeline items for the selected date.
   // People (columns) with their month-long shifts — fed to the continuous
