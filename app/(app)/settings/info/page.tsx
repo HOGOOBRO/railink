@@ -20,6 +20,7 @@ import {
   type ShareListsWithProfile, type ShareWithProfile,
 } from '@/lib/store/shares'
 import { getMyBirthday, setMyBirthday as saveMyBirthday } from '@/lib/store/birthdays'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { DangerConfirm } from '@/components/ui/DangerConfirm'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
@@ -54,6 +55,9 @@ export default function SettingsInfoPage() {
   const [vis, setVis] = useState<Visibility>('public')
   const [pendingPrivate, setPendingPrivate] = useState(false)
   const [shares, setShares] = useState<ShareListsWithProfile>(EMPTY_SHARES)
+  // True until the remote shares/birthday fetch settles — gates the share-list
+  // empty state and the birthday field so "loading" never reads as "none".
+  const [remoteLoading, setRemoteLoading] = useState(true)
   const [shareBusy, setShareBusy] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -101,16 +105,27 @@ export default function SettingsInfoPage() {
       setOffDays(off)
 
       if (!s.isDemo) {
-        const { data: prof } = await supabase
-          .from('profiles').select('visibility').eq('id', s.uid).maybeSingle()
-        if (alive && (prof?.visibility === 'public' || prof?.visibility === 'private')) {
-          setVis(prof.visibility)
+        // One round trip instead of three — shortens the window where the
+        // share list / birthday show their loading placeholders.
+        try {
+          const [{ data: prof }, lists, b] = await Promise.all([
+            supabase.from('profiles').select('visibility').eq('id', s.uid).maybeSingle(),
+            listSharesWithProfile(),
+            getMyBirthday(),
+          ])
+          if (!alive) return
+          if (prof?.visibility === 'public' || prof?.visibility === 'private') {
+            setVis(prof.visibility)
+          }
+          setShares(lists)
+          setBirthday(b ?? '')
+          setInitialBirthday(b ?? '')
+        } catch {
+          // Leave the defaults — the sections fall back to their empty states.
+          // remoteLoading must still clear below or the skeletons never leave.
         }
-        const lists = await listSharesWithProfile()
-        if (alive) setShares(lists)
-        const b = await getMyBirthday()
-        if (alive) { setBirthday(b ?? ''); setInitialBirthday(b ?? '') }
       }
+      if (alive) setRemoteLoading(false)
     })()
     return () => { alive = false }
   }, [router])
@@ -271,13 +286,19 @@ export default function SettingsInfoPage() {
           </FieldRow>
           <div ref={birthdayRef}>
             <FieldRow label="생일" hint="일정을 공유한 동료의 캘린더에만 표시돼요. 비우면 표시되지 않아요.">
-              <input
-                type="date"
-                value={birthday}
-                max={new Date().toISOString().slice(0, 10)}
-                onChange={e => setBirthday(e.target.value)}
-                className="w-full h-7 bg-transparent outline-none text-[15px] font-en text-ink-900"
-              />
+              {remoteLoading ? (
+                // Saved birthday is still in flight — an empty date input here
+                // would read as "생일 미설정".
+                <div className="h-7 flex items-center"><Skeleton className="w-32 h-4 rounded-md" /></div>
+              ) : (
+                <input
+                  type="date"
+                  value={birthday}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={e => setBirthday(e.target.value)}
+                  className="w-full h-7 bg-transparent outline-none text-[15px] font-en text-ink-900"
+                />
+              )}
             </FieldRow>
           </div>
           {/* 사번·소속 파트는 KTX 전용 식별 정보 — personal 계정에는 숨김. */}
@@ -320,7 +341,19 @@ export default function SettingsInfoPage() {
         {/* 공유 중인 동료 (Section B) */}
         <div ref={sharesRef} style={{ scrollMarginTop: 12 }}>
         <Section title="공유 중인 동료">
-          {shareRows.length === 0 ? (
+          {remoteLoading ? (
+            // Shimmer rows mirroring ShareRow's layout — the empty-state copy
+            // must never flash while the list is still being fetched.
+            [0, 1].map(i => (
+              <div key={i} className={`flex items-center gap-3 px-3.5 py-3 ${i === 1 ? '' : 'border-b border-line'}`}>
+                <Skeleton className="w-avatar-lg h-avatar-lg rounded-full" />
+                <div className="flex-1 min-w-0">
+                  <Skeleton className="w-24 h-3.5 rounded-md" />
+                  <Skeleton className="w-32 h-3 rounded-md mt-1.5" />
+                </div>
+              </div>
+            ))
+          ) : shareRows.length === 0 ? (
             <p className="px-3.5 py-5 text-caption text-ink-500 leading-relaxed text-center">
               아직 공유 중인 동료가 없어요. 캘린더에서 동료를 비교에 추가하면 공유 요청이 시작돼요.
             </p>

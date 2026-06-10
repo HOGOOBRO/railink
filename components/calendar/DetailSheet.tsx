@@ -19,6 +19,8 @@ interface DetailSheetProps {
   birthdaysByDay?: Map<number, { name: string; color: CompareColor | 'brand'; photo?: string }[]>
   /** 이 달의 약속(나 + 비교 동료 참여분). 표시 중인 날의 건수를 헤더에 노출. */
   appointments?: ApptCard[]
+  /** 약속이 아직 fetch 중 — 건수 대신 '약속 확인 중'을 보여 0건으로 오해되지 않게. */
+  apptsLoading?: boolean
   selfUid: string
   onDeleteAppt?: (id: string) => void
   onRespond?: (id: string, accept: boolean) => void
@@ -28,7 +30,7 @@ interface DetailSheetProps {
 }
 
 export function DetailSheet({
-  date, year, month, today, people, birthdaysByDay, appointments = [], selfUid, onDeleteAppt, onRespond, onClose, onAddCompare, onEdit,
+  date, year, month, today, people, birthdaysByDay, appointments = [], apptsLoading = false, selfUid, onDeleteAppt, onRespond, onClose, onAddCompare, onEdit,
 }: DetailSheetProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const dim = new Date(year, month, 0).getDate()
@@ -93,7 +95,7 @@ export function DetailSheet({
               </span>
             )}
           </h3>
-          <p className="text-caption text-ink-500 mt-0.5">근무 {workN}명{apptN ? ` · 약속 ${apptN}` : ''} · 위아래로 넘겨 다른 날</p>
+          <p className="text-caption text-ink-500 mt-0.5">근무 {workN}명{apptsLoading ? ' · 약속 확인 중' : apptN ? ` · 약속 ${apptN}` : ''} · 위아래로 넘겨 다른 날</p>
         </div>
         <button
           onClick={onClose}

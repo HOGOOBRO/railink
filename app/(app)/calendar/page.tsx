@@ -110,7 +110,10 @@ export default function CalendarPage() {
   const [mySched, setMySched] = useState<ScheduleEntry[]>([])
   const [colSched, setColSched] = useState<Record<string, ScheduleEntry[]>>({})
   const [colleagues, setColleagues] = useState<Colleague[]>([])
-  const [colleagueLoading, setColleagueLoading] = useState(false)
+  // Starts true: the directory fetch is the *last* step of the boot effect, so
+  // opening the search overlay before it even starts must read as "loading",
+  // not "no colleagues" (the empty state is only valid after a completed fetch).
+  const [colleagueLoading, setColleagueLoading] = useState(true)
   const [shareStatus, setShareStatus] = useState<Record<string, ShareStatus>>({})
   const [pendingCount, setPendingCount] = useState(0)
   const [colorOverrides, setColorOverrides] = useState<Record<string, CompareColor>>({})
@@ -140,6 +143,9 @@ export default function CalendarPage() {
   const [memberSheet, setMemberSheet] = useState<CompareEntry | null>(null)
   // 약속 잡기 — appointments visible to me this month (local store, MVP).
   const [appts, setAppts] = useState<Appointment[]>([])
+  // True while the month's appointments are in flight (remote accounts) — lets
+  // the detail sheet say "확인 중" instead of silently showing zero 약속.
+  const [apptsLoading, setApptsLoading] = useState(true)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [wizardPreday, setWizardPreday] = useState<{ y: number; m: number; d: number } | null>(null)
   // First-load gate for the calendar skeleton (⑤). True until the initial
@@ -200,9 +206,14 @@ export default function CalendarPage() {
       // 약속 잡기 — 데모는 localStorage, 실계정은 Supabase(remote, async).
       if (s.isDemo) {
         setAppts(getMonthAppointments(s.uid, year, month))
+        setApptsLoading(false)
       } else {
         setAppts([])
-        getRemoteMonthAppointments(year, month).then(a => { if (alive) setAppts(a) }).catch(() => { /* SQL 미적용 등 — 약속만 비움 */ })
+        setApptsLoading(true)
+        getRemoteMonthAppointments(year, month)
+          .then(a => { if (alive) setAppts(a) })
+          .catch(() => { /* SQL 미적용 등 — 약속만 비움 */ })
+          .finally(() => { if (alive) setApptsLoading(false) })
       }
       // Have a locally-cached month already? Show it immediately and let the
       // remote sync update in place — never make a returning user stare at a
@@ -229,6 +240,16 @@ export default function CalendarPage() {
         for (const uid of memberUids) if (allB[uid]) demoB[uid] = allB[uid]
         setColBirthdays(demoB)
       } else {
+        // Birthdays — kicked off *concurrently* with the schedule fetch (not
+        // after it) so cake markers land together with the month data instead
+        // of popping in late. Caught independently so a birthday error never
+        // blanks the calendar. RLS returns only colleagues who shared their
+        // schedule with me (accepted); my own row decides the nudge card.
+        const birthdaysPromise = Promise.all([
+          getMemberBirthdays(memberUids),
+          getMyBirthday(),
+        ]).catch(() => null) // best-effort; leave markers/nudge off
+
         try {
           const [remoteMine, remoteCols] = await Promise.all([
             getRemoteMonthSchedules(s.uid, year, month),
@@ -248,22 +269,17 @@ export default function CalendarPage() {
         setMySched(mine)
         setColSched(cols)
 
-        // Birthdays — fetched separately so a birthday error never blanks the
-        // calendar. RLS returns only colleagues who shared their schedule with
-        // me (accepted); my own row decides whether to show the nudge card.
-        try {
-          const [memberB, myB] = await Promise.all([
-            getMemberBirthdays(memberUids),
-            getMyBirthday(),
-          ])
-          if (!alive) return
+        const birthdays = await birthdaysPromise
+        if (!alive) return
+        if (birthdays) {
+          const [memberB, myB] = birthdays
           setColBirthdays(memberB)
           setMyBirthday(myB)
           setBdayNudgeDismissed(
             myB !== null ||
             (typeof window !== 'undefined' && localStorage.getItem(`railink_bday_nudge_${s.uid}`) === '1'),
           )
-        } catch { /* best-effort; leave markers/nudge off */ }
+        }
       }
 
       // Primary month data is on screen now — drop the first-load skeleton (⑤)
@@ -283,6 +299,13 @@ export default function CalendarPage() {
       }
 
       setColleagueLoading(true)
+      // §4/§5 share statuses are fetched *concurrently* with the directory, and
+      // colleagueLoading stays on until both land — otherwise the search rows
+      // appear first with every pill reading "추가" and flip to "요청 중" a beat
+      // later. The stray .catch() only mutes the unhandled-rejection warning if
+      // we bail out before the await below; the await still sees the error.
+      const shareInfoPromise = s.isDemo ? null : Promise.all([myViewerShareStatuses(), listShares()])
+      shareInfoPromise?.catch(() => {})
       let directoryList: Colleague[] = []
       try {
         directoryList = await getColleagueDirectory(s)
@@ -290,15 +313,13 @@ export default function CalendarPage() {
         setColleagues(directoryList)
       } catch {
         if (alive) setColleagues([])
-      } finally {
-        if (alive) setColleagueLoading(false)
       }
 
       // §4 — my viewer-side share status drives the search overlay's actions.
       // §5 — pending requests where I'm the owner feed the inbox banner + badge.
-      if (!s.isDemo) {
+      if (!s.isDemo && shareInfoPromise) {
         try {
-          const [statuses, shares] = await Promise.all([myViewerShareStatuses(), listShares()])
+          const [statuses, shares] = await shareInfoPromise
           if (!alive) return
           setShareStatus(statuses)
           setPendingCount(shares.incoming.length)
@@ -358,6 +379,10 @@ export default function CalendarPage() {
           else localStorage.setItem(MIGRATION_KEY, 'skipped-new-user')
         }
       }
+      // Directory + share statuses are both in — search rows render complete.
+      // (The auto-grouping `return` above skips this on purpose: it bumps
+      // `reload`, the effect re-runs, and that pass releases the flag.)
+      if (alive) setColleagueLoading(false)
     })()
     return () => { alive = false }
   }, [router, year, month, reload, showToast])
@@ -527,8 +552,11 @@ export default function CalendarPage() {
 
   async function refreshAppts(y: number, m: number) {
     if (!session) return
-    if (session.isDemo) setAppts(getMonthAppointments(session.uid, y, m))
-    else { try { setAppts(await getRemoteMonthAppointments(y, m)) } catch { /* leave current */ } }
+    if (session.isDemo) { setAppts(getMonthAppointments(session.uid, y, m)); return }
+    setApptsLoading(true)
+    try { setAppts(await getRemoteMonthAppointments(y, m)) }
+    catch { /* leave current */ }
+    finally { setApptsLoading(false) }
   }
 
   async function handleApptComplete(appt: Omit<Appointment, 'id'>, message: string) {
@@ -1110,6 +1138,7 @@ export default function CalendarPage() {
             people={monthPeople}
             birthdaysByDay={birthdaysByDay}
             appointments={apptCards}
+            apptsLoading={apptsLoading}
             selfUid={session.uid}
             onDeleteAppt={handleApptDelete}
             onRespond={handleApptRespond}
