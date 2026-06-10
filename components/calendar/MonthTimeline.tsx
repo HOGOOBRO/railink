@@ -3,10 +3,21 @@
  * running across the whole month so an overnight (박차) shift is ONE card crossing
  * the midnight divider. The whole thing lives in ONE scroll area (both axes), and
  * the time gutter is sticky-left — so you can scroll down while panned right to
- * the colleagues on the far side. */
+ * the colleagues on the far side.
+ *
+ * 약속 잡기 layer (handoff §11, final white-card skin): appointments render INSIDE
+ * each participant's own column at their day+time position (never full-width
+ * bands — that would cover other columns). Each is a WHITE card (brand left rail +
+ * brand-100 inset + 2px white halo) so it separates cleanly from the pastel shift
+ * card behind without muddy navy tints. Content adapts to the card height (=
+ * duration) so short appointments never overflow. An appointment overlapping a
+ * shift docks to the RIGHT (left edge 46%) so the shift's left-aligned identity is
+ * never covered; the skin is identical in every column, only the lane width moves.
+ * No × on the card — tapping it opens the detail/delete dialog (handled upstream). */
 import { useEffect, useRef, useState } from 'react'
 import { fmtClock } from '@/lib/schedule-utils'
 import { toInitials } from '@/components/ui/Avatar'
+import { PinIcon } from '@/components/ui/icons'
 
 export interface MonthShift {
   day: number        // 1-based day of month
@@ -17,8 +28,24 @@ export interface MonthShift {
   noTime?: boolean   // a working day whose 출퇴근 times weren't read (OCR miss)
 }
 
+/** One appointment positioned in the timeline. start/end are decimal hours
+ *  (untimed → a default 09:00 slot, flagged `untimed`). */
+export interface ApptCard {
+  id: string
+  participants: string[]
+  day: number
+  title: string
+  start: number
+  end: number
+  untimed: boolean
+  hasEnd: boolean
+  place?: string
+  memo?: string
+}
+
 const NO_TIME_H = 54
 export interface MonthPerson {
+  uid: string
   color: string
   name: string
   tag?: string
@@ -34,12 +61,45 @@ const LABEL_W = 46
 const LANE_GAP = 6
 const MIN_COL = 116
 const MIN_CARD_H = 80
+const MIN_APPT_H = 22
 const DOW = ['일', '월', '화', '수', '목', '금', '토']
 const HOUR_TICKS = [0, 3, 6, 9, 12, 15, 18, 21]   // a time mark every 3 hours
 
+interface Placed { a: ApptCard; top: number; height: number }
+
+/** Group time-overlapping placed appts into clusters (sorted by top). */
+function clusterAppts(items: Placed[]): Placed[][] {
+  const sorted = [...items].sort((x, y) => x.top - y.top)
+  const groups: Placed[][] = []
+  for (const it of sorted) {
+    const g = groups[groups.length - 1]
+    const bottom = g ? Math.max(...g.map(z => z.top + z.height)) : -Infinity
+    if (g && it.top < bottom) g.push(it)
+    else groups.push([it])
+  }
+  return groups
+}
+
+export interface ShiftDetail {
+  name: string
+  dia?: string
+  trainNr?: string
+  start: number
+  end: number
+  noTime?: boolean
+}
+
 export function MonthTimeline({
-  people, year, month, today,
-}: { people: MonthPerson[]; year: number; month: number; today: Date }) {
+  people, year, month, today, appointments = [], onTapAppt, onTapShift,
+}: {
+  people: MonthPerson[]
+  year: number
+  month: number
+  today: Date
+  appointments?: ApptCard[]
+  onTapAppt?: (a: ApptCard) => void
+  onTapShift?: (s: ShiftDetail) => void
+}) {
   const dim = new Date(year, month, 0).getDate()
   const monthH = dim * DAY_PX
   const yOf = (absHour: number) => absHour * PXH
@@ -49,22 +109,11 @@ export function MonthTimeline({
   // flat list of {top, day, hour} marks
   const marks = dayList.flatMap(d => HOUR_TICKS.map(h => ({ d, h, top: yOf((d - 1) * 24 + h) })))
 
-  // Gridlines must span the full content width — but Safari/WebKit ignores
-  // `width: max-content` under `min-width: 100%` inside an overflow scroller and
-  // clamps the flex container to the viewport, so columns past the fold overflow it
-  // and `right: 0` lines stop short. Measure the real content width and size the
-  // lines to it so they reach the last column on every engine.
   const ref = useRef<HTMLDivElement>(null)
   const [contentW, setContentW] = useState<number | null>(null)
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    // Sizing the gridlines to a measured `contentW` feeds back into that very
-    // measurement: the absolutely-positioned lines extend to contentW, so they
-    // hold the scroller open and `scrollWidth` never shrinks when columns are
-    // removed — the timeline stays stretched sideways. Drop the explicit width
-    // first (lines fall back to `right: 0`), let that commit, then read the true
-    // width driven only by the columns.
     const update = () => {
       setContentW(null)
       requestAnimationFrame(() => {
@@ -76,6 +125,9 @@ export function MonthTimeline({
     ro.observe(el)
     return () => ro.disconnect()
   }, [people.length])
+
+  const timeCls = 'font-en text-[10.5px] font-bold text-brand-700 whitespace-nowrap shrink-0'
+  const titleCls = 'flex-1 min-w-0 text-[11px] font-bold text-ink-900 truncate'
 
   return (
     <div ref={ref} className="relative flex" style={{ height: monthH, width: 'max-content', minWidth: '100%', gap: LANE_GAP }}>
@@ -113,107 +165,161 @@ export function MonthTimeline({
       </div>
 
       {/* person columns — grow to fill, or stay MIN_COL and let the row scroll sideways */}
-      {people.map((p, pi) => (
-        <div key={pi} className="relative shrink-0" style={{ flex: `1 0 ${MIN_COL}px` }}>
-          {p.pending && (
-            <div
-              className="absolute left-1 right-1 flex flex-col gap-1.5 px-2 py-2.5 rounded-md"
-              style={{
-                top: 8,
-                background: 'var(--bg)',
-                border: '1px dashed var(--line-2)',
-                borderLeftWidth: 3,
-                borderLeftStyle: 'dashed',
-                borderLeftColor: p.color,
-              }}
-            >
-              <div className="flex items-center gap-1 min-w-0">
-                <Initial name={p.name} photo={p.photo} color={p.color} />
-                <span className="font-bold text-[11px] text-ink-500 truncate">{p.name}</span>
-              </div>
-              <span
-                className="text-[9px] font-bold px-1.5 py-0.5 rounded-pill text-ink-500 self-start whitespace-nowrap"
-                style={{ background: 'white', boxShadow: 'inset 0 0 0 1px var(--line-2)' }}
-              >
-                수락 대기 중
-              </span>
-            </div>
-          )}
-          {p.shifts.map((s, si) => {
-            if (s.noTime) {
-              return (
-                <div
-                  key={si}
-                  className="absolute left-0 right-0 flex flex-col gap-1 overflow-hidden leading-tight"
-                  style={{
-                    top: yOf((s.day - 1) * 24), height: NO_TIME_H,
-                    background: 'var(--bg)',
-                    boxShadow: 'inset 0 0 0 1px var(--line-2)',
-                    borderLeft: `3px dashed ${p.color}`,
-                    borderRadius: 10,
-                    padding: '5px 6px',
-                  }}
-                >
-                  <div className="flex items-center gap-1 min-w-0">
-                    <Initial name={p.name} photo={p.photo} color={p.color} />
-                    <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
-                    {p.tag && (
-                      <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 min-w-0">
-                    {s.dia && <span className="font-en text-[11px] font-bold text-ink-500 truncate">{s.dia}</span>}
-                    <span
-                      className="text-[9px] font-bold px-1 rounded-pill text-ink-700 shrink-0 whitespace-nowrap"
-                      style={{ background: 'color-mix(in oklab, var(--warn) 38%, white)' }}
-                    >시간 미입력</span>
-                  </div>
-                </div>
-              )
-            }
-            const top = yOf((s.day - 1) * 24 + s.start)
-            const h = Math.max(MIN_CARD_H, yOf((s.day - 1) * 24 + s.end) - top)
-            return (
-              <div
-                key={si}
-                className="absolute left-0 right-0 flex flex-col justify-between overflow-hidden leading-tight"
+      {people.map((p, pi) => {
+        // Shift bands (px) drive docking: an appointment overlapping one is pushed
+        // to the right so the shift's left identity stays visible.
+        const shiftBands: [number, number][] = []
+        for (const s of p.shifts) {
+          if (s.noTime) { const st0 = yOf((s.day - 1) * 24); shiftBands.push([st0, st0 + NO_TIME_H]); continue }
+          const st0 = yOf((s.day - 1) * 24 + s.start)
+          shiftBands.push([st0, Math.max(st0 + MIN_CARD_H, yOf((s.day - 1) * 24 + s.end))])
+        }
+        const hitsShift = (t: number, b: number) => shiftBands.some(([a, z]) => t < z && b > a)
+
+        const placed: Placed[] = appointments
+          .filter(a => a.participants.includes(p.uid))
+          .map(a => {
+            const top = yOf((a.day - 1) * 24 + a.start)
+            const height = Math.max(MIN_APPT_H, yOf((a.day - 1) * 24 + a.end) - top)
+            return { a, top, height }
+          })
+
+        const apptEls: React.ReactNode[] = []
+        for (const cluster of clusterAppts(placed)) {
+          const n = cluster.length
+          const cTop = cluster[0].top
+          const cBottom = Math.max(...cluster.map(c => c.top + c.height))
+          const base = hitsShift(cTop, cBottom) ? 46 : 0   // left edge (%) of the appt region
+          const span = 100 - base
+          cluster.forEach((pl, i) => {
+            const a = pl.a
+            const h = pl.height
+            const laneW = span / n
+            const leftPct = base + laneW * i
+            const lane = base === 0 && n === 1
+              ? { left: 0, right: 0 }
+              : { left: `calc(${leftPct}% + ${leftPct > 0 ? 1 : 0}px)`, width: `calc(${laneW}% - 2px)` }
+            const startTxt = a.untimed ? '미정' : fmtClock(a.start)
+            apptEls.push(
+              <button
+                key={a.id}
+                onClick={() => onTapAppt?.(a)}
+                aria-label={`약속 ${a.title}`}
+                className="absolute flex overflow-hidden text-left rounded-[10px]"
                 style={{
-                  top, height: h,
-                  background: `color-mix(in oklab, ${p.color} 12%, white)`,
-                  boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${p.color} 30%, white)`,
-                  borderLeft: `3px solid ${p.color}`,
-                  borderRadius: 10,
-                  padding: '5px 6px 6px',
+                  top: pl.top, height: h, zIndex: 5, ...lane,
+                  background: '#fff',
+                  borderLeft: '3px solid var(--brand)',
+                  boxShadow: '0 0 0 2px #fff, inset 0 0 0 1px var(--brand-100), 0 1px 2px rgba(14,19,32,0.08)',
+                  lineHeight: 1.25,
+                  ...(h < 36
+                    ? { flexDirection: 'row', alignItems: 'center', gap: 4, padding: '0 6px' }
+                    : { flexDirection: 'column', gap: 3, padding: h < 56 ? '4px 7px 5px' : '5px 7px 6px', justifyContent: h < 56 ? 'center' : 'space-between' }),
                 }}
               >
-                <div className="flex flex-col gap-1 min-w-0">
-                  <div className="flex items-center gap-1 min-w-0">
-                    <Initial name={p.name} photo={p.photo} color={p.color} />
-                    <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
-                    {p.tag && (
-                      <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>
+                {h < 36 ? (
+                  <>
+                    <span className="text-brand shrink-0 leading-none"><PinIcon size={9} /></span>
+                    <span className={timeCls}>{startTxt}</span>
+                    <span className={titleCls}>{a.title}</span>
+                  </>
+                ) : h < 56 ? (
+                  <>
+                    <div className="flex items-start gap-1 min-w-0">
+                      <span className="text-brand shrink-0 leading-none" style={{ marginTop: 1 }}><PinIcon size={10} /></span>
+                      <span className={titleCls}>{a.title}</span>
+                    </div>
+                    <span className={timeCls}>{a.untimed ? '시간 미정' : startTxt}</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-[3px] min-w-0">
+                      <div className="flex items-start gap-1 min-w-0">
+                        <span className="text-brand shrink-0 leading-none" style={{ marginTop: 1 }}><PinIcon size={11} /></span>
+                        <span className={titleCls}>{a.title}</span>
+                      </div>
+                      <span className={timeCls}>{a.untimed ? '시간 미정' : startTxt}</span>
+                    </div>
+                    {!a.untimed && a.hasEnd && <span className={timeCls}>↓ {fmtClock(a.end)}</span>}
+                  </>
+                )}
+              </button>,
+            )
+          })
+        }
+
+        return (
+          <div key={pi} className="relative shrink-0" style={{ flex: `1 0 ${MIN_COL}px` }}>
+            {p.pending && (
+              <div
+                className="absolute left-1 right-1 flex flex-col gap-1.5 px-2 py-2.5 rounded-md"
+                style={{ top: 8, background: 'var(--bg)', border: '1px dashed var(--line-2)', borderLeftWidth: 3, borderLeftStyle: 'dashed', borderLeftColor: p.color }}
+              >
+                <div className="flex items-center gap-1 min-w-0">
+                  <Initial name={p.name} photo={p.photo} color={p.color} />
+                  <span className="font-bold text-[11px] text-ink-500 truncate">{p.name}</span>
+                </div>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-pill text-ink-500 self-start whitespace-nowrap" style={{ background: 'white', boxShadow: 'inset 0 0 0 1px var(--line-2)' }}>
+                  수락 대기 중
+                </span>
+              </div>
+            )}
+            {p.shifts.map((s, si) => {
+              if (s.noTime) {
+                return (
+                  <div
+                    key={si}
+                    className="absolute left-0 right-0 flex flex-col gap-1 overflow-hidden leading-tight"
+                    style={{ top: yOf((s.day - 1) * 24), height: NO_TIME_H, background: 'var(--bg)', boxShadow: 'inset 0 0 0 1px var(--line-2)', borderLeft: `3px dashed ${p.color}`, borderRadius: 10, padding: '5px 6px' }}
+                  >
+                    <div className="flex items-center gap-1 min-w-0">
+                      <Initial name={p.name} photo={p.photo} color={p.color} />
+                      <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
+                      {p.tag && <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>}
+                    </div>
+                    <div className="flex items-center gap-1 min-w-0">
+                      {s.dia && <span className="font-en text-[11px] font-bold text-ink-500 truncate">{s.dia}</span>}
+                      <span className="text-[9px] font-bold px-1 rounded-pill text-ink-700 shrink-0 whitespace-nowrap" style={{ background: 'color-mix(in oklab, var(--warn) 38%, white)' }}>시간 미입력</span>
+                    </div>
+                  </div>
+                )
+              }
+              const top = yOf((s.day - 1) * 24 + s.start)
+              const h = Math.max(MIN_CARD_H, yOf((s.day - 1) * 24 + s.end) - top)
+              return (
+                <button
+                  type="button"
+                  key={si}
+                  onClick={() => onTapShift?.({ name: p.name, dia: s.dia, trainNr: s.trainNr, start: s.start, end: s.end })}
+                  className="absolute left-0 right-0 flex flex-col justify-between overflow-hidden leading-tight text-left"
+                  style={{ top, height: h, background: `color-mix(in oklab, ${p.color} 12%, white)`, boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${p.color} 30%, white)`, borderLeft: `3px solid ${p.color}`, borderRadius: 10, padding: '5px 6px 6px' }}
+                >
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <div className="flex items-center gap-1 min-w-0">
+                      <Initial name={p.name} photo={p.photo} color={p.color} />
+                      <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
+                      {p.tag && <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>}
+                    </div>
+                    {s.dia && (
+                      <div className="font-en text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>{s.dia}</div>
+                    )}
+                    <span className="font-en text-[11px] font-bold text-ink-900">{fmtClock(s.start)}</span>
+                  </div>
+                  <div className="flex items-end justify-between gap-1 min-w-0">
+                    <span className="font-en text-[11px] font-bold text-ink-900">↓ {fmtClock(s.end)}</span>
+                    {s.trainNr && (
+                      <span className="font-en text-[10px] font-bold text-ink-700 px-1.5 py-0.5 bg-bg rounded-xs truncate">{prettyTrain(s.trainNr)}</span>
                     )}
                   </div>
-                  {s.dia && (
-                    <div className="font-en text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>
-                      {s.dia}
-                    </div>
-                  )}
-                  <span className="font-en text-[11px] font-bold text-ink-900">{fmtClock(s.start)}</span>
-                </div>
-                <div className="flex items-end justify-between gap-1 min-w-0">
-                  <span className="font-en text-[11px] font-bold text-ink-900">↓ {fmtClock(s.end)}</span>
-                  {s.trainNr && (
-                    <span className="font-en text-[10px] font-bold text-ink-700 px-1.5 py-0.5 bg-bg rounded-xs truncate">
-                      {prettyTrain(s.trainNr)}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      ))}
+                </button>
+              )
+            })}
+
+            {/* appointment cards (white, over the soft shift cards) */}
+            {apptEls}
+          </div>
+        )
+      })}
     </div>
   )
 }

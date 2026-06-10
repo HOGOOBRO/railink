@@ -48,3 +48,23 @@ export interface GroupsState {
   groups: Group[]            // max 8; groups[0] is the undeletable 기본 group
   activeGroupId: string | null
 }
+
+// 약속 잡기 (Appointment). A pinned event on the shared shift calendar — either a
+// group appointment (find a common free day + invite colleagues) or a solo
+// personal event (shown to colleagues as "일정 있음" by default). Distinguished
+// visually by the brand pin marker, not a separate hue.
+export interface Appointment {
+  id: string
+  type: 'group' | 'solo'
+  date: string            // 'YYYY-MM-DD'
+  title: string
+  start?: string          // 'HH:MM' (24h) — undefined = 시간 미정
+  end?: string            // 'HH:MM'
+  place?: string
+  memo?: string
+  ownerUid: string        // creator; the × delete shows only in their column
+  participants: string[]  // uids incl. owner; solo = [owner]
+  // solo only: 'busy' = colleagues see "일정 있음"; 'title' = title shown.
+  // group is always shared to participants.
+  visibility?: 'busy' | 'title'
+}

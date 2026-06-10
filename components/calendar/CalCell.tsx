@@ -12,6 +12,8 @@
  * the icon collapses into noise). One dot per day regardless of how many; who it
  * is shows in the day detail sheet's banner. */
 
+import { PinIcon } from '@/components/ui/icons'
+
 export interface CellBar {
   color: string   // CSS color value, e.g. 'var(--brand)' or 'var(--c3)'
   isOff: boolean
@@ -31,9 +33,12 @@ interface CalCellProps {
   isPast?: boolean
   /** 이 날 생일인 비교 동료가 1명 이상이면 우상단에 핑크 점. */
   hasBirthday?: boolean
+  /** 이 날 약속(약속 잡기)이 1건 이상이면 좌상단에 brand 핀. 생일 점(우상단)과
+   *  코너를 나눠 충돌을 피한다. */
+  hasAppointment?: boolean
 }
 
-export function CalCell({ d, isOther, today, selected, bars, dow, holiday, isPast, hasBirthday }: CalCellProps) {
+export function CalCell({ d, isOther, today, selected, bars, dow, holiday, isPast, hasBirthday, hasAppointment }: CalCellProps) {
   const work = bars.filter(b => !b.isOff)
   const offCount = bars.length - work.length
   const single = work.length === 1 ? work[0] : null
@@ -102,6 +107,17 @@ export function CalCell({ d, isOther, today, selected, bars, dow, holiday, isPas
           to stay distinct from today's filled circle). */}
       {holiday && !isOther && !today && (
         <span className={`absolute top-[5px] left-1/2 -translate-x-1/2 w-[10px] h-[2.5px] rounded-[2px] bg-danger pointer-events-none${dimCls}`} />
+      )}
+      {/* Appointment marker — top-LEFT brand pin with a white halo so it reads
+          over tinted single-worker chips. Left corner keeps it clear of the
+          birthday dot (top-right) and holiday bar (top-center). */}
+      {hasAppointment && !isOther && (
+        <span
+          className={`absolute top-[4px] left-[5px] text-brand pointer-events-none${dimCls}`}
+          style={{ filter: 'drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1px #fff)' }}
+        >
+          <PinIcon size={12} />
+        </span>
       )}
       {/* Birthday marker — top-right pink dot with a white ring. Independent of
           all other cell content (today circle, work chips, holiday bar); the

@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
-import { CloseIcon, PlusIcon, EditIcon, CakeIcon } from '@/components/ui/icons'
-import { MonthTimeline, DAY_PX, type MonthPerson } from './MonthTimeline'
-import { DOW_KR } from '@/lib/schedule-utils'
+import { CloseIcon, PlusIcon, EditIcon, CakeIcon, PlaceIcon } from '@/components/ui/icons'
+import { MonthTimeline, DAY_PX, type MonthPerson, type ApptCard, type ShiftDetail } from './MonthTimeline'
+import { DOW_KR, fmtClock } from '@/lib/schedule-utils'
 import { holidayNameFor } from '@/lib/holidays-kr'
 import type { CompareColor } from '@/lib/types/schedule'
 
@@ -17,17 +17,25 @@ interface DetailSheetProps {
   people: MonthPerson[]
   /** day-of-month → 그 날 생일(나 + 비교 동료). 표시 중인 날(topDay)의 생일을 배너로 노출. */
   birthdaysByDay?: Map<number, { name: string; color: CompareColor | 'brand'; photo?: string }[]>
+  /** 이 달의 약속(나 + 비교 동료 참여분). 표시 중인 날의 건수를 헤더에 노출. */
+  appointments?: ApptCard[]
+  onDeleteAppt?: (id: string) => void
   onClose: () => void
   onAddCompare: () => void
   onEdit: () => void
 }
 
 export function DetailSheet({
-  date, year, month, today, people, birthdaysByDay, onClose, onAddCompare, onEdit,
+  date, year, month, today, people, birthdaysByDay, appointments = [], onDeleteAppt, onClose, onAddCompare, onEdit,
 }: DetailSheetProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const dim = new Date(year, month, 0).getDate()
   const [topDay, setTopDay] = useState(date.getDate())
+  // Tapped appointment pending the detail/delete dialog (handoff §11).
+  const [confirm, setConfirm] = useState<ApptCard | null>(null)
+  // Tapped shift → read-only detail (surfaces full 열번/dia, incl. parts a docked
+  // appointment covers and the train no. that truncates on the card).
+  const [shiftDetail, setShiftDetail] = useState<ShiftDetail | null>(null)
 
   // Drop columns with no schedule this month at all — they'd reserve dead horizontal
   // space to the right. Anyone with a shift somewhere in the month (or a pending share,
@@ -57,6 +65,8 @@ export function DetailSheet({
   // as the calendar grid so the sheet heading reads consistently.
   const dowClass = holiday || dow === 0 ? 'text-danger' : dow === 6 ? 'text-c1' : 'text-ink-500'
   const workN = shownPeople.filter(p => p.shifts.some(s => s.day === topDay)).length
+  // Distinct appointments on the shown day (a group appt counts once).
+  const apptN = new Set(appointments.filter(a => a.day === topDay).map(a => a.id)).size
 
   // Birthday banner (design handoff): names ` · `-joined + ` 님`; 3+ collapse to
   // "{first} 외 N명". Eyebrow is "오늘 생일" when the shown day is the real today.
@@ -69,7 +79,7 @@ export function DetailSheet({
     : `${bdayNames[0]} 외 ${bdayNames.length - 1}명`
 
   return (
-    <div className="flex flex-col" style={{ height: '88dvh' }}>
+    <div className="relative flex flex-col" style={{ height: '88dvh' }}>
       <div className="flex items-start justify-between px-5 pt-2 pb-2 shrink-0 border-b border-line">
         <div>
           <h3 className="text-title font-bold tracking-tighter text-ink-900">
@@ -81,7 +91,7 @@ export function DetailSheet({
               </span>
             )}
           </h3>
-          <p className="text-caption text-ink-500 mt-0.5">근무 {workN}명 · 위아래로 넘겨 다른 날</p>
+          <p className="text-caption text-ink-500 mt-0.5">근무 {workN}명{apptN ? ` · 약속 ${apptN}` : ''} · 위아래로 넘겨 다른 날</p>
         </div>
         <button
           onClick={onClose}
@@ -147,7 +157,7 @@ export function DetailSheet({
 
       <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-auto overscroll-contain">
         {shownPeople.length > 0
-          ? <MonthTimeline people={shownPeople} year={year} month={month} today={today} />
+          ? <MonthTimeline people={shownPeople} year={year} month={month} today={today} appointments={appointments} onTapAppt={setConfirm} onTapShift={setShiftDetail} />
           : <p className="px-5 py-12 text-center text-callout text-ink-500">비교 중인 일정이 없어요.</p>}
       </div>
 
@@ -164,6 +174,80 @@ export function DetailSheet({
           <PlusIcon size={14} /> 동료 비교 추가
         </Button>
       </div>
+
+      {/* Tap-an-appointment → detail/delete dialog (handoff §11; replaces the
+          per-card × and surfaces the end time hidden on short cards). */}
+      {confirm && (
+        <div className="absolute inset-0 z-[40]">
+          <div onClick={() => setConfirm(null)} className="absolute inset-0 animate-backdrop-in" style={{ background: 'rgba(13,30,55,0.4)' }} aria-hidden="true" />
+          <div className="absolute left-6 right-6 bg-surface rounded-[18px] shadow-sh4 px-5 pt-5 pb-4 animate-fade-in" style={{ top: '38%' }}>
+            <div className="text-[17px] font-extrabold tracking-tight text-ink-900">{confirm.title}</div>
+            <div className="text-callout text-ink-700 mt-[5px]">
+              {month}월 {confirm.day}일 {DOW_KR[new Date(year, month - 1, confirm.day).getDay()]}요일
+              {!confirm.untimed && (
+                <span className="font-en"> · {fmtClock(confirm.start)}{confirm.hasEnd ? ` – ${fmtClock(confirm.end)}` : ''}</span>
+              )}
+            </div>
+            {confirm.place && (
+              <div className="flex items-start gap-1.5 text-callout text-ink-700 mt-2">
+                <span className="text-ink-500 shrink-0 mt-0.5"><PlaceIcon size={14} /></span>
+                <span className="min-w-0">{confirm.place}</span>
+              </div>
+            )}
+            {confirm.memo && (
+              <div className="text-callout text-ink-500 mt-1.5 whitespace-pre-wrap break-words">{confirm.memo}</div>
+            )}
+            {confirm.participants.length > 1 && (
+              <div className="text-caption text-ink-500 mt-2">참여자 {confirm.participants.length}명에게도 삭제 알림이 가요.</div>
+            )}
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setConfirm(null)} className="flex-1 h-11 rounded-md border border-line-2 bg-surface text-ink-700 text-callout font-bold">취소</button>
+              <button
+                onClick={() => { onDeleteAppt?.(confirm.id); setConfirm(null) }}
+                className="flex-1 h-11 rounded-md bg-danger-soft text-danger text-callout font-bold"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tap-a-shift → read-only detail. Surfaces the full 열번 (which truncates on
+          the card and can be hidden behind a docked appointment). */}
+      {shiftDetail && (
+        <div className="absolute inset-0 z-[40]">
+          <div onClick={() => setShiftDetail(null)} className="absolute inset-0 animate-backdrop-in" style={{ background: 'rgba(13,30,55,0.4)' }} aria-hidden="true" />
+          <div className="absolute left-6 right-6 bg-surface rounded-[18px] shadow-sh4 px-5 pt-5 pb-4 animate-fade-in" style={{ top: '38%' }}>
+            <div className="text-[17px] font-extrabold tracking-tight text-ink-900">
+              {shiftDetail.name} <span className="text-ink-500 font-bold">· 근무</span>
+            </div>
+            {shiftDetail.noTime ? (
+              <div className="text-callout text-ink-700 mt-2">출퇴근 시간이 입력되지 않은 근무예요.</div>
+            ) : (
+              <div className="mt-2.5 flex flex-col gap-1.5">
+                {shiftDetail.dia && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-caption text-ink-500 w-10 shrink-0">다이아</span>
+                    <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.dia}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <span className="text-caption text-ink-500 w-10 shrink-0">시간</span>
+                  <span className="font-en text-callout font-bold text-ink-900">{fmtClock(shiftDetail.start)} – {fmtClock(shiftDetail.end)}</span>
+                </div>
+                {shiftDetail.trainNr && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-caption text-ink-500 w-10 shrink-0 mt-0.5">열번</span>
+                    <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.trainNr.split(/\s*[·,]\s*|\s+/).filter(Boolean).join(' · ')}</span>
+                  </div>
+                )}
+              </div>
+            )}
+            <button onClick={() => setShiftDetail(null)} className="w-full h-11 mt-4 rounded-md bg-brand-050 text-brand text-callout font-bold">확인</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -19,6 +19,8 @@ import { UploadModal } from '@/components/calendar/UploadModal'
 import { GroupTabs } from '@/components/calendar/GroupTabs'
 import { ManageGroupsSheet } from '@/components/calendar/ManageGroupsSheet'
 import { CompareMemberSheet } from '@/components/calendar/CompareMemberSheet'
+import { AppointmentWizard } from '@/components/calendar/AppointmentWizard'
+import { FabSpeedDial } from '@/components/calendar/FabSpeedDial'
 import { CalendarSkeleton, CalendarGridSkeleton } from '@/components/calendar/CalendarSkeleton'
 import { BootSplash } from '@/components/loading/BootSplash'
 import { Spinner } from '@/components/ui/Spinner'
@@ -48,13 +50,15 @@ import { myViewerShareStatuses, requestShare, cancelShare, listShares } from '@/
 import { getMemberBirthdays, getMyBirthday } from '@/lib/store/birthdays'
 import { consumePendingInvite } from '@/lib/store/invites'
 import { getMemberColors, setMemberColor } from '@/lib/store/member-colors'
+import { getMonthAppointments, addAppointment, deleteAppointment } from '@/lib/store/appointments'
 import { buildDemoBirthdays, type Colleague } from '@/lib/demo-data'
 import {
   DOW_KR, buildMonthCells, hmToDecimal,
 } from '@/lib/schedule-utils'
 import { holidayNameFor } from '@/lib/holidays-kr'
 import type { ParsedScheduleRow } from '@/lib/parse/schedule-file'
-import type { CompareEntry, CompareColor, GroupsState, ScheduleEntry, ShareStatus } from '@/lib/types/schedule'
+import type { ApptCard } from '@/components/calendar/MonthTimeline'
+import type { Appointment, CompareEntry, CompareColor, GroupsState, ScheduleEntry, ShareStatus } from '@/lib/types/schedule'
 
 const BRAND = 'var(--brand)'
 const cssColor = (c: CompareColor) => `var(--${c})`
@@ -131,6 +135,10 @@ export default function CalendarPage() {
   // KTX users or before the session resolves. Set from localStorage in the loader.
   const [hintDismissed, setHintDismissed] = useState(true)
   const [memberSheet, setMemberSheet] = useState<CompareEntry | null>(null)
+  // 약속 잡기 — appointments visible to me this month (local store, MVP).
+  const [appts, setAppts] = useState<Appointment[]>([])
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [wizardPreday, setWizardPreday] = useState<{ y: number; m: number; d: number } | null>(null)
   // First-load gate for the calendar skeleton (⑤). True until the initial
   // month data resolves; stays false afterwards so month/reload navigation
   // keeps the previous content visible instead of re-flashing a skeleton.
@@ -186,6 +194,9 @@ export default function CalendarPage() {
       setMySched(mine)
       setColSched(cols)
       setColorOverrides(getMemberColors(s.uid))
+      // 약속 잡기 — 데모 한정(feature gate). 실계정은 백엔드(공유·동기화) 완성
+      // 전까지 노출하지 않아, "되는 것처럼 보이지만 동료에게 안 가는" 오해를 막는다.
+      setAppts(s.isDemo ? getMonthAppointments(s.uid, year, month) : [])
       // Have a locally-cached month already? Show it immediately and let the
       // remote sync update in place — never make a returning user stare at a
       // skeleton for data we already hold. When the target month has *no* local
@@ -436,6 +447,28 @@ export default function CalendarPage() {
     return map
   }, [session, myBirthday, compares, colBirthdays, month])
 
+  // 약속 잡기 — entry lookup over already-loaded month data (me + compares),
+  // fed to the wizard's finder/overlap checks (decision #3: per-month reuse).
+  const entryOf = useCallback(
+    (uid: string, iso: string): ScheduleEntry | undefined =>
+      uid === session?.uid ? myByDate.get(iso) : compareByDate.get(uid)?.get(iso),
+    [session, myByDate, compareByDate],
+  )
+
+  // Appointments → timeline cards. Decimal hours; untimed → a default 09:00 slot
+  // (flagged) so it still gets a card; overnight end normalized to 24+.
+  const apptCards = useMemo<ApptCard[]>(() => appts.map(a => {
+    const day = Number(a.date.slice(8, 10))
+    const untimed = !a.start
+    const start = a.start ? hmToDecimal(a.start) : 9
+    let end = a.end ? hmToDecimal(a.end) : start + 2
+    if (end <= start) end += 24
+    return { id: a.id, participants: a.participants, day, title: a.title, start, end, untimed, hasEnd: !!a.end, place: a.place, memo: a.memo }
+  }), [appts])
+
+  // Days (of the visible month) carrying ≥1 appointment → CalCell pin marker.
+  const apptDays = useMemo(() => new Set(appts.map(a => Number(a.date.slice(8, 10)))), [appts])
+
   // Timeline items for the selected date.
   // People (columns) with their month-long shifts — fed to the continuous
   // timeline so overnight shifts span the midnight divider as one card.
@@ -444,12 +477,14 @@ export default function CalendarPage() {
   const monthPeople = useMemo<MonthPerson[]>(() => {
     if (!session) return []
     const ppl: MonthPerson[] = [{
+      uid: session.uid,
       color: BRAND, name: session.name, tag: '나', photo: session.photo,
       shifts: monthShifts(iso => myByDate.get(iso), year, month),
     }]
     for (const c of compares) {
       const pending = !session.isDemo && shareStatus[c.uid] === 'pending'
       ppl.push({
+        uid: c.uid,
         color: cssColor(c.color), name: c.name, photo: c.photo,
         shifts: pending ? [] : monthShifts(iso => compareByDate.get(c.uid)?.get(iso), year, month),
         pending,
@@ -461,7 +496,33 @@ export default function CalendarPage() {
   const closeOverlays = useCallback(() => {
     setDetailOpen(false); setSearchOpen(false); setUploadOpen(false)
     setMenuOpen(false); setManageOpen(false); setMemberSheet(null); setInviteOpen(false)
+    setWizardOpen(false)
   }, [])
+
+  // 약속 잡기 — open the full-screen wizard (closes any open sheet first so it
+  // never stacks; decision #7). `preday` pre-fills the date when opened from a day.
+  const openWizard = (preday?: { y: number; m: number; d: number } | null) => {
+    const day = preday && typeof preday === 'object' && 'd' in preday ? preday : null
+    closeOverlays(); setWizardPreday(day); setWizardOpen(true)
+  }
+
+  function handleApptComplete(appt: Omit<Appointment, 'id'>, message: string) {
+    if (!session) return
+    addAppointment(appt)
+    setWizardOpen(false)
+    const ay = Number(appt.date.slice(0, 4)), am = Number(appt.date.slice(5, 7))
+    // Jump to the appointment's month if it's elsewhere (the month effect reloads
+    // appts); otherwise refresh in place.
+    if (ay !== year || am !== month) { setYear(ay); setMonth(am) }
+    else setAppts(getMonthAppointments(session.uid, year, month))
+    showToast(message, 'success')
+  }
+
+  function handleApptDelete(id: string) {
+    if (!session) return
+    deleteAppointment(id)
+    setAppts(getMonthAppointments(session.uid, year, month))
+  }
 
   const openInvite = (prefillEmail?: string | null) => {
     // Coerce: openInvite is also used directly as an onClick handler (MenuSheet),
@@ -669,7 +730,7 @@ export default function CalendarPage() {
       : <div className="min-h-[100dvh] bg-surface" />
   }
 
-  const overlayOpen = detailOpen || searchOpen || uploadOpen || menuOpen || manageOpen || inviteOpen || !!memberSheet
+  const overlayOpen = detailOpen || searchOpen || uploadOpen || menuOpen || manageOpen || inviteOpen || !!memberSheet || wizardOpen
   const compareColorOf = (c: CompareEntry) => cssColor(c.color)
   const hasGroups = groupsState.groups.length > 0
   const atCompareCap = compares.length >= MAX_PER_GROUP
@@ -915,6 +976,7 @@ export default function CalendarPage() {
                     holiday={holidayNameFor(c.iso)}
                     isPast={!!c.iso && c.iso < todayIso}
                     hasBirthday={!c.isOther && birthdaysByDay.has(c.d)}
+                    hasAppointment={!c.isOther && apptDays.has(c.d)}
                   />
                 </button>
               ))}
@@ -972,17 +1034,21 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* ── FAB ── 빈 상태에선 footer 인라인 링크가 단일 진입점이라 숨김.
-          동료 로딩 바가 뜬 동안엔 겹침 방지로 숨김. */}
-      {!overlayOpen && hasMySchedule && !loadingColleague && (
-        <button
-          onClick={openUpload}
-          aria-label="근무표 등록"
-          className="absolute right-[18px] w-fab h-fab rounded-full bg-brand text-ink-on-brand grid place-items-center shadow-sh-brand z-fab active:scale-95 transition-transform"
-          style={{ bottom: 'calc(36px + env(safe-area-inset-bottom))' }}
-        >
-          <PlusIcon size={22} />
-        </button>
+      {/* ── FAB ── 데모: 일정 추가 / 근무표 등록 speed-dial(결정 #5). 실계정:
+          약속 백엔드 완성 전까지 기존 단일 업로드 FAB 유지(데모 한정 게이트). */}
+      {!overlayOpen && !loadingColleague && (
+        session.isDemo ? (
+          <FabSpeedDial onAppointment={openWizard} onUpload={openUpload} />
+        ) : hasMySchedule ? (
+          <button
+            onClick={openUpload}
+            aria-label="근무표 등록"
+            className="absolute right-[18px] w-fab h-fab rounded-full bg-brand text-ink-on-brand grid place-items-center shadow-sh-brand z-fab active:scale-95 transition-transform"
+            style={{ bottom: 'calc(36px + env(safe-area-inset-bottom))' }}
+          >
+            <PlusIcon size={22} />
+          </button>
+        ) : null
       )}
 
       {/* ── Personal first-entry hint (non-blocking, dismissible) ── */}
@@ -1004,6 +1070,8 @@ export default function CalendarPage() {
             today={today}
             people={monthPeople}
             birthdaysByDay={birthdaysByDay}
+            appointments={apptCards}
+            onDeleteAppt={handleApptDelete}
             onClose={() => setDetailOpen(false)}
             onAddCompare={openSearch}
             onEdit={openManualEdit}
@@ -1131,6 +1199,23 @@ export default function CalendarPage() {
           </div>
         </div>
       </BottomSheet>
+
+      {/* ── 약속 잡기 위저드 (전체화면) ── */}
+      {wizardOpen && (
+        <AppointmentWizard
+          selfUid={session.uid}
+          selfName={session.name}
+          selfPhoto={session.photo}
+          compares={compares}
+          preday={wizardPreday}
+          year={year}
+          month={month}
+          today={today}
+          entryOf={entryOf}
+          onClose={() => setWizardOpen(false)}
+          onComplete={handleApptComplete}
+        />
+      )}
     </div>
   )
 }

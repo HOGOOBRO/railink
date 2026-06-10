@@ -254,3 +254,62 @@ export function BrandMark({ size = 18, className }: IconProps) {
     </svg>
   )
 }
+
+/* ── 약속 잡기 (appointment) glyphs ── */
+
+/** Map pin — filled brand with a white center hole. The marker for an
+ *  appointment, on the month grid and (collapsed) in the timeline. */
+export function PinIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M12 2a7 7 0 0 0-7 7c0 4.6 6 11.4 6.5 11.95a.7.7 0 0 0 1 0C13 20.4 19 13.6 19 9a7 7 0 0 0-7-7z" />
+      <circle cx="12" cy="9" r="2.6" fill="#fff" />
+    </svg>
+  )
+}
+
+export function UsersIcon({ size = 22, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base} className={className}>
+      <path d="M16 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 17.5V19" />
+      <circle cx="10" cy="8" r="3.2" />
+      <path d="M19.5 19v-1.2a3.2 3.2 0 0 0-2.5-3.1" />
+      <path d="M15.2 5.2a3.2 3.2 0 0 1 0 5.6" />
+    </svg>
+  )
+}
+
+export function PersonIcon({ size = 22, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base} className={className}>
+      <circle cx="12" cy="8" r="3.6" />
+      <path d="M5.5 19.5a6.5 6.5 0 0 1 13 0" />
+    </svg>
+  )
+}
+
+export function ChevronDownIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base} className={className}>
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
+
+export function CalendarIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base} className={className}>
+      <rect x="3.5" y="5" width="17" height="16" rx="2.5" />
+      <path d="M3.5 9.5h17M8 3v4M16 3v4" />
+    </svg>
+  )
+}
+
+export function PlaceIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base} className={className}>
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  )
+}
