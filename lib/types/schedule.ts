@@ -67,4 +67,12 @@ export interface Appointment {
   // solo only: 'busy' = colleagues see "일정 있음"; 'title' = title shown.
   // group is always shared to participants.
   visibility?: 'busy' | 'title'
+  // ── populated by the remote read only (Supabase) ──
+  participantStatuses?: Record<string, AppointmentStatus>  // uid → consent state
+  myStatus?: AppointmentStatus                              // my own consent state
+  busyMasked?: boolean   // solo 'busy' seen by a colleague — title was hidden
 }
+
+// appointment_participants consent. Distinct from ShareStatus ('revoked'): an
+// invitee can 'decline' an appointment.
+export type AppointmentStatus = 'pending' | 'accepted' | 'declined'
