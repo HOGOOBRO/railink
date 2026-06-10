@@ -19,14 +19,16 @@ interface DetailSheetProps {
   birthdaysByDay?: Map<number, { name: string; color: CompareColor | 'brand'; photo?: string }[]>
   /** 이 달의 약속(나 + 비교 동료 참여분). 표시 중인 날의 건수를 헤더에 노출. */
   appointments?: ApptCard[]
+  selfUid: string
   onDeleteAppt?: (id: string) => void
+  onRespond?: (id: string, accept: boolean) => void
   onClose: () => void
   onAddCompare: () => void
   onEdit: () => void
 }
 
 export function DetailSheet({
-  date, year, month, today, people, birthdaysByDay, appointments = [], onDeleteAppt, onClose, onAddCompare, onEdit,
+  date, year, month, today, people, birthdaysByDay, appointments = [], selfUid, onDeleteAppt, onRespond, onClose, onAddCompare, onEdit,
 }: DetailSheetProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const dim = new Date(year, month, 0).getDate()
@@ -197,18 +199,35 @@ export function DetailSheet({
             {confirm.memo && (
               <div className="text-callout text-ink-500 mt-1.5 whitespace-pre-wrap break-words">{confirm.memo}</div>
             )}
-            {confirm.participants.length > 1 && (
-              <div className="text-caption text-ink-500 mt-2">참여자 {confirm.participants.length}명에게도 삭제 알림이 가요.</div>
-            )}
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => setConfirm(null)} className="flex-1 h-11 rounded-md border border-line-2 bg-surface text-ink-700 text-callout font-bold">취소</button>
-              <button
-                onClick={() => { onDeleteAppt?.(confirm.id); setConfirm(null) }}
-                className="flex-1 h-11 rounded-md bg-danger-soft text-danger text-callout font-bold"
-              >
-                삭제
-              </button>
-            </div>
+            {(() => {
+              const isOwner = confirm.ownerUid === selfUid
+              const isPendingInvitee = !isOwner && confirm.myStatus === 'pending'
+              return (
+                <>
+                  {isOwner && confirm.participants.length > 1 && (
+                    <div className="text-caption text-ink-500 mt-2">참여자 {confirm.participants.length}명에게도 삭제 알림이 가요.</div>
+                  )}
+                  {isPendingInvitee && (
+                    <div className="text-caption text-ink-500 mt-2">초대받은 약속이에요. 수락하면 내 캘린더에 함께 표시돼요.</div>
+                  )}
+                  <div className="flex gap-2 mt-4">
+                    {isPendingInvitee ? (
+                      <>
+                        <button onClick={() => { onRespond?.(confirm.id, false); setConfirm(null) }} className="flex-1 h-11 rounded-md border border-line-2 bg-surface text-ink-700 text-callout font-bold">거절</button>
+                        <button onClick={() => { onRespond?.(confirm.id, true); setConfirm(null) }} className="flex-1 h-11 rounded-md bg-brand text-ink-on-brand text-callout font-bold">수락</button>
+                      </>
+                    ) : isOwner ? (
+                      <>
+                        <button onClick={() => setConfirm(null)} className="flex-1 h-11 rounded-md border border-line-2 bg-surface text-ink-700 text-callout font-bold">취소</button>
+                        <button onClick={() => { onDeleteAppt?.(confirm.id); setConfirm(null) }} className="flex-1 h-11 rounded-md bg-danger-soft text-danger text-callout font-bold">삭제</button>
+                      </>
+                    ) : (
+                      <button onClick={() => setConfirm(null)} className="w-full h-11 rounded-md bg-brand-050 text-brand text-callout font-bold">확인</button>
+                    )}
+                  </div>
+                </>
+              )
+            })()}
           </div>
         </div>
       )}

@@ -50,7 +50,10 @@ import { myViewerShareStatuses, requestShare, cancelShare, listShares } from '@/
 import { getMemberBirthdays, getMyBirthday } from '@/lib/store/birthdays'
 import { consumePendingInvite } from '@/lib/store/invites'
 import { getMemberColors, setMemberColor } from '@/lib/store/member-colors'
-import { getMonthAppointments, addAppointment, deleteAppointment } from '@/lib/store/appointments'
+import {
+  getMonthAppointments, addAppointment, deleteAppointment,
+  getRemoteMonthAppointments, createRemoteAppointment, deleteRemoteAppointment, respondRemoteAppointment,
+} from '@/lib/store/appointments'
 import { buildDemoBirthdays, type Colleague } from '@/lib/demo-data'
 import {
   DOW_KR, buildMonthCells, hmToDecimal,
@@ -194,9 +197,13 @@ export default function CalendarPage() {
       setMySched(mine)
       setColSched(cols)
       setColorOverrides(getMemberColors(s.uid))
-      // 약속 잡기 — 데모 한정(feature gate). 실계정은 백엔드(공유·동기화) 완성
-      // 전까지 노출하지 않아, "되는 것처럼 보이지만 동료에게 안 가는" 오해를 막는다.
-      setAppts(s.isDemo ? getMonthAppointments(s.uid, year, month) : [])
+      // 약속 잡기 — 데모는 localStorage, 실계정은 Supabase(remote, async).
+      if (s.isDemo) {
+        setAppts(getMonthAppointments(s.uid, year, month))
+      } else {
+        setAppts([])
+        getRemoteMonthAppointments(year, month).then(a => { if (alive) setAppts(a) }).catch(() => { /* SQL 미적용 등 — 약속만 비움 */ })
+      }
       // Have a locally-cached month already? Show it immediately and let the
       // remote sync update in place — never make a returning user stare at a
       // skeleton for data we already hold. When the target month has *no* local
@@ -463,7 +470,11 @@ export default function CalendarPage() {
     const start = a.start ? hmToDecimal(a.start) : 9
     let end = a.end ? hmToDecimal(a.end) : start + 2
     if (end <= start) end += 24
-    return { id: a.id, participants: a.participants, day, title: a.title, start, end, untimed, hasEnd: !!a.end, place: a.place, memo: a.memo }
+    return {
+      id: a.id, ownerUid: a.ownerUid, participants: a.participants,
+      participantStatuses: a.participantStatuses, myStatus: a.myStatus,
+      day, title: a.title, start, end, untimed, hasEnd: !!a.end, place: a.place, memo: a.memo,
+    }
   }), [appts])
 
   // Days (of the visible month) carrying ≥1 appointment → CalCell pin marker.
@@ -506,22 +517,53 @@ export default function CalendarPage() {
     closeOverlays(); setWizardPreday(day); setWizardOpen(true)
   }
 
-  function handleApptComplete(appt: Omit<Appointment, 'id'>, message: string) {
+  async function refreshAppts(y: number, m: number) {
     if (!session) return
-    addAppointment(appt)
+    if (session.isDemo) setAppts(getMonthAppointments(session.uid, y, m))
+    else { try { setAppts(await getRemoteMonthAppointments(y, m)) } catch { /* leave current */ } }
+  }
+
+  async function handleApptComplete(appt: Omit<Appointment, 'id'>, message: string) {
+    if (!session) return
     setWizardOpen(false)
+    try {
+      if (session.isDemo) addAppointment(appt)
+      else await createRemoteAppointment(appt)
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '약속을 저장하지 못했어요.', 'danger')
+      return
+    }
     const ay = Number(appt.date.slice(0, 4)), am = Number(appt.date.slice(5, 7))
     // Jump to the appointment's month if it's elsewhere (the month effect reloads
     // appts); otherwise refresh in place.
     if (ay !== year || am !== month) { setYear(ay); setMonth(am) }
-    else setAppts(getMonthAppointments(session.uid, year, month))
+    else await refreshAppts(year, month)
     showToast(message, 'success')
   }
 
-  function handleApptDelete(id: string) {
+  async function handleApptDelete(id: string) {
     if (!session) return
-    deleteAppointment(id)
-    setAppts(getMonthAppointments(session.uid, year, month))
+    try {
+      if (session.isDemo) deleteAppointment(id)
+      else await deleteRemoteAppointment(id)
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '약속을 삭제하지 못했어요.', 'danger')
+      return
+    }
+    await refreshAppts(year, month)
+  }
+
+  // 받은 그룹 약속 초대 수락/거절(실계정만; 데모엔 초대 개념 없음).
+  async function handleApptRespond(id: string, accept: boolean) {
+    if (!session || session.isDemo) return
+    try {
+      await respondRemoteAppointment(id, accept)
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '처리하지 못했어요.', 'danger')
+      return
+    }
+    await refreshAppts(year, month)
+    showToast(accept ? '약속을 수락했어요.' : '약속을 거절했어요.', accept ? 'success' : 'default')
   }
 
   const openInvite = (prefillEmail?: string | null) => {
@@ -1034,21 +1076,10 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* ── FAB ── 데모: 일정 추가 / 근무표 등록 speed-dial(결정 #5). 실계정:
-          약속 백엔드 완성 전까지 기존 단일 업로드 FAB 유지(데모 한정 게이트). */}
+      {/* ── FAB speed-dial ── 일정 추가 / 근무표 등록 통합 진입점(결정 #5). 데모·
+          실계정 모두 노출(백엔드 연동 완료). 오버레이·동료 로딩 중엔 숨김. */}
       {!overlayOpen && !loadingColleague && (
-        session.isDemo ? (
-          <FabSpeedDial onAppointment={openWizard} onUpload={openUpload} />
-        ) : hasMySchedule ? (
-          <button
-            onClick={openUpload}
-            aria-label="근무표 등록"
-            className="absolute right-[18px] w-fab h-fab rounded-full bg-brand text-ink-on-brand grid place-items-center shadow-sh-brand z-fab active:scale-95 transition-transform"
-            style={{ bottom: 'calc(36px + env(safe-area-inset-bottom))' }}
-          >
-            <PlusIcon size={22} />
-          </button>
-        ) : null
+        <FabSpeedDial onAppointment={openWizard} onUpload={openUpload} />
       )}
 
       {/* ── Personal first-entry hint (non-blocking, dismissible) ── */}
@@ -1071,7 +1102,9 @@ export default function CalendarPage() {
             people={monthPeople}
             birthdaysByDay={birthdaysByDay}
             appointments={apptCards}
+            selfUid={session.uid}
             onDeleteAppt={handleApptDelete}
+            onRespond={handleApptRespond}
             onClose={() => setDetailOpen(false)}
             onAddCompare={openSearch}
             onEdit={openManualEdit}

@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from 'react'
 import { fmtClock } from '@/lib/schedule-utils'
 import { toInitials } from '@/components/ui/Avatar'
 import { PinIcon } from '@/components/ui/icons'
+import type { AppointmentStatus } from '@/lib/types/schedule'
 
 export interface MonthShift {
   day: number        // 1-based day of month
@@ -32,7 +33,10 @@ export interface MonthShift {
  *  (untimed → a default 09:00 slot, flagged `untimed`). */
 export interface ApptCard {
   id: string
+  ownerUid: string
   participants: string[]
+  participantStatuses?: Record<string, AppointmentStatus>  // uid → consent (remote)
+  myStatus?: AppointmentStatus
   day: number
   title: string
   start: number
@@ -65,7 +69,7 @@ const MIN_APPT_H = 22
 const DOW = ['일', '월', '화', '수', '목', '금', '토']
 const HOUR_TICKS = [0, 3, 6, 9, 12, 15, 18, 21]   // a time mark every 3 hours
 
-interface Placed { a: ApptCard; top: number; height: number }
+interface Placed { a: ApptCard; top: number; height: number; pending: boolean }
 
 /** Group time-overlapping placed appts into clusters (sorted by top). */
 function clusterAppts(items: Placed[]): Placed[][] {
@@ -177,11 +181,11 @@ export function MonthTimeline({
         const hitsShift = (t: number, b: number) => shiftBands.some(([a, z]) => t < z && b > a)
 
         const placed: Placed[] = appointments
-          .filter(a => a.participants.includes(p.uid))
+          .filter(a => a.participants.includes(p.uid) && a.participantStatuses?.[p.uid] !== 'declined')
           .map(a => {
             const top = yOf((a.day - 1) * 24 + a.start)
             const height = Math.max(MIN_APPT_H, yOf((a.day - 1) * 24 + a.end) - top)
-            return { a, top, height }
+            return { a, top, height, pending: a.participantStatuses?.[p.uid] === 'pending' }
           })
 
         const apptEls: React.ReactNode[] = []
@@ -209,8 +213,9 @@ export function MonthTimeline({
                 style={{
                   top: pl.top, height: h, zIndex: 5, ...lane,
                   background: '#fff',
-                  borderLeft: '3px solid var(--brand)',
+                  borderLeft: `3px ${pl.pending ? 'dashed' : 'solid'} var(--brand)`,
                   boxShadow: '0 0 0 2px #fff, inset 0 0 0 1px var(--brand-100), 0 1px 2px rgba(14,19,32,0.08)',
+                  opacity: pl.pending ? 0.6 : 1,
                   lineHeight: 1.25,
                   ...(h < 36
                     ? { flexDirection: 'row', alignItems: 'center', gap: 4, padding: '0 6px' }
