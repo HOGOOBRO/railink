@@ -44,6 +44,20 @@ export function replaceUserScheduleMonths(uid: string, entries: ScheduleEntry[])
   saveSchedules([...others, ...entries])
 }
 
+/** Mirror one month of the remote colleague fetch into the local cache, for
+ *  every fetched uid. Unlike replaceUserScheduleMonths, a uid with an *empty*
+ *  result still gets its month cleared — a revoked share or deleted schedule
+ *  must not keep rendering from stale cache on the next boot. */
+export function replaceUsersMonthCache(
+  uids: string[], year: number, month: number, byUid: Record<string, ScheduleEntry[]>,
+): void {
+  if (!uids.length) return
+  const prefix = `${year}-${String(month).padStart(2, '0')}`
+  const uidSet = new Set(uids)
+  const others = getSchedules().filter(e => !uidSet.has(e.uid) || !e.date.startsWith(prefix))
+  saveSchedules([...others, ...uids.flatMap(uid => byUid[uid] ?? [])])
+}
+
 export async function getRemoteMonthSchedules(uid: string, year: number, month: number): Promise<ScheduleEntry[]> {
   const { start, end } = monthRange(year, month)
   const { data, error } = await supabase

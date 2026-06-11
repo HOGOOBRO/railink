@@ -34,6 +34,7 @@ import {
   getRemoteMonthSchedulesForUsers,
   replaceRemoteUserScheduleMonths,
   replaceUserScheduleMonths,
+  replaceUsersMonthCache,
 } from '@/lib/store/schedules'
 import {
   getGroupsState, saveGroupsState, activeGroupOf, allMemberUids,
@@ -175,6 +176,12 @@ export default function CalendarPage() {
   // Name of the colleague whose schedule is being fetched right now (④) — drives
   // the inline "불러오는 중" chip + bar. null when nothing is mid-fetch.
   const [loadingColleague, setLoadingColleague] = useState<string | null>(null)
+  // True while the month's colleague schedules are in flight with *nothing*
+  // cached to show — drives the generic "동료 근무표 불러오는 중" bar so the
+  // my-schedule-only window doesn't read as "동료가 일정을 안 올렸나?".
+  // Cached months render in the same paint as mine and sync silently, so this
+  // stays false for them. Re-derived at the top of every boot-effect run.
+  const [colsSyncing, setColsSyncing] = useState(false)
 
   // Loader: resolve the session (demo localStorage OR Supabase), then read
   // the localStorage schedule/compare stores. setState runs after the await,
@@ -211,6 +218,19 @@ export default function CalendarPage() {
 
       let mine = getMonthSchedules(s.uid, year, month)
       let cols: Record<string, ScheduleEntry[]> = {}
+      // Colleague months are mirrored into the local store after every remote
+      // sync (replaceUsersMonthCache below), so a revisited month paints the
+      // colleague chips together with my own schedule instead of popping them
+      // in after the network round trip.
+      if (!s.isDemo) {
+        for (const uid of memberUids) {
+          const cached = getMonthSchedules(uid, year, month)
+          if (cached.length) cols[uid] = cached
+        }
+      }
+      // Nothing cached for any colleague → the gap is real this run; announce
+      // the in-flight fetch instead of silently showing only my schedule.
+      setColsSyncing(!s.isDemo && memberUids.length > 0 && Object.keys(cols).length === 0)
 
       setSession(s)
       setGroupsState(nextGroups)
@@ -284,12 +304,17 @@ export default function CalendarPage() {
             mine = remoteMine
           }
           cols = remoteCols
+          // Mirror the fetch into the local cache (empty results clear stale
+          // months) so the next visit paints colleagues with no gap.
+          replaceUsersMonthCache(memberUids, year, month, remoteCols)
         } catch {
-          cols = {}
+          // Keep the cached prefill — wiping it here would blank colleague
+          // chips that are already on screen.
         }
         if (!alive) return
         setMySched(mine)
-        setColSched(cols)
+        setColSched({ ...cols })
+        setColsSyncing(false)
 
         const birthdays = await birthdaysPromise
         if (!alive) return
@@ -1240,9 +1265,23 @@ export default function CalendarPage() {
         </div>
       )}
 
+      {/* ── 동료 근무표 첫 로드 인라인 바 ── 캐시가 전혀 없는 달에서만, 원격
+          fetch가 끝날 때까지. 내 근무만 먼저 보이는 갭이 "동료가 일정을 안
+          올렸다"로 읽히지 않게 한다. 부팅 스켈레톤(⑤)이 떠 있으면 그쪽이
+          이미 로딩을 말하므로 생략. */}
+      {colsSyncing && !booting && !loadingColleague && !overlayOpen && (
+        <div
+          className="absolute left-4 right-4 z-fab flex items-center gap-2.5 bg-surface border border-line rounded-md px-3.5 py-3 shadow-[0_8px_24px_rgba(13,30,55,0.12)]"
+          style={{ bottom: 'calc(30px + env(safe-area-inset-bottom))' }}
+        >
+          <Spinner size={20} color="var(--c1)" />
+          <div className="text-[13px] font-medium text-ink-700">동료 근무표를 불러오는 중…</div>
+        </div>
+      )}
+
       {/* ── FAB speed-dial ── 일정 추가 / 근무표 등록 통합 진입점(결정 #5). 데모·
           실계정 모두 노출(백엔드 연동 완료). 오버레이·동료 로딩 중엔 숨김. */}
-      {!overlayOpen && !loadingColleague && (
+      {!overlayOpen && !loadingColleague && !(colsSyncing && !booting) && (
         <FabSpeedDial onAppointment={openWizard} onUpload={openUpload} />
       )}
 
@@ -1420,12 +1459,14 @@ export default function CalendarPage() {
 
 /* 표시 안내 — 셀의 각 표시가 무슨 뜻인지 한눈에. 비주얼은 실제 셀과 동일하게
  * 그려 매칭이 바로 되도록 한다. 핵심 혼동(연한 칩=근무 vs 취소선=휴무 vs
- * 그냥 숫자=일정 없음)을 분명히 구분. */
+ * 그냥 숫자=일정 없음)을 분명히 구분. CalCell의 마커와 1:1 — 셀에 마커를
+ * 추가하면 여기도 같이. 2열 그리드 고정: flex-wrap은 폭에 따라 줄바꿈이
+ * 들쭉날쭉해 훑기 어렵다. */
 function CalendarLegend() {
   return (
     <div>
       <p className="text-[11px] font-bold text-ink-700 mb-2">표시 안내</p>
-      <div className="flex flex-wrap gap-x-3.5 gap-y-2 text-[11px] text-ink-500 leading-none">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 text-[12px] text-ink-700 leading-none">
         {/* 오늘 */}
         <LegendItem label="오늘">
           <span className="w-[18px] h-[18px] rounded-full bg-brand inline-block" />
@@ -1465,6 +1506,19 @@ function CalendarLegend() {
         {/* 일정 없음 — 그냥 숫자 */}
         <LegendItem label="일정 없음">
           <span className="font-en text-[12px] text-ink-900">1</span>
+        </LegendItem>
+        {/* 약속 — 셀 좌상단 brand 핀 */}
+        <LegendItem label="약속 있는 날">
+          <span className="text-brand inline-grid place-items-center">
+            <PinIcon size={12} />
+          </span>
+        </LegendItem>
+        {/* 생일 — 셀 우상단 핑크 점 (비교 동료 생일) */}
+        <LegendItem label="동료 생일">
+          <span
+            className="w-[7px] h-[7px] rounded-full inline-block"
+            style={{ background: '#E8669B', boxShadow: '0 0 0 1.5px #fff' }}
+          />
         </LegendItem>
       </div>
     </div>
