@@ -128,9 +128,9 @@ export async function deleteRemoteAppointment(id: string): Promise<void> {
 }
 
 /* ── 받은 약속 초대(월 무관) — 캘린더 초대 배너용. ──
- * 마이그레이션 불필요: appt_participants_select RLS가 내 행을, appointments_select_member가
- * 참여 중인 약속 행을 직접 SELECT로 허용한다(참여자는 title 열람 자격이 있어 마스킹도 불필요).
- * user_id 필터는 필수 — 같은 정책이 "내가 소유한 약속"의 타인 pending 행도 보여주기 때문. */
+ * 읽기 RPC(my_pending_appt_invites) 사용. 직접 SELECT는 두 테이블의 RLS 정책이
+ * 서로를 참조해 "infinite recursion detected in policy"(42P17)로 죽는다 —
+ * 다른 읽기와 마찬가지로 SECURITY DEFINER RPC가 정답(RLS 우회). */
 
 export interface PendingApptInvite {
   id: string        // appointment id
@@ -139,27 +139,22 @@ export interface PendingApptInvite {
   ownerUid: string
 }
 
-export async function getMyPendingApptInvites(uid: string): Promise<PendingApptInvite[]> {
-  const { data, error } = await supabase
-    .from('appointment_participants')
-    .select('appointment_id, appointments(appt_date, title, owner_id)')
-    .eq('user_id', uid)
-    .eq('status', 'pending')
+export async function getMyPendingApptInvites(): Promise<PendingApptInvite[]> {
+  const { data, error } = await supabase.rpc('my_pending_appt_invites')
   if (error) throw new Error(formatApptError(error.message))
   const out: PendingApptInvite[] = []
-  for (const row of data ?? []) {
-    const appt = (row as { appointments?: unknown }).appointments
-    if (!appt || typeof appt !== 'object' || Array.isArray(appt)) continue
-    const a = appt as { appt_date?: unknown; title?: unknown; owner_id?: unknown }
-    if (typeof a.appt_date !== 'string' || typeof a.owner_id !== 'string') continue
+  for (const row of Array.isArray(data) ? data : []) {
+    if (!row || typeof row !== 'object') continue
+    const r = row as { id?: unknown; date?: unknown; title?: unknown; ownerId?: unknown }
+    if (typeof r.id !== 'string' || typeof r.date !== 'string' || typeof r.ownerId !== 'string') continue
     out.push({
-      id: String((row as { appointment_id: unknown }).appointment_id),
-      date: a.appt_date,
-      title: typeof a.title === 'string' ? a.title : '',
-      ownerUid: a.owner_id,
+      id: r.id,
+      date: r.date,
+      title: typeof r.title === 'string' ? r.title : '',
+      ownerUid: r.ownerId,
     })
   }
-  return out.sort((x, y) => x.date.localeCompare(y.date))
+  return out  // RPC가 날짜 오름차순 정렬
 }
 
 /** Invitee accepts/declines a group appointment. */

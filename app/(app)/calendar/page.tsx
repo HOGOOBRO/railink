@@ -219,7 +219,7 @@ export default function CalendarPage() {
           .finally(() => { if (alive) setApptsLoading(false) })
         // 받은 약속 초대 배너 — 월과 무관한 전체 pending 초대. 실패해도 배너만
         // 안 뜰 뿐 날짜 탭 경로는 동작하지만, 원인 추적을 위해 콘솔엔 남긴다.
-        getMyPendingApptInvites(s.uid)
+        getMyPendingApptInvites()
           .then(list => { if (alive) setApptInvites(list) })
           .catch(e => console.warn('[appt-invites]', e))
       }
