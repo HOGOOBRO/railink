@@ -255,6 +255,16 @@ export function BrandMark({ size = 18, className }: IconProps) {
   )
 }
 
+/** Bell — 푸시 알림 너지/설정용. */
+export function BellIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M12 2a6 6 0 0 0-6 6v3.1c0 .5-.2 1-.5 1.4L4 14.6c-.5.7 0 1.7.9 1.7h14.2c.9 0 1.4-1 .9-1.7l-1.5-2.1a2.4 2.4 0 0 1-.5-1.4V8a6 6 0 0 0-6-6z" />
+      <path d="M9.6 18.3a2.5 2.5 0 0 0 4.8 0H9.6z" />
+    </svg>
+  )
+}
+
 /* ── 약속 잡기 (appointment) glyphs ── */
 
 /** Map pin — filled brand with a white center hole. The marker for an

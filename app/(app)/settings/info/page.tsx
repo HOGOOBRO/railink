@@ -20,6 +20,7 @@ import {
   type ShareListsWithProfile, type ShareWithProfile,
 } from '@/lib/store/shares'
 import { getMyBirthday, setMyBirthday as saveMyBirthday } from '@/lib/store/birthdays'
+import { getPushStatus, enablePush, disablePush, type PushStatus } from '@/lib/push'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { DangerConfirm } from '@/components/ui/DangerConfirm'
 import { BottomSheet } from '@/components/ui/BottomSheet'
@@ -64,6 +65,30 @@ export default function SettingsInfoPage() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const sharesRef = useRef<HTMLDivElement>(null)
   const birthdayRef = useRef<HTMLDivElement>(null)
+
+  // 약속 초대 푸시 — 이 기기의 상태. unsupported(iOS 미설치 브라우저 포함)면 섹션 숨김.
+  const [push, setPush] = useState<PushStatus>('unsupported')
+  const [pushBusy, setPushBusy] = useState(false)
+  useEffect(() => { getPushStatus().then(setPush).catch(() => {}) }, [])
+
+  async function onTogglePush() {
+    if (pushBusy) return
+    setPushBusy(true)
+    try {
+      if (push === 'enabled') {
+        await disablePush()
+        setPush('disabled')
+        showToast('약속 초대 알림을 껐어요.', 'default')
+      } else {
+        const res = await enablePush()
+        setPush(res.status)
+        if (res.status === 'enabled') showToast('약속 초대 알림을 켰어요.', 'success')
+        else if (res.message) showToast(res.message, 'danger')
+      }
+    } finally {
+      setPushBusy(false)
+    }
+  }
 
   // Inbox banner / badge deep-link (§5): /settings/info?focus=shares scrolls to
   // the 공유 중인 동료 section. Reads location directly (no useSearchParams) so
@@ -337,6 +362,35 @@ export default function SettingsInfoPage() {
             ariaLabel="공개 범위"
           />
         </section>
+
+        {/* 알림 — 약속 초대 웹 푸시 (지원 기기 + 실계정만) */}
+        {!session.isDemo && push !== 'unsupported' && (
+          <section className="mt-4">
+            <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">알림</p>
+            <div className="bg-surface border border-line rounded-lg px-3.5 py-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-callout font-semibold text-ink-900">약속 초대 알림</p>
+                <p className="text-caption text-ink-500 mt-0.5 leading-relaxed">
+                  {push === 'denied'
+                    ? '브라우저 설정에서 알림이 차단돼 있어요. 사이트 설정에서 허용으로 바꿔 주세요.'
+                    : '초대를 받으면 이 기기로 바로 알려드려요.'}
+                </p>
+              </div>
+              <button
+                onClick={onTogglePush}
+                disabled={push === 'denied' || pushBusy}
+                aria-pressed={push === 'enabled'}
+                className={`shrink-0 h-9 px-4 rounded-md text-caption font-bold transition-colors ${
+                  push === 'enabled'
+                    ? 'bg-brand text-ink-on-brand'
+                    : 'bg-surface border border-line-2 text-ink-700'
+                } ${push === 'denied' || pushBusy ? 'opacity-50' : ''}`}
+              >
+                {push === 'enabled' ? '켜짐' : '꺼짐'}
+              </button>
+            </div>
+          </section>
+        )}
 
         {/* 공유 중인 동료 (Section B) */}
         <div ref={sharesRef} style={{ scrollMarginTop: 12 }}>

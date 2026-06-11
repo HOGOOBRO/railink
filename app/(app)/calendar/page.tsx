@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { useToast } from '@/components/ui/Toast'
 import {
-  BrandMark, SearchIcon, PlusIcon, ChevronLeftIcon, ChevronRightIcon, UploadIcon, ArrowRightIcon, EditIcon, UserPlusIcon, CakeIcon, CloseIcon, PinIcon,
+  BrandMark, SearchIcon, PlusIcon, ChevronLeftIcon, ChevronRightIcon, UploadIcon, ArrowRightIcon, EditIcon, UserPlusIcon, CakeIcon, CloseIcon, PinIcon, BellIcon,
 } from '@/components/ui/icons'
 import { CalCell, type CellBar } from '@/components/calendar/CalCell'
 import { DetailSheet } from '@/components/calendar/DetailSheet'
@@ -55,6 +55,7 @@ import {
   getRemoteMonthAppointments, createRemoteAppointment, deleteRemoteAppointment, respondRemoteAppointment,
   getMyPendingApptInvites, type PendingApptInvite,
 } from '@/lib/store/appointments'
+import { isPushSupported, enablePush, getPushStatus } from '@/lib/push'
 import { buildDemoBirthdays, type Colleague } from '@/lib/demo-data'
 import {
   DOW_KR, buildMonthCells, hmToDecimal,
@@ -128,6 +129,9 @@ export default function CalendarPage() {
   const [colBirthdays, setColBirthdays] = useState<Record<string, string>>({})
   const [myBirthday, setMyBirthday] = useState<string | null>(null)
   const [bdayNudgeDismissed, setBdayNudgeDismissed] = useState(true)
+  // 푸시 알림 너지 — 지원 기기 + 아직 권한을 묻지 않은(default) 실계정에만 1회.
+  // 한 번 거절(denied)했거나 켰다 끈 사용자는 다시 조르지 않는다(설정에서 가능).
+  const [pushNudge, setPushNudge] = useState(false)
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -636,6 +640,32 @@ export default function CalendarPage() {
     refreshAppts(year, month)
   }
 
+  // 푸시 너지 노출 판정 — 부팅과 무관. getPushStatus(비동기)를 거쳐 set하므로
+  // effect 내 동기 setState 캐스케이드도 없다.
+  useEffect(() => {
+    if (!session || session.isDemo || !isPushSupported()) return
+    let alive = true
+    getPushStatus().then(st => {
+      if (!alive || st !== 'disabled') return
+      if (Notification.permission !== 'default') return // 켰다 끈/거부한 사용자는 조르지 않음
+      if (localStorage.getItem('railink_push_nudge_dismissed') === '1') return
+      setPushNudge(true)
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [session])
+
+  async function onPushNudgeEnable() {
+    setPushNudge(false)
+    const res = await enablePush()
+    if (res.status === 'enabled') showToast('약속 초대 알림을 켰어요.', 'success')
+    else if (res.message) showToast(res.message, 'danger')
+  }
+
+  function dismissPushNudge() {
+    if (typeof window !== 'undefined') localStorage.setItem('railink_push_nudge_dismissed', '1')
+    setPushNudge(false)
+  }
+
   // 약속 초대 배너 탭 → 가장 이른 초대의 날짜로 점프해 상세 시트를 연다.
   // (시트의 점선 약속 카드 탭 → 수락/거절 다이얼로그가 기존 흐름. 다른 달이면
   // year/month 변경이 월 effect를 깨워 그 달 약속을 로드한다 — 시트는 그동안
@@ -1018,6 +1048,23 @@ export default function CalendarPage() {
           </span>
           <span className="text-brand shrink-0"><ArrowRightIcon size={16} /></span>
         </button>
+      )}
+
+      {/* ── Push nudge ── 1회성. 권한을 아직 안 물어본 기기에만, 탭 한 번으로 구독. */}
+      {pushNudge && (
+        <div className="w-full flex items-center gap-2 px-4 py-2.5 bg-surface border-b border-line">
+          <span className="shrink-0 text-brand"><BellIcon size={16} /></span>
+          <button onClick={onPushNudgeEnable} className="flex-1 text-caption font-semibold text-ink-700 text-left">
+            약속 초대가 오면 알림으로 알려드릴까요? <span className="text-brand">켜기</span>
+          </button>
+          <button
+            onClick={dismissPushNudge}
+            aria-label="알림 안내 닫기"
+            className="shrink-0 text-ink-300 hover:text-ink-500 p-1"
+          >
+            <CloseIcon size={14} />
+          </button>
+        </div>
       )}
 
       {/* ── Birthday nudge ── one-time, dismissible. Shown to real accounts who
