@@ -46,7 +46,9 @@ export function InviteCreateSheet({
     setLoading(false)
     if (!res.ok) { showToast(res.message, 'danger'); return }
     track('invite_create', { demo: res.token === DEMO_INVITE_TOKEN ? 'yes' : 'no' })
-    const url = `${window.location.origin}/signup?invite=${res.token}`
+    // utm 태그로 GA에서 초대 유입을 구분. signup은 invite 파라미터만 읽고,
+    // app/page.tsx가 쿼리를 통째로 전달하므로 추가 파라미터는 무해하다.
+    const url = `${window.location.origin}/signup?invite=${res.token}&utm_source=invite&utm_medium=app`
     setLink(url)
     setStage('created')
   }

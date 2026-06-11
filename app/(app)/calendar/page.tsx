@@ -477,6 +477,20 @@ export default function CalendarPage() {
   }, [compares, colSched])
 
   const hasMySchedule = myByDate.size > 0
+
+  // first_compare — 내 일정 위에 동료 일정이 처음 겹쳐 그려진 순간(활성화 지표).
+  // 계정당 1회: 기존 1회성 플래그들과 같은 per-uid localStorage 가드(브라우저
+  // 단위라 새 기기에선 드물게 중복 — 기존 이벤트들과 동일하게 수용).
+  useEffect(() => {
+    if (!session || booting || typeof window === 'undefined') return
+    const key = `railink_first_compare_${session.uid}`
+    if (localStorage.getItem(key) === '1') return
+    const colleagueDrawn = compares.some(c => (compareByDate.get(c.uid)?.size ?? 0) > 0)
+    if (!hasMySchedule || !colleagueDrawn) return
+    localStorage.setItem(key, '1')
+    track('first_compare', { demo: session.isDemo ? 'yes' : 'no' })
+  }, [session, booting, compares, compareByDate, hasMySchedule])
+
   const weeks = buildMonthCells(year, month)
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1
   const todayD = isCurrentMonth ? today.getDate() : null
