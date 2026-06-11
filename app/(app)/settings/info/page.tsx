@@ -68,8 +68,10 @@ export default function SettingsInfoPage() {
   const sharesRef = useRef<HTMLDivElement>(null)
   const birthdayRef = useRef<HTMLDivElement>(null)
 
-  // 약속 초대 푸시 — 이 기기의 상태. unsupported(iOS 미설치 브라우저 포함)면 섹션 숨김.
-  const [push, setPush] = useState<PushStatus>('unsupported')
+  // 약속 초대 푸시 — 이 기기의 상태. 'loading' 동안은 토글을 잠그고 "확인 중"
+  // 문구를 보여, SW 준비를 기다리는 시간이 "꺼짐"으로 읽히지 않게 한다.
+  // unsupported(iOS 미설치 브라우저 포함)면 섹션 숨김.
+  const [push, setPush] = useState<PushStatus | 'loading'>('loading')
   const [pushBusy, setPushBusy] = useState(false)
   // iOS 사파리 탭: 푸시 미지원이지만 홈 화면에 추가하면 가능 — 안내를 노출한다.
   const [iosInstall, setIosInstall] = useState(false)
@@ -383,15 +385,17 @@ export default function SettingsInfoPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-callout font-semibold text-ink-900">약속 초대 알림</p>
                 <p className="text-caption text-ink-500 mt-0.5 leading-relaxed">
-                  {push === 'denied'
-                    ? '브라우저 설정에서 알림이 차단돼 있어요. 사이트 설정에서 허용으로 바꿔 주세요.'
-                    : '초대를 받으면 이 기기로 바로 알려드려요.'}
+                  {push === 'loading'
+                    ? '알림 상태를 확인하는 중…'
+                    : push === 'denied'
+                      ? '브라우저 설정에서 알림이 차단돼 있어요. 사이트 설정에서 허용으로 바꿔 주세요.'
+                      : '초대를 받으면 이 기기로 바로 알려드려요.'}
                 </p>
               </div>
               <Switch
                 on={push === 'enabled'}
                 onChange={onTogglePush}
-                disabled={push === 'denied' || pushBusy}
+                disabled={push === 'denied' || push === 'loading' || pushBusy}
                 ariaLabel="약속 초대 알림"
               />
             </div>
@@ -452,20 +456,6 @@ export default function SettingsInfoPage() {
           )}
         </Section>
         </div>
-
-        {/* 알림 */}
-        <Section title="알림">
-          <ToggleRow
-            label="동료 일정이 바뀌면 알림"
-            sub="비교 중인 동료의 근무표가 갱신됐을 때."
-            on={false} onChange={() => {}} disabled
-          />
-          <ToggleRow
-            label="내가 비교 대상으로 추가될 때 알림"
-            on={false} onChange={() => {}} disabled
-            last
-          />
-        </Section>
 
         {/* 기타 */}
         <Section title="기타">
@@ -603,41 +593,6 @@ function LinkRow({
     return <Link href={href} className={cls}>{body}</Link>
   }
   return <button onClick={onClick} className={cls}>{body}</button>
-}
-
-function ToggleRow({
-  label, sub, on, onChange, last, disabled,
-}: {
-  label: string; sub?: string; on: boolean
-  onChange: (on: boolean) => void; last?: boolean; disabled?: boolean
-}) {
-  return (
-    <div className={`flex items-center gap-3 px-3.5 py-3.5 ${last ? '' : 'border-b border-line'} ${disabled ? 'opacity-60' : ''}`}>
-      <div className="flex-1 min-w-0">
-        <p className="flex items-center gap-1.5 text-callout font-medium text-ink-900">
-          {label}
-          {disabled && (
-            <span className="text-[10px] font-bold text-ink-500 bg-bg px-1.5 py-0.5 rounded-pill">준비 중</span>
-          )}
-        </p>
-        {sub && <p className="mt-0.5 text-[11px] text-ink-500 leading-relaxed">{sub}</p>}
-      </div>
-      <button
-        onClick={() => { if (!disabled) onChange(!on) }}
-        role="switch"
-        aria-checked={on}
-        disabled={disabled}
-        className={`relative w-11 h-[26px] rounded-pill shrink-0 transition-colors duration-150 ${
-          on ? 'bg-brand' : 'bg-line-2'
-        } ${disabled ? 'cursor-not-allowed' : ''}`}
-      >
-        <span
-          className="absolute top-[3px] w-5 h-5 rounded-full bg-white shadow-sh1 transition-[left] duration-150"
-          style={{ left: on ? 21 : 3 }}
-        />
-      </button>
-    </div>
-  )
 }
 
 function ShareRow({

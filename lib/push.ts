@@ -45,7 +45,15 @@ export async function getPushStatus(): Promise<PushStatus> {
   if (!isPushSupported()) return 'unsupported'
   if (Notification.permission === 'denied') return 'denied'
   if (Notification.permission !== 'granted') return 'disabled'
-  const reg = await navigator.serviceWorker.getRegistration()
+  // 콜드 스타트 직후엔 SW 등록이 끝나기 전이라 getRegistration()이 undefined를
+  // 줄 수 있고, 그러면 멀쩡히 켜진 구독이 '꺼짐'으로 읽힌다(enablePush는
+  // ready를 기다리는 것과 비대칭이었다). ready를 기다리되, SW가 영영 등록되지
+  // 않으면 ready가 안 풀리므로 타임아웃 후 getRegistration으로 폴백.
+  const reg =
+    (await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), 3000)),
+    ])) ?? (await navigator.serviceWorker.getRegistration())
   const sub = await reg?.pushManager.getSubscription()
   return sub ? 'enabled' : 'disabled'
 }
