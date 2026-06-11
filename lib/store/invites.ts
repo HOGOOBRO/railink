@@ -9,6 +9,7 @@
  * revoke are no-ops. */
 import { supabase } from '../supabase'
 import { isDemoActive } from '../auth'
+import { track } from '../analytics'
 
 /** Stable token shown to demo users so the invite-create sheet renders a
  *  plausible link without writing to the DB. Never valid for a real consume. */
@@ -115,6 +116,7 @@ export async function consumeInvite(token: string): Promise<ConsumeInviteResult>
   if (!row || typeof row.inviter_id !== 'string') {
     return { ok: false, code: 'invite_not_found', message: CODE_COPY.invite_not_found }
   }
+  track('invite_consume')
   return {
     ok: true,
     owner: {

@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { UserIcon, CheckIcon, InfoIcon, ShareIosIcon, CloseIcon } from '@/components/ui/icons'
-import { createInvite, buildInviteMessage } from '@/lib/store/invites'
+import { createInvite, buildInviteMessage, DEMO_INVITE_TOKEN } from '@/lib/store/invites'
+import { track } from '@/lib/analytics'
 import type { Group } from '@/lib/types/schedule'
 
 type ToastType = 'default' | 'success' | 'danger'
@@ -44,6 +45,7 @@ export function InviteCreateSheet({
     const res = await createInvite(groupId, matchEmail ? email.trim() : null)
     setLoading(false)
     if (!res.ok) { showToast(res.message, 'danger'); return }
+    track('invite_create', { demo: res.token === DEMO_INVITE_TOKEN ? 'yes' : 'no' })
     const url = `${window.location.origin}/signup?invite=${res.token}`
     setLink(url)
     setStage('created')

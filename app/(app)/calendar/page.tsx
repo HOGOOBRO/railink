@@ -27,6 +27,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { useDelayedFlag } from '@/lib/use-delayed-flag'
 import type { MonthPerson, MonthShift } from '@/components/calendar/MonthTimeline'
 import { getCurrentSession, logout, type Session } from '@/lib/auth'
+import { track } from '@/lib/analytics'
 import {
   getMonthSchedules,
   getRemoteMonthSchedules,
@@ -836,6 +837,7 @@ export default function CalendarPage() {
     // committed (likely — same-tick race), it would have nulled the optimistic
     // pending. Re-set it after the RPC actually succeeded.
     setShareStatus(s => ({ ...s, [uid]: 'pending' }))
+    track('share_request')
     showToast(`${meta.name} 님께 공유 요청을 보냈어요`, 'success')
   }
 
@@ -855,6 +857,7 @@ export default function CalendarPage() {
     }
     setUploadOpen(false); setUploadStep('pick')
     setMySched(getMonthSchedules(session.uid, savedYear, savedMonth))
+    track('schedule_create', { demo: session.isDemo ? 'yes' : 'no' })
     showToast(`${entries.length}건 등록 완료`, 'success')
   }
 

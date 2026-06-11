@@ -10,6 +10,7 @@ import {
   ChevronLeftIcon, ChevronRightIcon, EditIcon, KeyIcon, UploadIcon,
 } from '@/components/ui/icons'
 import { getCurrentSession, logout, updateProfile, setVisibility as saveVisibility, type Session } from '@/lib/auth'
+import { track } from '@/lib/analytics'
 import { supabase } from '@/lib/supabase'
 import { getMonthSchedules, getRemoteMonthSchedules } from '@/lib/store/schedules'
 import { COMPARE_KEY } from '@/lib/store/compare'
@@ -190,12 +191,13 @@ export default function SettingsInfoPage() {
 
   // Share-row actions. Each disables the row controls while in flight, then
   // reloads so the row moves to its new bucket (or disappears).
-  async function runShareAction(fn: () => Promise<{ ok: boolean; message?: string }>, okMsg: string) {
+  async function runShareAction(fn: () => Promise<{ ok: boolean; message?: string }>, okMsg: string, gaEvent?: string) {
     if (shareBusy) return
     setShareBusy(true)
     const res = await fn()
     setShareBusy(false)
     if (!res.ok) { showToast(res.message ?? '잠시 후 다시 시도해 주세요.', 'danger'); return }
+    if (gaEvent) track(gaEvent)
     showToast(okMsg, 'success')
     reloadShares()
   }
@@ -442,7 +444,7 @@ export default function SettingsInfoPage() {
                 share={r.s}
                 busy={shareBusy}
                 last={i === shareRows.length - 1}
-                onAccept={() => runShareAction(() => respondShare(r.s.viewerId, true), `${r.s.counterpart.name}님과 일정을 공유해요`)}
+                onAccept={() => runShareAction(() => respondShare(r.s.viewerId, true), `${r.s.counterpart.name}님과 일정을 공유해요`, 'share_accept')}
                 onDecline={() => runShareAction(() => respondShare(r.s.viewerId, false), '요청을 거절했어요')}
                 onStop={() => runShareAction(() => respondShare(r.s.viewerId, false), `${r.s.counterpart.name}님과의 공유를 중지했어요`)}
               />
