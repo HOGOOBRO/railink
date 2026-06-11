@@ -217,11 +217,11 @@ export default function CalendarPage() {
           .then(a => { if (alive) setAppts(a) })
           .catch(() => { /* SQL 미적용 등 — 약속만 비움 */ })
           .finally(() => { if (alive) setApptsLoading(false) })
-        // 받은 약속 초대 배너 — 월과 무관한 전체 pending 초대. 실패는 조용히
-        // 무시(배너만 안 뜰 뿐, 날짜 탭 경로는 그대로 동작).
+        // 받은 약속 초대 배너 — 월과 무관한 전체 pending 초대. 실패해도 배너만
+        // 안 뜰 뿐 날짜 탭 경로는 동작하지만, 원인 추적을 위해 콘솔엔 남긴다.
         getMyPendingApptInvites(s.uid)
           .then(list => { if (alive) setApptInvites(list) })
-          .catch(() => {})
+          .catch(e => console.warn('[appt-invites]', e))
       }
       // Have a locally-cached month already? Show it immediately and let the
       // remote sync update in place — never make a returning user stare at a
@@ -326,6 +326,22 @@ export default function CalendarPage() {
       // §4 — my viewer-side share status drives the search overlay's actions.
       // §5 — pending requests where I'm the owner feed the inbox banner + badge.
       if (!s.isDemo && shareInfoPromise) {
+        // §6 — one-time migration notice. Shown only to accounts that already had
+        // compares (local groups/compare data); brand-new accounts are marked
+        // 'skipped-new-user' so they never see it.
+        // 반드시 auto-grouping(아래)보다 먼저: auto-grouping이 railink_groups_v1을
+        // 써넣고 effect를 재실행시키므로, 뒤에서 검사하면 새 기기/시크릿 로그인이
+        // "옛 비교 데이터 보유 유저"로 오판돼 마이그레이션 시트가 떠버린다.
+        if (alive && typeof window !== 'undefined' && !localStorage.getItem(MIGRATION_KEY)) {
+          let hadCompares = false
+          try {
+            const g = JSON.parse(localStorage.getItem('railink_groups_v1') ?? '{}')
+            const c = JSON.parse(localStorage.getItem('railink_compare_v4') ?? '{}')
+            hadCompares = (g[s.uid]?.groups?.length ?? 0) > 0 || (c[s.uid]?.length ?? 0) > 0
+          } catch { /* treat as new user */ }
+          if (hadCompares) setMigrationOpen(true)
+          else localStorage.setItem(MIGRATION_KEY, 'skipped-new-user')
+        }
         try {
           const [statuses, shares] = await shareInfoPromise
           if (!alive) return
@@ -373,19 +389,6 @@ export default function CalendarPage() {
           }
         } catch { /* search falls back to "요청"; banner stays hidden */ }
 
-        // §6 — one-time migration notice. Shown only to accounts that already had
-        // compares (local groups/compare data); brand-new accounts are marked
-        // 'skipped-new-user' so they never see it.
-        if (alive && typeof window !== 'undefined' && !localStorage.getItem(MIGRATION_KEY)) {
-          let hadCompares = false
-          try {
-            const g = JSON.parse(localStorage.getItem('railink_groups_v1') ?? '{}')
-            const c = JSON.parse(localStorage.getItem('railink_compare_v4') ?? '{}')
-            hadCompares = (g[s.uid]?.groups?.length ?? 0) > 0 || (c[s.uid]?.length ?? 0) > 0
-          } catch { /* treat as new user */ }
-          if (hadCompares) setMigrationOpen(true)
-          else localStorage.setItem(MIGRATION_KEY, 'skipped-new-user')
-        }
       }
       // Directory + share statuses are both in — search rows render complete.
       // (The auto-grouping `return` above skips this on purpose: it bumps
@@ -945,8 +948,10 @@ export default function CalendarPage() {
         </div>
 
         {/* Empty compare group → invite-first CTA (P0): a 0-colleague calendar is
-            a dead end, so lead with 초대 (the viral move), 동료 찾기 as a fallback. */}
-        {compares.length === 0 && (
+            a dead end, so lead with 초대 (the viral move), 동료 찾기 as a fallback.
+            colleagueLoading 게이트: 새 기기/시크릿 첫 부팅은 auto-grouping이 서버
+            share로 그룹을 복원하기 전이라, 게이트 없이는 빈 CTA가 먼저 번쩍인다. */}
+        {!colleagueLoading && compares.length === 0 && (
           <div className="mx-4 mt-1 flex flex-col items-center text-center gap-1 rounded-lg bg-brand-050 border border-brand-100 px-5 py-5">
             <p className="text-callout font-bold text-ink-900">아직 비교할 동료가 없어요</p>
             <p className="text-caption text-ink-500 leading-relaxed">
