@@ -45,7 +45,10 @@ export function DetailSheet({
   // space to the right. Anyone with a shift somewhere in the month (or a pending share,
   // which shows a "수락 대기 중" notice) keeps their column, so scrolling to other days
   // still surfaces their shifts. The remaining columns grow to fill the width.
-  const shownPeople = people.filter(p => p.pending || p.shifts.length > 0)
+  // 약속 참여자도 유지 — 근무가 없는 달(특히 초대 배너로 점프한 미래 달)에 내
+  // 컬럼이 빠지면 약속 카드가 놓일 곳이 없어 수락/거절 경로가 통째로 막힌다.
+  const apptUids = new Set(appointments.flatMap(a => a.participants))
+  const shownPeople = people.filter(p => p.pending || p.shifts.length > 0 || apptUids.has(p.uid))
 
   // Open scrolled to the tapped day; time runs continuously above/below it.
   useEffect(() => {

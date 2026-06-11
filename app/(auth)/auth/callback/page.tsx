@@ -15,12 +15,22 @@ import { BootSplash } from '@/components/loading/BootSplash'
 // to /calendar. The invite token, if any, rides ?invite= so it survives the
 // Google round trip (consumed on the calendar mount, like every other path).
 
-// GA4 — Google은 가입과 로그인이 같은 콜백을 타므로, 계정 생성 시각이 방금
-// (5분 내)인 세션만 신규 가입으로 보고 sign_up을 쏜다. 재로그인은 통과.
+// GA4 — Google은 가입과 로그인이 같은 콜백을 타므로 신규 가입만 골라 sign_up을
+// 쏜다. 판정은 서버 시각끼리 비교(last_sign_in_at - created_at < 60s: 첫 로그인만
+// 통과) — 클라이언트 시계(Date.now())는 몇 분만 틀려도 가입을 누락/중복시킨다.
+// 추가 가드: provider가 google인 세션만(이메일 계정 오귀속 방지), 계정당 1회
+// (콜백 새로고침·StrictMode 재실행·이메일↔Google 연동의 중복 카운트 방지).
 function fireSignupIfNew(session: SbSession | null): void {
-  const createdAt = session?.user?.created_at
-  if (!createdAt) return
-  if (Date.now() - new Date(createdAt).getTime() < 5 * 60_000) fireSignupEvent('google')
+  const u = session?.user
+  if (!u?.created_at || !u.last_sign_in_at) return
+  if (u.app_metadata?.provider !== 'google') return
+  if (new Date(u.last_sign_in_at).getTime() - new Date(u.created_at).getTime() >= 60_000) return
+  const onceKey = `railink_signup_fired_${u.id}`
+  try {
+    if (localStorage.getItem(onceKey)) return
+    localStorage.setItem(onceKey, '1')
+  } catch { /* localStorage 막힘 — 중복 가드 없이 1회 발송 시도 */ }
+  fireSignupEvent('google')
 }
 
 export default function AuthCallbackPage() {

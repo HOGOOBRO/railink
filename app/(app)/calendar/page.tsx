@@ -115,6 +115,9 @@ export default function CalendarPage() {
   // opening the search overlay before it even starts must read as "loading",
   // not "no colleagues" (the empty state is only valid after a completed fetch).
   const [colleagueLoading, setColleagueLoading] = useState(true)
+  // 첫 directory+share 동기화가 끝났는지(1회성). colleagueLoading은 월 이동마다
+  // 다시 true가 되므로 빈 동료 CTA 게이트로 쓰면 매 이동마다 CTA가 깜빡인다.
+  const [shareSynced, setShareSynced] = useState(false)
   const [shareStatus, setShareStatus] = useState<Record<string, ShareStatus>>({})
   const [pendingCount, setPendingCount] = useState(0)
   const [colorOverrides, setColorOverrides] = useState<Record<string, CompareColor>>({})
@@ -149,6 +152,9 @@ export default function CalendarPage() {
   const [apptsLoading, setApptsLoading] = useState(true)
   // 받은 약속 초대(pending, 월 무관) — 초대 발견성 배너용. 실계정만(데모엔 초대 없음).
   const [apptInvites, setApptInvites] = useState<PendingApptInvite[]>([])
+  // 이 세션에서 응답(수락/거절)한 약속 id — 부팅 effect의 초대 재조회가 늦게
+  // 도착해도 응답한 초대가 배너에 되살아나지 않도록 거른다.
+  const respondedApptIds = useRef<Set<string>>(new Set())
   const [wizardOpen, setWizardOpen] = useState(false)
   const [wizardPreday, setWizardPreday] = useState<{ y: number; m: number; d: number } | null>(null)
   // First-load gate for the calendar skeleton (⑤). True until the initial
@@ -220,7 +226,7 @@ export default function CalendarPage() {
         // 받은 약속 초대 배너 — 월과 무관한 전체 pending 초대. 실패해도 배너만
         // 안 뜰 뿐 날짜 탭 경로는 동작하지만, 원인 추적을 위해 콘솔엔 남긴다.
         getMyPendingApptInvites()
-          .then(list => { if (alive) setApptInvites(list) })
+          .then(list => { if (alive) setApptInvites(list.filter(i => !respondedApptIds.current.has(i.id))) })
           .catch(e => console.warn('[appt-invites]', e))
       }
       // Have a locally-cached month already? Show it immediately and let the
@@ -241,7 +247,10 @@ export default function CalendarPage() {
       if (s.isDemo) {
         for (const uid of memberUids) cols[uid] = getMonthSchedules(uid, year, month)
         if (!alive) return
-        setColSched(cols)
+        // 새 객체로 — cols는 위에서 이미 state로 커밋된 참조라, 같은 참조를 다시
+        // 넘기면 React가 업데이트를 건너뛴다(지금은 다른 state 변화 덕에 우연히
+        // 렌더되지만 잠재 지뢰).
+        setColSched({ ...cols })
         // Demo birthdays are local (no Supabase) so the cake marker is demoable.
         const allB = buildDemoBirthdays()
         const demoB: Record<string, string> = {}
@@ -337,7 +346,10 @@ export default function CalendarPage() {
           try {
             const g = JSON.parse(localStorage.getItem('railink_groups_v1') ?? '{}')
             const c = JSON.parse(localStorage.getItem('railink_compare_v4') ?? '{}')
-            hadCompares = (g[s.uid]?.groups?.length ?? 0) > 0 || (c[s.uid]?.length ?? 0) > 0
+            // 그룹 "개수"가 아니라 "멤버 보유" 기준 — 멤버 없는 빈 그룹만 있는
+            // 유저는 비교한 적이 없으므로 마이그레이션 안내 대상이 아니다.
+            const groups: { members?: unknown[] }[] = g[s.uid]?.groups ?? []
+            hadCompares = groups.some(gr => (gr.members?.length ?? 0) > 0) || (c[s.uid]?.length ?? 0) > 0
           } catch { /* treat as new user */ }
           if (hadCompares) setMigrationOpen(true)
           else localStorage.setItem(MIGRATION_KEY, 'skipped-new-user')
@@ -393,7 +405,7 @@ export default function CalendarPage() {
       // Directory + share statuses are both in — search rows render complete.
       // (The auto-grouping `return` above skips this on purpose: it bumps
       // `reload`, the effect re-runs, and that pass releases the flag.)
-      if (alive) setColleagueLoading(false)
+      if (alive) { setColleagueLoading(false); setShareSynced(true) }
     })()
     return () => { alive = false }
   }, [router, year, month, reload, showToast])
@@ -609,10 +621,19 @@ export default function CalendarPage() {
       showToast(e instanceof Error ? e.message : '처리하지 못했어요.', 'danger')
       return
     }
-    await refreshAppts(year, month)
-    // 응답한 초대는 더 이상 pending이 아니다 — 배너 카운트 즉시 반영(재조회 불필요).
+    // 서버 반영은 성공 — 화면은 즉시 낙관 갱신한다. (이전엔 재조회에만 의존했는데,
+    // 그 재조회가 조용히 실패하면 점선 카드가 그대로 남아 "나갔다 들어와야 반영"
+    // 으로 보였다.) 재조회는 best-effort 동기화로 강등.
+    const st = accept ? ('accepted' as const) : ('declined' as const)
+    setAppts(list => list.map(a => a.id === id
+      ? { ...a, myStatus: st, participantStatuses: { ...a.participantStatuses, [session.uid]: st } }
+      : a))
+    // 부팅 effect의 초대 재조회(월 이동마다)가 늦게 도착해 응답한 초대를 배너에
+    // 되살리는 레이스 방지 — 응답 이력은 ref로 들고 도착분을 거른다.
+    respondedApptIds.current.add(id)
     setApptInvites(list => list.filter(i => i.id !== id))
     showToast(accept ? '약속을 수락했어요.' : '약속을 거절했어요.', accept ? 'success' : 'default')
+    refreshAppts(year, month)
   }
 
   // 약속 초대 배너 탭 → 가장 이른 초대의 날짜로 점프해 상세 시트를 연다.
@@ -949,9 +970,10 @@ export default function CalendarPage() {
 
         {/* Empty compare group → invite-first CTA (P0): a 0-colleague calendar is
             a dead end, so lead with 초대 (the viral move), 동료 찾기 as a fallback.
-            colleagueLoading 게이트: 새 기기/시크릿 첫 부팅은 auto-grouping이 서버
-            share로 그룹을 복원하기 전이라, 게이트 없이는 빈 CTA가 먼저 번쩍인다. */}
-        {!colleagueLoading && compares.length === 0 && (
+            shareSynced 게이트(1회성): 새 기기/시크릿 첫 부팅은 auto-grouping이 서버
+            share로 그룹을 복원하기 전이라, 게이트 없이는 빈 CTA가 먼저 번쩍인다.
+            (colleagueLoading은 월 이동마다 true로 돌아와 CTA가 깜빡여서 못 쓴다.) */}
+        {shareSynced && compares.length === 0 && (
           <div className="mx-4 mt-1 flex flex-col items-center text-center gap-1 rounded-lg bg-brand-050 border border-brand-100 px-5 py-5">
             <p className="text-callout font-bold text-ink-900">아직 비교할 동료가 없어요</p>
             <p className="text-caption text-ink-500 leading-relaxed">
@@ -1093,6 +1115,7 @@ export default function CalendarPage() {
                     today={!c.isOther && c.d === todayD}
                     selected={
                       !c.isOther && !!selectedDate &&
+                      selectedDate.getFullYear() === year &&
                       selectedDate.getMonth() === month - 1 && selectedDate.getDate() === c.d
                     }
                     bars={c.iso ? barsByIso.get(c.iso) ?? [] : []}

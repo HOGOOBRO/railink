@@ -67,6 +67,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko" className={jetbrainsMono.variable}>
       <body>
+        {/* gtag 동기 스텁: gtag.js(afterInteractive + opt-out 체크 뒤 지연 마운트)가
+            로드되기 전에 발생한 이벤트(빠른 가입/데모 로그인)가 유실되지 않도록
+            dataLayer에 큐잉한다. opt-out이면 gtag.js가 영영 안 실리므로 큐는
+            전송 없이 버려진다 — noga 동작 그대로 유지. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              'window.dataLayer=window.dataLayer||[];window.gtag=window.gtag||function(){window.dataLayer.push(arguments);};',
+          }}
+        />
         <ToastProvider>
           <div className="app-frame">{children}</div>
         </ToastProvider>

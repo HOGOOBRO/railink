@@ -237,8 +237,23 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
     }
     return { ok: false, message: '가입 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
   }
-  // GA4 — 가입(폼 제출 성공, 이메일 인증 완료 전) 추적.
-  fireSignupEvent('email')
+  // 이미 가입+인증된 이메일: Supabase는 계정 열거 방지로 에러 대신 "가짜 성공"
+  // (identities가 빈 user)을 돌려준다 — 위의 에러 regex로는 안 잡힌다. 이 경우
+  // 진짜 안내를 주고(가짜 "메일 확인" 화면 방지) sign_up 이벤트도 쏘지 않는다.
+  if (data.user && (data.user.identities?.length ?? 0) === 0) {
+    return { ok: false, field: 'email', message: '이미 가입된 이메일이에요.' }
+  }
+  // GA4 — 가입(폼 제출 성공, 이메일 인증 완료 전) 추적. 같은 이메일 재제출
+  // (미인증 상태에서 뒤로가기→다시 제출)은 이메일 단위 1회 가드로 중복 방지.
+  if (typeof window !== 'undefined') {
+    const onceKey = `railink_signup_fired_${input.email.trim().toLowerCase()}`
+    try {
+      if (!localStorage.getItem(onceKey)) {
+        localStorage.setItem(onceKey, '1')
+        fireSignupEvent('email')
+      }
+    } catch { fireSignupEvent('email') }
+  }
   // Email confirmation is ON → no session until the link is clicked.
   return { ok: true, needsConfirm: !data.session }
 }
