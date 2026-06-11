@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { useToast } from '@/components/ui/Toast'
 import {
-  BrandMark, SearchIcon, PlusIcon, ChevronLeftIcon, ChevronRightIcon, UploadIcon, ArrowRightIcon, EditIcon, UserPlusIcon, CakeIcon, CloseIcon,
+  BrandMark, SearchIcon, PlusIcon, ChevronLeftIcon, ChevronRightIcon, UploadIcon, ArrowRightIcon, EditIcon, UserPlusIcon, CakeIcon, CloseIcon, PinIcon,
 } from '@/components/ui/icons'
 import { CalCell, type CellBar } from '@/components/calendar/CalCell'
 import { DetailSheet } from '@/components/calendar/DetailSheet'
@@ -53,6 +53,7 @@ import { getMemberColors, setMemberColor } from '@/lib/store/member-colors'
 import {
   getMonthAppointments, addAppointment, deleteAppointment,
   getRemoteMonthAppointments, createRemoteAppointment, deleteRemoteAppointment, respondRemoteAppointment,
+  getMyPendingApptInvites, type PendingApptInvite,
 } from '@/lib/store/appointments'
 import { buildDemoBirthdays, type Colleague } from '@/lib/demo-data'
 import {
@@ -146,6 +147,8 @@ export default function CalendarPage() {
   // True while the month's appointments are in flight (remote accounts) — lets
   // the detail sheet say "확인 중" instead of silently showing zero 약속.
   const [apptsLoading, setApptsLoading] = useState(true)
+  // 받은 약속 초대(pending, 월 무관) — 초대 발견성 배너용. 실계정만(데모엔 초대 없음).
+  const [apptInvites, setApptInvites] = useState<PendingApptInvite[]>([])
   const [wizardOpen, setWizardOpen] = useState(false)
   const [wizardPreday, setWizardPreday] = useState<{ y: number; m: number; d: number } | null>(null)
   // First-load gate for the calendar skeleton (⑤). True until the initial
@@ -214,6 +217,11 @@ export default function CalendarPage() {
           .then(a => { if (alive) setAppts(a) })
           .catch(() => { /* SQL 미적용 등 — 약속만 비움 */ })
           .finally(() => { if (alive) setApptsLoading(false) })
+        // 받은 약속 초대 배너 — 월과 무관한 전체 pending 초대. 실패는 조용히
+        // 무시(배너만 안 뜰 뿐, 날짜 탭 경로는 그대로 동작).
+        getMyPendingApptInvites(s.uid)
+          .then(list => { if (alive) setApptInvites(list) })
+          .catch(() => {})
       }
       // Have a locally-cached month already? Show it immediately and let the
       // remote sync update in place — never make a returning user stare at a
@@ -599,7 +607,25 @@ export default function CalendarPage() {
       return
     }
     await refreshAppts(year, month)
+    // 응답한 초대는 더 이상 pending이 아니다 — 배너 카운트 즉시 반영(재조회 불필요).
+    setApptInvites(list => list.filter(i => i.id !== id))
     showToast(accept ? '약속을 수락했어요.' : '약속을 거절했어요.', accept ? 'success' : 'default')
+  }
+
+  // 약속 초대 배너 탭 → 가장 이른 초대의 날짜로 점프해 상세 시트를 연다.
+  // (시트의 점선 약속 카드 탭 → 수락/거절 다이얼로그가 기존 흐름. 다른 달이면
+  // year/month 변경이 월 effect를 깨워 그 달 약속을 로드한다 — 시트는 그동안
+  // apptsLoading 표시.)
+  function openFirstApptInvite() {
+    const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    // 다가오는 초대 우선(리스트는 날짜 오름차순), 전부 지났으면 첫 항목으로.
+    const first = apptInvites.find(i => i.date >= todayIso) ?? apptInvites[0]
+    if (!first) return
+    const y = Number(first.date.slice(0, 4)), m = Number(first.date.slice(5, 7)), d = Number(first.date.slice(8, 10))
+    if (y !== year || m !== month) { setYear(y); setMonth(m) }
+    setSelectedDate(new Date(y, m - 1, d))
+    closeOverlays()
+    setDetailOpen(true)
   }
 
   const openInvite = (prefillEmail?: string | null) => {
@@ -947,6 +973,21 @@ export default function CalendarPage() {
         >
           <span className="flex-1 text-caption font-semibold text-ink-700">
             받은 공유 요청 <span className="font-en">{pendingCount}</span>개
+          </span>
+          <span className="text-brand shrink-0"><ArrowRightIcon size={16} /></span>
+        </button>
+      )}
+
+      {/* ── 약속 초대 배너: 초대가 어느 달에 있든 발견되도록 (날짜 핀만으로는
+          그 달로 넘겨야만 보인다). 탭 → 해당 날짜로 점프 + 상세 시트 오픈. ── */}
+      {apptInvites.length > 0 && (
+        <button
+          onClick={openFirstApptInvite}
+          className="w-full flex items-center gap-2 px-4 py-2.5 bg-brand-050 border-b border-line text-left"
+        >
+          <span className="text-brand shrink-0"><PinIcon size={14} /></span>
+          <span className="flex-1 text-caption font-semibold text-ink-700">
+            받은 약속 초대 <span className="font-en">{apptInvites.length}</span>개 · 탭해서 확인
           </span>
           <span className="text-brand shrink-0"><ArrowRightIcon size={16} /></span>
         </button>
