@@ -116,6 +116,12 @@ export async function login(email: string, password: string): Promise<LoginResul
     await supabase.auth.signOut()
     seedDemo()
     localStorage.setItem(DEMO_SESSION_KEY, '1')
+    // GA4 — 데모 로그인 카운트. railink_demo_seen은 데모→가입 전환 퍼널의
+    // 근거가 되는 영구 플래그: 세션 키와 달리 실계정 로그인에도 안 지워져서,
+    // 나중에 sign_up 이벤트의 demo_before 파라미터로 실려 나간다.
+    localStorage.setItem('railink_demo_seen', '1')
+    const gtag = (window as unknown as { gtag?: (command: 'event', name: string) => void }).gtag
+    gtag?.('event', 'demo_login')
     return { ok: true, demo: true }
   }
   if (typeof window !== 'undefined') localStorage.removeItem(DEMO_SESSION_KEY)
@@ -231,8 +237,25 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
     }
     return { ok: false, message: '가입 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
   }
+  // GA4 — 가입(폼 제출 성공, 이메일 인증 완료 전) 추적.
+  fireSignupEvent('email')
   // Email confirmation is ON → no session until the link is clicked.
   return { ok: true, needsConfirm: !data.session }
+}
+
+/** GA4 sign_up 이벤트 — 이메일 가입(signup())과 Google 신규 가입(/auth/callback)
+ *  이 공유한다. demo_before: 이 브라우저에서 데모를 써본 적 있는지(yes/no) —
+ *  GA4에서 demo_before를 이벤트 단위 맞춤 측정기준으로 등록하면 데모→가입
+ *  전환 퍼널을 표로 볼 수 있다. */
+export function fireSignupEvent(method: 'email' | 'google'): void {
+  if (typeof window === 'undefined') return
+  const gtag = (window as unknown as {
+    gtag?: (command: 'event', name: string, params?: Record<string, string>) => void
+  }).gtag
+  gtag?.('event', 'sign_up', {
+    method,
+    demo_before: localStorage.getItem('railink_demo_seen') ? 'yes' : 'no',
+  })
 }
 
 export async function resendConfirmation(email: string): Promise<void> {
