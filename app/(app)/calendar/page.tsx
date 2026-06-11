@@ -55,7 +55,7 @@ import {
   getRemoteMonthAppointments, createRemoteAppointment, deleteRemoteAppointment, respondRemoteAppointment,
   getMyPendingApptInvites, type PendingApptInvite,
 } from '@/lib/store/appointments'
-import { isPushSupported, enablePush, getPushStatus } from '@/lib/push'
+import { isPushSupported, enablePush, getPushStatus, pushNeedsIosInstall } from '@/lib/push'
 import { buildDemoBirthdays, type Colleague } from '@/lib/demo-data'
 import {
   DOW_KR, buildMonthCells, hmToDecimal,
@@ -129,9 +129,9 @@ export default function CalendarPage() {
   const [colBirthdays, setColBirthdays] = useState<Record<string, string>>({})
   const [myBirthday, setMyBirthday] = useState<string | null>(null)
   const [bdayNudgeDismissed, setBdayNudgeDismissed] = useState(true)
-  // 푸시 알림 너지 — 지원 기기 + 아직 권한을 묻지 않은(default) 실계정에만 1회.
-  // 한 번 거절(denied)했거나 켰다 끈 사용자는 다시 조르지 않는다(설정에서 가능).
-  const [pushNudge, setPushNudge] = useState(false)
+  // 푸시 알림 너지 — null=숨김 / 'enable'=탭 한 번 구독(지원 기기) / 'install'=
+  // iOS 사파리 탭(설치해야 알림 가능). 둘 다 1회성, 거절·기존 구독자는 제외.
+  const [pushNudge, setPushNudge] = useState<null | 'enable' | 'install'>(null)
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -640,22 +640,25 @@ export default function CalendarPage() {
     refreshAppts(year, month)
   }
 
-  // 푸시 너지 노출 판정 — 부팅과 무관. getPushStatus(비동기)를 거쳐 set하므로
-  // effect 내 동기 setState 캐스케이드도 없다.
+  // 푸시 너지 노출 판정 — 부팅과 무관. 한 번 닫으면(localStorage) 두 모드 공통으로
+  // 다시 안 뜬다. iOS 사파리 탭은 설치 안내, 그 외 지원 기기는 즉시 구독 너지.
   useEffect(() => {
-    if (!session || session.isDemo || !isPushSupported()) return
+    if (!session || session.isDemo) return
+    if (typeof window !== 'undefined' && localStorage.getItem('railink_push_nudge_dismissed') === '1') return
     let alive = true
+    // 비동기 .then 안에서만 set — effect 내 동기 setState 캐스케이드 회피.
     getPushStatus().then(st => {
-      if (!alive || st !== 'disabled') return
+      if (!alive) return
+      if (pushNeedsIosInstall()) { setPushNudge('install'); return }
+      if (!isPushSupported() || st !== 'disabled') return
       if (Notification.permission !== 'default') return // 켰다 끈/거부한 사용자는 조르지 않음
-      if (localStorage.getItem('railink_push_nudge_dismissed') === '1') return
-      setPushNudge(true)
+      setPushNudge('enable')
     }).catch(() => {})
     return () => { alive = false }
   }, [session])
 
   async function onPushNudgeEnable() {
-    setPushNudge(false)
+    setPushNudge(null)
     const res = await enablePush()
     if (res.status === 'enabled') showToast('약속 초대 알림을 켰어요.', 'success')
     else if (res.message) showToast(res.message, 'danger')
@@ -663,7 +666,7 @@ export default function CalendarPage() {
 
   function dismissPushNudge() {
     if (typeof window !== 'undefined') localStorage.setItem('railink_push_nudge_dismissed', '1')
-    setPushNudge(false)
+    setPushNudge(null)
   }
 
   // 약속 초대 배너 탭 → 가장 이른 초대의 날짜로 점프해 상세 시트를 연다.
@@ -1050,13 +1053,19 @@ export default function CalendarPage() {
         </button>
       )}
 
-      {/* ── Push nudge ── 1회성. 권한을 아직 안 물어본 기기에만, 탭 한 번으로 구독. */}
+      {/* ── Push nudge ── 1회성. enable=탭 즉시 구독 / install=iOS 설치 안내(/install). */}
       {pushNudge && (
         <div className="w-full flex items-center gap-2 px-4 py-2.5 bg-surface border-b border-line">
           <span className="shrink-0 text-brand"><BellIcon size={16} /></span>
-          <button onClick={onPushNudgeEnable} className="flex-1 text-caption font-semibold text-ink-700 text-left">
-            약속 초대가 오면 알림으로 알려드릴까요? <span className="text-brand">켜기</span>
-          </button>
+          {pushNudge === 'enable' ? (
+            <button onClick={onPushNudgeEnable} className="flex-1 text-caption font-semibold text-ink-700 text-left">
+              약속 초대가 오면 알림으로 알려드릴까요? <span className="text-brand">켜기</span>
+            </button>
+          ) : (
+            <button onClick={() => { dismissPushNudge(); router.push('/install') }} className="flex-1 text-caption font-semibold text-ink-700 text-left">
+              홈 화면에 추가하면 약속 초대 알림을 받을 수 있어요 <span className="text-brand">설치 방법</span>
+            </button>
+          )}
           <button
             onClick={dismissPushNudge}
             aria-label="알림 안내 닫기"

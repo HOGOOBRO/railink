@@ -20,7 +20,7 @@ import {
   type ShareListsWithProfile, type ShareWithProfile,
 } from '@/lib/store/shares'
 import { getMyBirthday, setMyBirthday as saveMyBirthday } from '@/lib/store/birthdays'
-import { getPushStatus, enablePush, disablePush, type PushStatus } from '@/lib/push'
+import { getPushStatus, enablePush, disablePush, pushNeedsIosInstall, type PushStatus } from '@/lib/push'
 import { Switch } from '@/components/ui/Switch'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { DangerConfirm } from '@/components/ui/DangerConfirm'
@@ -70,7 +70,12 @@ export default function SettingsInfoPage() {
   // 약속 초대 푸시 — 이 기기의 상태. unsupported(iOS 미설치 브라우저 포함)면 섹션 숨김.
   const [push, setPush] = useState<PushStatus>('unsupported')
   const [pushBusy, setPushBusy] = useState(false)
-  useEffect(() => { getPushStatus().then(setPush).catch(() => {}) }, [])
+  // iOS 사파리 탭: 푸시 미지원이지만 홈 화면에 추가하면 가능 — 안내를 노출한다.
+  const [iosInstall, setIosInstall] = useState(false)
+  useEffect(() => {
+    // setIosInstall도 .then 안에서 — effect 내 동기 setState 캐스케이드 회피.
+    getPushStatus().then(st => { setPush(st); setIosInstall(pushNeedsIosInstall()) }).catch(() => {})
+  }, [])
 
   async function onTogglePush() {
     if (pushBusy) return
@@ -388,6 +393,25 @@ export default function SettingsInfoPage() {
                 ariaLabel="약속 초대 알림"
               />
             </div>
+          </section>
+        )}
+
+        {/* 알림 — iOS 사파리 탭: 설치해야 알림을 켤 수 있음을 안내(숨기지 않는다) */}
+        {!session.isDemo && push === 'unsupported' && iosInstall && (
+          <section className="mt-4">
+            <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">알림</p>
+            <Link
+              href="/install"
+              className="flex items-center gap-3 bg-surface border border-line rounded-lg px-3.5 py-3 active:scale-[.99] transition-transform"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-callout font-semibold text-ink-900">약속 초대 알림</p>
+                <p className="text-caption text-ink-500 mt-0.5 leading-relaxed">
+                  아이폰은 <span className="font-semibold text-ink-700">홈 화면에 추가</span>하면 약속 초대 알림을 받을 수 있어요. 설치 방법 보기
+                </p>
+              </div>
+              <ChevronRightIcon size={16} className="shrink-0 text-ink-300" />
+            </Link>
           </section>
         )}
 

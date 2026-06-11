@@ -24,6 +24,22 @@ export function isPushSupported(): boolean {
   )
 }
 
+/** iOS(아이폰/아이패드)에서 아직 홈 화면에 설치하지 않아 푸시가 막힌 상태.
+ *  iOS Safari 탭은 PushManager가 없어 isPushSupported()가 false라, 그냥 숨기면
+ *  "설치하면 알림을 받을 수 있다"는 사실 자체를 못 본다 — 이 경우만 설치 안내를
+ *  노출하기 위한 신호. (홈 화면 PWA로 열면 standalone=true라 false로 빠진다.) */
+export function pushNeedsIosInstall(): boolean {
+  if (typeof window === 'undefined' || isPushSupported()) return false
+  const ua = navigator.userAgent
+  // iPadOS 13+는 데스크톱 UA를 쓰므로 터치+Mac 조합도 iPad로 본다.
+  const isIos = /iPhone|iPad|iPod/.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua))
+  if (!isIos) return false
+  const standalone =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as { standalone?: boolean }).standalone === true
+  return !standalone
+}
+
 /** 현재 기기의 푸시 상태. enabled = 권한 허용 + 활성 구독 존재. */
 export async function getPushStatus(): Promise<PushStatus> {
   if (!isPushSupported()) return 'unsupported'
