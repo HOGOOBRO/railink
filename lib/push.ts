@@ -42,8 +42,9 @@ export async function enablePush(): Promise<{ status: PushStatus; message?: stri
   if (perm !== 'granted') return { status: 'disabled' }
 
   const reg = await navigator.serviceWorker.ready
+  const existing = await reg.pushManager.getSubscription()
   const sub =
-    (await reg.pushManager.getSubscription()) ??
+    existing ??
     (await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
@@ -56,22 +57,27 @@ export async function enablePush(): Promise<{ status: PushStatus; message?: stri
     p_auth: json.keys?.auth ?? '',
   })
   if (error) {
-    // 서버 저장 실패 → 브라우저 구독도 원복(반쪽 상태 방지)
-    await sub.unsubscribe().catch(() => {})
+    // 서버 저장 실패 → 이번 호출이 *새로 만든* 구독만 원복한다. 이미 있던
+    // (이전에 정상 등록된) 구독을 끊으면 멀쩡하던 알림이 조용히 꺼진다.
+    if (!existing) await sub.unsubscribe().catch(() => {})
     return { status: 'disabled', message: '알림 등록에 실패했어요. 잠시 후 다시 시도해 주세요.' }
   }
   return { status: 'enabled' }
 }
 
-/** 구독 해지(브라우저 + 서버 양쪽). */
+/** 구독 해지(서버 먼저, 그다음 브라우저). 서버 행이 권위 — 서버 삭제가 실패하면
+ *  죽은 endpoint로 계속 발송되므로 throw해서 호출부가 알 수 있게 한다. */
 export async function disablePush(): Promise<void> {
   if (!isPushSupported()) return
   const reg = await navigator.serviceWorker.getRegistration()
   const sub = await reg?.pushManager.getSubscription()
   if (!sub) return
   const endpoint = sub.endpoint
+  // 서버 행을 먼저 지운다 — 여기서 실패하면 브라우저 구독을 살려둔 채 에러를
+  // 올려, 사용자가 "꺼짐"으로 오인하지 않게 한다.
+  const { error } = await supabase.rpc('delete_push_subscription', { p_endpoint: endpoint })
+  if (error) throw new Error('알림 해제에 실패했어요. 잠시 후 다시 시도해 주세요.')
   await sub.unsubscribe().catch(() => {})
-  await supabase.rpc('delete_push_subscription', { p_endpoint: endpoint }).then(() => {}, () => {})
 }
 
 /** VAPID 공개키(base64url) → PushManager가 요구하는 Uint8Array.

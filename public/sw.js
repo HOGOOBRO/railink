@@ -26,13 +26,17 @@ self.addEventListener('notificationclick', (event) => {
   const url = (event.notification.data && event.notification.data.url) || '/calendar'
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      // 이미 떠 있는 창이 있으면 포커스(가능하면 해당 경로로), 없으면 새로 연다.
+      // 이미 목표 경로(url)에 있는 창이 있으면 그대로 포커스.
       for (const c of list) {
-        if ('focus' in c) {
-          if (c.navigate) c.navigate(url)
-          return c.focus()
+        if (c.url && c.url.indexOf(url) !== -1 && 'focus' in c) return c.focus()
+      }
+      // 다른 경로의 창이 있으면 navigate 가능한 경우 이동 후 포커스(끝까지 await).
+      for (const c of list) {
+        if ('focus' in c && typeof c.navigate === 'function') {
+          return c.navigate(url).then((nc) => (nc || c).focus()).catch(() => c.focus())
         }
       }
+      // 떠 있는 창이 없거나 navigate 미지원 → 새 창.
       return self.clients.openWindow(url)
     }),
   )

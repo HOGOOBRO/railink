@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { timingSafeEqual } from 'node:crypto'
 import webpush from 'web-push'
 import { createClient } from '@supabase/supabase-js'
 
@@ -34,9 +35,17 @@ function buildCopy(kind: PushKind, p: { title?: string; date?: string; ownerName
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+/** 상수시간 시크릿 비교 — 길이 다르면 즉시 false(timingSafeEqual은 길이 같아야 함). */
+function secretOk(provided: string | null, expected: string): boolean {
+  if (!provided) return false
+  const a = Buffer.from(provided)
+  const b = Buffer.from(expected)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
 export async function POST(req: Request) {
   const secret = process.env.PUSH_WEBHOOK_SECRET
-  if (!secret || req.headers.get('x-push-secret') !== secret) {
+  if (!secret || !secretOk(req.headers.get('x-push-secret'), secret)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 

@@ -22,7 +22,11 @@ declare
   v_date  date;
   v_owner uuid;
   v_actor text;
+  v_secret text;
 begin
+  select value into v_secret from private.app_secrets where key = 'push_webhook_secret';
+  if v_secret is null then return new; end if;
+
   select a.title, a.appt_date, a.owner_id
     into v_title, v_date, v_owner
   from public.appointments a
@@ -38,7 +42,7 @@ begin
       url     := 'https://railink.app/api/push-invite',
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
-        'x-push-secret', '9b007facb12a8bc9f2570e7f558909a9e35167f20d09aa94'
+        'x-push-secret', v_secret
       ),
       body    := jsonb_build_object(
         'userId',    v_owner,
@@ -73,7 +77,11 @@ set search_path = public
 as $$
 declare
   r record;
+  v_secret text;
 begin
+  select value into v_secret from private.app_secrets where key = 'push_webhook_secret';
+  if v_secret is null then return; end if;
+
   for r in
     select ap.user_id, a.title, a.start_time
     from public.appointments a
@@ -87,7 +95,7 @@ begin
         url     := 'https://railink.app/api/push-invite',
         headers := jsonb_build_object(
           'Content-Type', 'application/json',
-          'x-push-secret', '9b007facb12a8bc9f2570e7f558909a9e35167f20d09aa94'
+          'x-push-secret', v_secret
         ),
         body    := jsonb_build_object(
           'userId', r.user_id,

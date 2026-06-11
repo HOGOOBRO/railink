@@ -309,6 +309,13 @@ export async function updatePhoto(photo: string | null): Promise<{ ok: boolean; 
 
 export async function logout(): Promise<void> {
   photoCache = null
+  // 푸시 구독 정리 — 안 하면 공용 브라우저에서 다음 로그인 계정이 이전 계정의
+  // 알림을 받는다(구독은 endpoint로 서버에 남고, getPushStatus는 'enabled'라
+  // 재구독도 안 일어남). signOut 전에 토큰이 살아있을 때 RPC가 통하도록 먼저.
+  try {
+    const { disablePush } = await import('@/lib/push')
+    await disablePush()
+  } catch { /* 미지원/실패 — 로그아웃은 계속 */ }
   if (typeof window !== 'undefined') {
     localStorage.removeItem(DEMO_SESSION_KEY)
     // Defensive wipe: supabase-js usually stores the session under

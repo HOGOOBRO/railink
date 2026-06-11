@@ -66,7 +66,19 @@ grant execute on function public.save_push_subscription(text, text, text) to aut
 grant execute on function public.delete_push_subscription(text) to authenticated;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 3) 초대 트리거 → Vercel 발송 API 호출 (pg_net)
+-- 3) 웹훅 시크릿 저장소(private) — 코드/마이그레이션에 평문으로 두지 않는다.
+--    값은 git에 커밋하지 않고 prod에서 직접 seed한다(빈 테이블이면 푸시만 생략).
+--      insert into private.app_secrets values ('push_webhook_secret','<값>')
+--        on conflict (key) do update set value = excluded.value;
+-- ─────────────────────────────────────────────────────────────────────────────
+create schema if not exists private;
+create table if not exists private.app_secrets (
+  key   text primary key,
+  value text not null
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 4) 초대 트리거 → Vercel 발송 API 호출 (pg_net)
 --    실패해도 약속 생성을 막지 않는다(알림은 best-effort).
 -- ─────────────────────────────────────────────────────────────────────────────
 create extension if not exists pg_net with schema extensions;
@@ -81,7 +93,11 @@ declare
   v_title text;
   v_date  date;
   v_owner_name text;
+  v_secret text;
 begin
+  select value into v_secret from private.app_secrets where key = 'push_webhook_secret';
+  if v_secret is null then return new; end if;  -- 시크릿 미설정 → 푸시 생략
+
   select a.title, a.appt_date, p.name
     into v_title, v_date, v_owner_name
   from public.appointments a
@@ -93,7 +109,7 @@ begin
       url     := 'https://railink.app/api/push-invite',
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
-        'x-push-secret', '9b007facb12a8bc9f2570e7f558909a9e35167f20d09aa94'
+        'x-push-secret', v_secret
       ),
       body    := jsonb_build_object(
         'userId',    new.user_id,

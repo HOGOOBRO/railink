@@ -77,9 +77,13 @@ export default function SettingsInfoPage() {
     setPushBusy(true)
     try {
       if (push === 'enabled') {
-        await disablePush()
-        setPush('disabled')
-        showToast('약속 초대 알림을 껐어요.', 'default')
+        try {
+          await disablePush()
+          setPush('disabled')
+          showToast('약속 초대 알림을 껐어요.', 'default')
+        } catch (e) {
+          showToast(e instanceof Error ? e.message : '알림 해제에 실패했어요.', 'danger')
+        }
       } else {
         const res = await enablePush()
         setPush(res.status)
