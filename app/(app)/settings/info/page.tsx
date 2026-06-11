@@ -21,6 +21,7 @@ import {
 } from '@/lib/store/shares'
 import { getMyBirthday, setMyBirthday as saveMyBirthday } from '@/lib/store/birthdays'
 import { getPushStatus, enablePush, disablePush, type PushStatus } from '@/lib/push'
+import { Switch } from '@/components/ui/Switch'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { DangerConfirm } from '@/components/ui/DangerConfirm'
 import { BottomSheet } from '@/components/ui/BottomSheet'
@@ -376,18 +377,12 @@ export default function SettingsInfoPage() {
                     : '초대를 받으면 이 기기로 바로 알려드려요.'}
                 </p>
               </div>
-              <button
-                onClick={onTogglePush}
+              <Switch
+                on={push === 'enabled'}
+                onChange={onTogglePush}
                 disabled={push === 'denied' || pushBusy}
-                aria-pressed={push === 'enabled'}
-                className={`shrink-0 h-9 px-4 rounded-md text-caption font-bold transition-colors ${
-                  push === 'enabled'
-                    ? 'bg-brand text-ink-on-brand'
-                    : 'bg-surface border border-line-2 text-ink-700'
-                } ${push === 'denied' || pushBusy ? 'opacity-50' : ''}`}
-              >
-                {push === 'enabled' ? '켜짐' : '꺼짐'}
-              </button>
+                ariaLabel="약속 초대 알림"
+              />
             </div>
           </section>
         )}
