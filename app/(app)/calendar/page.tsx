@@ -26,7 +26,7 @@ import { BootSplash } from '@/components/loading/BootSplash'
 import { Spinner } from '@/components/ui/Spinner'
 import { useDelayedFlag } from '@/lib/use-delayed-flag'
 import type { MonthPerson, MonthShift } from '@/components/calendar/MonthTimeline'
-import { getCurrentSession, logout, type Session } from '@/lib/auth'
+import { getCurrentSession, logout, getMarketingConsent, setMarketingConsent, type Session } from '@/lib/auth'
 import { track } from '@/lib/analytics'
 import {
   getMonthSchedules,
@@ -134,6 +134,10 @@ export default function CalendarPage() {
   // 푸시 알림 너지 — null=숨김 / 'enable'=탭 한 번 구독(지원 기기) / 'install'=
   // iOS 사파리 탭(설치해야 알림 가능). 둘 다 1회성, 거절·기존 구독자는 제외.
   const [pushNudge, setPushNudge] = useState<null | 'enable' | 'install'>(null)
+  // 수신 동의 1회 프롬프트 — 가입 폼을 안 거친 계정(Google 가입, 동의 기능 이전
+  // 가입자)에게만 뜬다 (marketing_consent_at IS NULL).
+  const [mktAsk, setMktAsk] = useState(false)
+  const [mktBusy, setMktBusy] = useState(false)
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -696,6 +700,37 @@ export default function CalendarPage() {
     }).catch(() => {})
     return () => { alive = false }
   }, [session])
+
+  // 수신 동의 프롬프트 노출 판정 — DB의 marketing_consent_at(응답 시각)이 진실
+  // 출처. localStorage 가드는 답이 확인된 뒤의 재조회만 막는 캐시다(first_compare
+  // 의 per-uid 가드와 같은 패턴). 다른 브라우저에서 이미 답했다면 첫 조회에서
+  // answeredAt이 보이므로 다시 묻지 않는다.
+  useEffect(() => {
+    if (!session || session.isDemo) return
+    const key = `railink_mkt_asked_${session.uid}`
+    if (typeof window !== 'undefined' && localStorage.getItem(key)) return
+    let alive = true
+    getMarketingConsent().then(r => {
+      if (!alive || !r) return
+      if (r.answeredAt) { localStorage.setItem(key, '1'); return }
+      setMktAsk(true)
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [session])
+
+  // 시트의 두 버튼과 backdrop 닫기가 공유하는 응답 경로. 닫기 = 미동의(적극적
+  // 동의가 아니면 false) — 단, 저장까지 성공해야 가드를 채워 다시 안 묻는다.
+  // 저장 실패 시 가드를 비워 두면 다음 마운트에 자연 재시도된다.
+  async function answerMarketing(consent: boolean) {
+    if (!session || mktBusy) return
+    setMktBusy(true)
+    const res = await setMarketingConsent(consent)
+    setMktBusy(false)
+    setMktAsk(false)
+    if (!res.ok) return
+    localStorage.setItem(`railink_mkt_asked_${session.uid}`, '1')
+    if (consent) showToast('새 소식이 나오면 알려드릴게요.', 'success')
+  }
 
   async function onPushNudgeEnable() {
     setPushNudge(null)
@@ -1352,6 +1387,24 @@ export default function CalendarPage() {
           inviterName={session.name}
           initialEmail={invitePrefillEmail}
         />
+      </BottomSheet>
+
+      {/* ── 수신 동의 1회 프롬프트 ── */}
+      <BottomSheet open={mktAsk} onClose={() => answerMarketing(false)}>
+        <div className="px-5 pt-2 pb-8">
+          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">새 기능·이벤트 소식을 받아볼까요?</h3>
+          <p className="mt-2 text-callout text-ink-700 leading-relaxed">
+            레일링크에 새 기능이나 이벤트가 생기면 알려드려요. 받지 않아도 이용에는 아무 영향이 없고, 설정에서 언제든 바꿀 수 있어요.
+          </p>
+          <div className="flex gap-2.5 mt-4">
+            <Button variant="outline" className="flex-1" disabled={mktBusy} onClick={() => answerMarketing(false)}>
+              괜찮아요
+            </Button>
+            <Button className="flex-1" disabled={mktBusy} onClick={() => answerMarketing(true)}>
+              좋아요, 받을게요
+            </Button>
+          </div>
+        </div>
       </BottomSheet>
 
       {/* ── Compare-member mini profile ── */}

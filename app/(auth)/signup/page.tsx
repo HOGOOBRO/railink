@@ -192,6 +192,7 @@ export default function SignupPage() {
       profileType,
       // Survives the email-confirm redirect via ?invite= even on another browser.
       inviteToken,
+      marketingConsent: terms.marketing,
     })
     if (!result.ok) {
       setLoading(false)

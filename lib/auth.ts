@@ -193,6 +193,11 @@ export interface SignupInput {
    *  survives the email-confirmation round trip even when the link opens in a
    *  different browser than signup (where localStorage wouldn't carry it). */
   inviteToken?: string | null
+  /** 가입 폼의 선택 동의 체크박스(업데이트·이벤트 알림). Required so a caller
+   *  can't silently drop the answer — the form always asks, so always pass it.
+   *  Recorded into profiles by handle_new_user_profile()
+   *  (20260612000000_marketing_consent). */
+  marketingConsent: boolean
 }
 
 export type SignupResult =
@@ -224,6 +229,10 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
         // 'ktx_attendant'; personal signups are clamped to private by the trigger.
         visibility: input.visibility,
         profile_type: input.profileType ?? 'ktx_attendant',
+        // Read by handle_new_user_profile() → profiles.marketing_consent(_at).
+        // Present-or-absent matters: the trigger stamps 응답 시각 only when the
+        // key exists, so Google OAuth rows (no metadata) stay "never asked".
+        marketing_consent: input.marketingConsent,
         // Read by consume_invite_on_signup() → creates the bidirectional accepted
         // share at account creation (20260601000000), independent of the email
         // redirect. The client-side localStorage/URL path stays as a fallback.
@@ -423,6 +432,49 @@ export async function updateProfile(input: ProfileUpdate): Promise<{ ok: boolean
   }, { onConflict: 'id' })
   if (profileError) {
     return { ok: false, message: '내 정보는 저장됐지만 동료 검색 반영이 잠시 늦어질 수 있어요.' }
+  }
+  return { ok: true }
+}
+
+/* ── Marketing consent (업데이트·이벤트 알림 수신 동의) ─────────────────────── */
+
+export interface MarketingConsent {
+  consent: boolean
+  /** 마지막으로 질문에 답한 시각(ISO). null = 아직 한 번도 묻지 않음 — Google
+   *  가입자와 동의 기능 이전 가입자. 캘린더의 1회 프롬프트가 이걸 보고 뜬다. */
+  answeredAt: string | null
+}
+
+export async function getMarketingConsent(): Promise<MarketingConsent | null> {
+  if (typeof window !== 'undefined' && localStorage.getItem(DEMO_SESSION_KEY)) return null
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('marketing_consent, marketing_consent_at')
+    .eq('id', user.id)
+    .maybeSingle()
+  if (error || !data) return null
+  return {
+    consent: !!data.marketing_consent,
+    answeredAt: (data.marketing_consent_at as string | null) ?? null,
+  }
+}
+
+/** 동의/철회 기록. 응답 시각도 함께 갱신해 "언제 동의(철회)했는지"가 남는다 —
+ *  광고성 정보 수신 동의는 시점 기록이 있어야 의미가 있다. */
+export async function setMarketingConsent(consent: boolean): Promise<{ ok: boolean; message?: string }> {
+  if (typeof window !== 'undefined' && localStorage.getItem(DEMO_SESSION_KEY)) {
+    return { ok: false, message: '데모 계정은 수신 동의를 바꿀 수 없어요.' }
+  }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, message: '로그인 상태를 확인하지 못했어요. 다시 로그인한 뒤 시도해 주세요.' }
+  const { error } = await supabase
+    .from('profiles')
+    .update({ marketing_consent: consent, marketing_consent_at: new Date().toISOString() })
+    .eq('id', user.id)
+  if (error) {
+    return { ok: false, message: '수신 동의 저장 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
   }
   return { ok: true }
 }

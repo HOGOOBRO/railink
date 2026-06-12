@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/Toast'
 import {
   ChevronLeftIcon, ChevronRightIcon, EditIcon, KeyIcon, UploadIcon,
 } from '@/components/ui/icons'
-import { getCurrentSession, logout, updateProfile, setVisibility as saveVisibility, type Session } from '@/lib/auth'
+import { getCurrentSession, logout, updateProfile, setVisibility as saveVisibility, setMarketingConsent, type Session } from '@/lib/auth'
 import { track } from '@/lib/analytics'
 import { supabase } from '@/lib/supabase'
 import { getMonthSchedules, getRemoteMonthSchedules } from '@/lib/store/schedules'
@@ -57,6 +57,9 @@ export default function SettingsInfoPage() {
 
   const [vis, setVis] = useState<Visibility>('public')
   const [pendingPrivate, setPendingPrivate] = useState(false)
+  // 업데이트·이벤트 알림 수신 동의 (profiles.marketing_consent)
+  const [mktConsent, setMktConsent] = useState(false)
+  const [mktBusy, setMktBusy] = useState(false)
   const [shares, setShares] = useState<ShareListsWithProfile>(EMPTY_SHARES)
   // True until the remote shares/birthday fetch settles — gates the share-list
   // empty state and the birthday field so "loading" never reads as "none".
@@ -147,7 +150,7 @@ export default function SettingsInfoPage() {
         // share list / birthday show their loading placeholders.
         try {
           const [{ data: prof }, lists, b] = await Promise.all([
-            supabase.from('profiles').select('visibility').eq('id', s.uid).maybeSingle(),
+            supabase.from('profiles').select('visibility, marketing_consent').eq('id', s.uid).maybeSingle(),
             listSharesWithProfile(),
             getMyBirthday(),
           ])
@@ -155,6 +158,7 @@ export default function SettingsInfoPage() {
           if (prof?.visibility === 'public' || prof?.visibility === 'private') {
             setVis(prof.visibility)
           }
+          setMktConsent(!!prof?.marketing_consent)
           setShares(lists)
           setBirthday(b ?? '')
           setInitialBirthday(b ?? '')
@@ -170,6 +174,25 @@ export default function SettingsInfoPage() {
 
   async function reloadShares() {
     setShares(await listSharesWithProfile())
+  }
+
+  // 수신 동의 토글 — 낙관 갱신, 실패 시 롤백 (commitVisibility와 같은 패턴).
+  async function onToggleMarketing() {
+    if (mktBusy) return
+    const next = !mktConsent
+    setMktBusy(true)
+    setMktConsent(next)
+    const res = await setMarketingConsent(next)
+    setMktBusy(false)
+    if (!res.ok) {
+      setMktConsent(!next)
+      showToast(res.message ?? '수신 동의를 바꾸지 못했어요.', 'danger')
+      return
+    }
+    showToast(
+      next ? '업데이트·이벤트 알림 수신에 동의했어요.' : '업데이트·이벤트 알림 수신을 껐어요.',
+      next ? 'success' : 'default',
+    )
   }
 
   // 공개 → applied immediately; 비공개 → confirm sheet first (spec §3).
@@ -418,6 +441,28 @@ export default function SettingsInfoPage() {
               </div>
               <ChevronRightIcon size={16} className="shrink-0 text-ink-300" />
             </Link>
+          </section>
+        )}
+
+        {/* 수신 동의 — 업데이트·이벤트 알림 (마케팅 정보 수신 동의, 실계정만).
+            가입 폼의 선택 체크박스와 같은 동의를 여기서 언제든 바꿀 수 있다. */}
+        {!session.isDemo && (
+          <section className="mt-4">
+            <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">수신 동의</p>
+            <div className="bg-surface border border-line rounded-lg px-3.5 py-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-callout font-semibold text-ink-900">업데이트·이벤트 알림</p>
+                <p className="text-caption text-ink-500 mt-0.5 leading-relaxed">
+                  신규 기능과 이벤트 소식을 받아요. 언제든 끌 수 있어요.
+                </p>
+              </div>
+              <Switch
+                on={mktConsent}
+                onChange={onToggleMarketing}
+                disabled={mktBusy || remoteLoading}
+                ariaLabel="업데이트·이벤트 알림 수신 동의"
+              />
+            </div>
           </section>
         )}
 
