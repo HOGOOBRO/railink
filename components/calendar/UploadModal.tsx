@@ -57,6 +57,9 @@ interface UploadModalProps {
   userName?: string
   /** Owner uid — used by ManualBody to load the per-user codebook (코드 palette). */
   userId?: string
+  /** Personal (비-KTX) 계정: 등록 화면에서 직접입력을 hero로 올리고, 직접입력
+   *  기본 카테고리를 '일반 근무'로 전환한다 (KTX 다이 입력은 부차적). */
+  isPersonal?: boolean
   onPreview: () => void
   onManual: () => void
   onBack: () => void
@@ -187,7 +190,7 @@ function nextPreviewDate(rows: ParsedScheduleRow[], year: number, month: number)
 }
 
 export function UploadModal({
-  step, defaultYear, defaultMonth, initialRows = [], userName, userId,
+  step, defaultYear, defaultMonth, initialRows = [], userName, userId, isPersonal = false,
   onPreview, onManual, onBack, onClose, onSave,
 }: UploadModalProps) {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -206,7 +209,7 @@ export function UploadModal({
   const [manualRows, setManualRows] = useState<ManualRow[]>(
     () => buildInitialManualRows(defaultYear, defaultMonth, initialRows),
   )
-  const [manualCategory, setManualCategory] = useState<ManualCategory>('ktx')
+  const [manualCategory, setManualCategory] = useState<ManualCategory>(isPersonal ? 'general' : 'ktx')
 
   // 일반 카테고리 첫 활성 시 한 달 전체 펼치고 평일=09:00/18:00, 토·일=휴무로
   // default 시드. 사용자가 이미 입력한 칸은 손대지 않음. seedRef로 한 번만.
@@ -418,39 +421,69 @@ export function UploadModal({
         {step === 'pick' && (
           <>
             <h4 className="text-[22px] font-bold tracking-tight text-ink-900 leading-tight mb-1.5">
-              근무표 사진을 올려 주세요
+              {isPersonal ? '근무 일정을 등록해 주세요' : '근무표 사진을 올려 주세요'}
             </h4>
             <p className="text-[13.5px] text-ink-500 leading-relaxed mb-4">
-              AI가 날짜·다이·출퇴근 시각을 읽어서 자동으로 채워 드려요.
+              {isPersonal
+                ? '직접 입력으로 빠르게 추가하거나, 사진·파일로도 등록할 수 있어요.'
+                : 'AI가 날짜·다이·출퇴근 시각을 읽어서 자동으로 채워 드려요.'}
             </p>
 
-            {/* Primary hero — image (AI). Card color = brand-500 (사용자 요청: 0.5 톤). */}
-            <button
-              onClick={() => handleOption('image')}
-              disabled={!!busy}
-              className={`w-full flex items-center gap-3 p-[18px] rounded-[16px] bg-brand-500 text-ink-on-brand text-left ${
-                busy ? 'opacity-70 cursor-wait' : 'active:scale-[.99]'
-              }`}
-            >
-              <span
-                className="w-12 h-12 rounded-[14px] grid place-items-center shrink-0"
-                style={{ background: 'rgba(255,255,255,0.16)' }}
+            {isPersonal ? (
+              /* Primary hero — 직접 입력. 일반계정은 KTX 다이 인식이 무의미하므로
+                 직접입력을 hero로 올리고 사진은 부차 메서드로 강등. */
+              <button
+                onClick={() => handleOption('manual')}
+                disabled={!!busy}
+                className={`w-full flex items-center gap-3 p-[18px] rounded-[16px] bg-brand-500 text-ink-on-brand text-left ${
+                  busy ? 'opacity-70 cursor-wait' : 'active:scale-[.99]'
+                }`}
               >
-                <CameraGlyph size={22} />
-              </span>
-              <span className="flex-1 min-w-0">
-                <span className="flex items-center gap-1.5">
-                  <SparkleGlyph size={14} className="shrink-0" style={{ color: '#FFD9B8' }} />
-                  <span className="text-[16px] font-bold leading-none">사진으로 등록</span>
+                <span
+                  className="w-12 h-12 rounded-[14px] grid place-items-center shrink-0"
+                  style={{ background: 'rgba(255,255,255,0.16)' }}
+                >
+                  <EditIcon size={22} />
                 </span>
-                <span className="block mt-1 text-[12px] leading-snug" style={{ color: 'rgba(255,255,255,0.78)' }}>
-                  AI가 자동으로 채워드려요 · 촬영·앨범 모두 가능
+                <span className="flex-1 min-w-0">
+                  <span className="text-[16px] font-bold leading-none">직접 입력</span>
+                  <span className="block mt-1 text-[12px] leading-snug" style={{ color: 'rgba(255,255,255,0.78)' }}>
+                    날짜별 근무 시간을 빠르게 입력해요
+                  </span>
                 </span>
-              </span>
-              <span style={{ color: 'rgba(255,255,255,0.7)' }} className="shrink-0">
-                <ChevronRightIcon size={18} />
-              </span>
-            </button>
+                <span style={{ color: 'rgba(255,255,255,0.7)' }} className="shrink-0">
+                  <ChevronRightIcon size={18} />
+                </span>
+              </button>
+            ) : (
+              /* Primary hero — image (AI). Card color = brand-500 (사용자 요청: 0.5 톤). */
+              <button
+                onClick={() => handleOption('image')}
+                disabled={!!busy}
+                className={`w-full flex items-center gap-3 p-[18px] rounded-[16px] bg-brand-500 text-ink-on-brand text-left ${
+                  busy ? 'opacity-70 cursor-wait' : 'active:scale-[.99]'
+                }`}
+              >
+                <span
+                  className="w-12 h-12 rounded-[14px] grid place-items-center shrink-0"
+                  style={{ background: 'rgba(255,255,255,0.16)' }}
+                >
+                  <CameraGlyph size={22} />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="flex items-center gap-1.5">
+                    <SparkleGlyph size={14} className="shrink-0" style={{ color: '#FFD9B8' }} />
+                    <span className="text-[16px] font-bold leading-none">사진으로 등록</span>
+                  </span>
+                  <span className="block mt-1 text-[12px] leading-snug" style={{ color: 'rgba(255,255,255,0.78)' }}>
+                    AI가 자동으로 채워드려요 · 촬영·앨범 모두 가능
+                  </span>
+                </span>
+                <span style={{ color: 'rgba(255,255,255,0.7)' }} className="shrink-0">
+                  <ChevronRightIcon size={18} />
+                </span>
+              </button>
+            )}
 
             {/* "또는" divider */}
             <div className="my-5 flex items-center gap-2.5">
@@ -459,22 +492,43 @@ export function UploadModal({
               <span className="flex-1 h-px bg-line" />
             </div>
 
-            {/* Secondary methods */}
+            {/* Secondary methods — 일반계정은 직접입력이 hero라 사진/파일을 부차로 */}
             <div className="grid gap-2">
-              <SecondaryMethod
-                icon={<FileIcon size={18} />}
-                label="엑셀 / CSV 파일"
-                sub="회사에서 받은 .xlsx · .csv 업로드"
-                onClick={() => handleOption('file')}
-                disabled={!!busy}
-              />
-              <SecondaryMethod
-                icon={<EditIcon size={18} />}
-                label="직접 입력"
-                sub="KTX 승무 · 일반 근무 모두 가능"
-                onClick={() => handleOption('manual')}
-                disabled={!!busy}
-              />
+              {isPersonal ? (
+                <>
+                  <SecondaryMethod
+                    icon={<ImageIcon size={18} />}
+                    label="사진으로 등록"
+                    sub="근무표 사진을 AI가 읽어드려요"
+                    onClick={() => handleOption('image')}
+                    disabled={!!busy}
+                  />
+                  <SecondaryMethod
+                    icon={<FileIcon size={18} />}
+                    label="엑셀 / CSV 파일"
+                    sub="회사에서 받은 .xlsx · .csv 업로드"
+                    onClick={() => handleOption('file')}
+                    disabled={!!busy}
+                  />
+                </>
+              ) : (
+                <>
+                  <SecondaryMethod
+                    icon={<FileIcon size={18} />}
+                    label="엑셀 / CSV 파일"
+                    sub="회사에서 받은 .xlsx · .csv 업로드"
+                    onClick={() => handleOption('file')}
+                    disabled={!!busy}
+                  />
+                  <SecondaryMethod
+                    icon={<EditIcon size={18} />}
+                    label="직접 입력"
+                    sub="KTX 승무 · 일반 근무 모두 가능"
+                    onClick={() => handleOption('manual')}
+                    disabled={!!busy}
+                  />
+                </>
+              )}
             </div>
 
             {busy === 'file' && (
