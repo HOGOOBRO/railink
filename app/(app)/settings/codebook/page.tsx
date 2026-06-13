@@ -274,10 +274,14 @@ function CodeForm({
       />
 
       {/* off toggle — borderless row + switch */}
-      <button
-        type="button"
+      {/* off toggle — 행 어디든 탭하면 토글. 단 Switch 자체가 <button>이라
+          예전엔 onClick 있는 부모 <button> 안에 중첩돼(잘못된 마크업) 스위치를
+          누르면 Switch onChange + 부모 onClick이 둘 다 발동, 토글이 상쇄돼
+          무반응이었다. 부모를 div로 바꾸고, 스위치 직접 탭은 stopPropagation으로
+          부모 핸들러까지 번지지 않게 해 정확히 한 번만 토글한다. */}
+      <div
         onClick={() => { setIsOff(v => !v); setError(null) }}
-        className="w-full flex items-center justify-between gap-3 py-3.5 active:opacity-70"
+        className="w-full flex items-center justify-between gap-3 py-3.5 active:opacity-70 cursor-pointer"
       >
         <div className="text-left">
           <div className="text-[15px] font-semibold text-ink-900">휴무 코드</div>
@@ -285,8 +289,10 @@ function CodeForm({
             출퇴근 시간 없이 쉬는 날로 표시돼요
           </div>
         </div>
-        <Switch on={isOff} onChange={v => { setIsOff(v); setError(null) }} ariaLabel="휴무 코드 토글" />
-      </button>
+        <span onClick={e => e.stopPropagation()}>
+          <Switch on={isOff} onChange={v => { setIsOff(v); setError(null) }} ariaLabel="휴무 코드 토글" />
+        </span>
+      </div>
       <div className="h-px bg-line mb-3.5" />
 
       {/* times — hidden when 휴무 on */}
@@ -329,7 +335,7 @@ function CodeForm({
           <button
             type="button"
             onClick={onRemove}
-            className="h-[50px] px-4 rounded-[11px] border-[1.5px] border-line bg-bg text-danger text-[15px] font-bold grid place-items-center"
+            className="h-[50px] px-4 rounded-[11px] border-[1.5px] border-danger bg-danger-soft text-danger text-[15px] font-bold grid place-items-center"
           >
             삭제
           </button>
