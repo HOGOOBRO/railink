@@ -1016,7 +1016,10 @@ function ManualBody({
                     {' '}칠하는 중 — 적용할 날짜를 탭하세요
                   </>
                 ) : (
-                  <span className="text-ink-300">코드 칩을 골라 주세요</span>
+                  <>
+                    <span className="text-ink-300 shrink-0"><InfoIcon size={13} /></span>
+                    <span className="text-ink-500">위 코드 칩을 고른 뒤, 아래 날짜를 탭하면 적용돼요</span>
+                  </>
                 )}
               </div>
             </>
