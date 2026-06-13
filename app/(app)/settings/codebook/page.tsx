@@ -105,15 +105,9 @@ export default function CodebookSettingsPage() {
     >
       <header className="h-topbar flex items-center justify-between gap-1 px-1.5 border-b border-line bg-surface shrink-0">
         <div className="flex items-center gap-1">
-          {fromUpload ? (
-            <button
-              onClick={returnToUpload}
-              aria-label="직접입력으로 돌아가기"
-              className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
-            >
-              <ChevronLeftIcon size={20} />
-            </button>
-          ) : (
+          {/* 업로드에서 온 경우(from=calendar) 복귀는 하단 "입력으로 돌아가기"
+              바 하나로 통일 — 상단 화살표는 숨겨 중복 CTA를 없앤다. */}
+          {!fromUpload && (
             <Link
               href="/settings/info"
               aria-label="뒤로"
@@ -122,7 +116,7 @@ export default function CodebookSettingsPage() {
               <ChevronLeftIcon size={20} />
             </Link>
           )}
-          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">내 근무 코드</h3>
+          <h3 className={`text-[18px] font-bold tracking-tight text-ink-900 ${fromUpload ? 'pl-2' : ''}`}>내 근무 코드</h3>
         </div>
         <button
           onClick={() => setSheet({ type: 'create' })}
@@ -166,12 +160,6 @@ export default function CodebookSettingsPage() {
               ))}
             </div>
 
-            <button
-              onClick={() => setSheet({ type: 'create' })}
-              className="mt-2.5 w-full flex items-center justify-center gap-1.5 px-3 py-3 rounded-[12px] border border-dashed border-line-2 bg-surface text-callout font-semibold text-ink-700 active:bg-bg"
-            >
-              <PlusIcon size={14} /> 코드 추가하기
-            </button>
           </>
         )}
       </div>
@@ -342,7 +330,7 @@ function CodeForm({
             type="button"
             onClick={onRemove}
             aria-label="코드 삭제"
-            className="h-[50px] px-3 rounded-[11px] border border-line-2 bg-surface text-danger grid place-items-center"
+            className="h-[50px] px-3 rounded-[11px] border-[1.5px] border-line-2 bg-surface text-danger grid place-items-center"
           >
             <CloseIcon size={14} />
           </button>
@@ -350,7 +338,7 @@ function CodeForm({
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 h-[50px] rounded-[11px] border border-line-2 bg-surface text-ink-900 text-[15px] font-bold"
+          className="flex-1 h-[50px] rounded-[11px] border-[1.5px] border-line-2 bg-surface text-ink-900 text-[15px] font-bold"
         >
           취소
         </button>
