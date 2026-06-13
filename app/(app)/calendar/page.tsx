@@ -791,6 +791,17 @@ export default function CalendarPage() {
   const lookupEmail = useCallback((email: string) => findProfileByEmail(email), [])
   const openUpload = () => { closeOverlays(); setUploadStep('pick'); setUploadOpen(true) }
   const openManualEdit = () => { closeOverlays(); setUploadStep('manual'); setUploadOpen(true) }
+
+  // codebook("코드 관리")에서 "입력으로 돌아가기"로 복귀하면(?reopen=upload)
+  // 직접입력을 다시 연다 — 캘린더로 나갔다 수동 재진입하는 흐름 제거.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (new URLSearchParams(window.location.search).get('reopen') === 'upload') {
+      window.history.replaceState({}, '', '/calendar')
+      setUploadStep('manual')
+      setUploadOpen(true)
+    }
+  }, [])
   const openManage = (startCreate = false) => {
     closeOverlays(); setManageStartCreate(startCreate); setManageOpen(true)
   }

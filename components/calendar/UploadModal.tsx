@@ -972,7 +972,7 @@ function ManualBody({
         <div className="mb-3">
           {codes.length === 0 ? (
             <Link
-              href="/settings/codebook"
+              href="/settings/codebook?from=calendar"
               className="flex items-center justify-between px-3.5 py-3 rounded-[12px] border border-dashed border-line-2 bg-surface text-caption text-ink-500"
             >
               <span>
@@ -988,7 +988,7 @@ function ManualBody({
                   근무 코드
                 </p>
                 <Link
-                  href="/settings/codebook"
+                  href="/settings/codebook?from=calendar"
                   className="inline-flex items-center gap-1 text-caption font-semibold text-brand"
                 >
                   <EditIcon size={13} /> 코드 관리

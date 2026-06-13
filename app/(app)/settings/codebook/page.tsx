@@ -30,6 +30,20 @@ export default function CodebookSettingsPage() {
   const [state, setState] = useState<CodebookState>({ codes: [] })
   const [sheet, setSheet] = useState<SheetMode>({ type: 'closed' })
 
+  // 업로드 직접입력의 "코드 관리"에서 넘어왔으면(?from=calendar) 뒤로/완료가
+  // 설정이 아니라 직접입력으로 복귀해야 한다 (캘린더로 나갔다 다시 들어오는
+  // 어색한 흐름 제거).
+  const [fromUpload, setFromUpload] = useState(false)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setFromUpload(new URLSearchParams(window.location.search).get('from') === 'calendar')
+    }
+  }, [])
+
+  function returnToUpload() {
+    router.push('/calendar?reopen=upload')
+  }
+
   useEffect(() => {
     let alive = true
     ;(async () => {
@@ -91,13 +105,23 @@ export default function CodebookSettingsPage() {
     >
       <header className="h-topbar flex items-center justify-between gap-1 px-1.5 border-b border-line bg-surface shrink-0">
         <div className="flex items-center gap-1">
-          <Link
-            href="/settings/info"
-            aria-label="뒤로"
-            className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
-          >
-            <ChevronLeftIcon size={20} />
-          </Link>
+          {fromUpload ? (
+            <button
+              onClick={returnToUpload}
+              aria-label="직접입력으로 돌아가기"
+              className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
+            >
+              <ChevronLeftIcon size={20} />
+            </button>
+          ) : (
+            <Link
+              href="/settings/info"
+              aria-label="뒤로"
+              className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
+            >
+              <ChevronLeftIcon size={20} />
+            </Link>
+          )}
           <h3 className="text-[18px] font-bold tracking-tight text-ink-900">내 근무 코드</h3>
         </div>
         <button
@@ -151,6 +175,15 @@ export default function CodebookSettingsPage() {
           </>
         )}
       </div>
+
+      {fromUpload && (
+        <div className="px-4 py-3 pb-[calc(12px+env(safe-area-inset-bottom))] border-t border-line bg-surface shrink-0">
+          <p className="text-center text-[11px] text-ink-500 mb-2">코드 추가가 끝났으면 입력으로 돌아가세요</p>
+          <Button variant="primary" size="default" className="w-full" onClick={returnToUpload}>
+            <ChevronLeftIcon size={16} /> 입력으로 돌아가기
+          </Button>
+        </div>
+      )}
 
       <BottomSheet open={sheet.type !== 'closed'} onClose={() => setSheet({ type: 'closed' })}>
         {sheet.type !== 'closed' && (
