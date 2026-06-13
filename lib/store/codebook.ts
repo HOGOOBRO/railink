@@ -58,9 +58,13 @@ export function saveCodebook(uid: string, state: CodebookState): void {
  * 살짝 채워진 상태에서 시작하면 흐름이 자연스럽다. 사용자가 그대로 두든
  * 지우든 자유. */
 export function seedDefaultCodes(): CodebookEntry[] {
+  // 일반 사용자도 바로 이해할 수 있는 친근한 한글 라벨로 시드한다. (예전엔
+  // DO·N 같은 승무 jargon이라 의미가 안 통했고, N은 09–18 주간인데 라벨이
+  // 야간처럼 읽혀 혼란스러웠다.) 사용자는 여기서 이름·시간을 자유롭게 수정 가능.
   return [
-    { id: newId(), label: 'DO',   isOff: true },
-    { id: newId(), label: 'N',    isOff: false, startTime: '09:00', endTime: '18:00' },
+    { id: newId(), label: '주간', isOff: false, startTime: '09:00', endTime: '18:00' },
+    { id: newId(), label: '야간', isOff: false, startTime: '22:00', endTime: '07:00' },
+    { id: newId(), label: '휴무', isOff: true },
     { id: newId(), label: '연차', isOff: true },
   ]
 }
