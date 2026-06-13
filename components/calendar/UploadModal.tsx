@@ -644,6 +644,7 @@ export function UploadModal({
               filled={manualFilled}
               total={monthTotal}
               category={manualCategory}
+              isPersonal={isPersonal}
               userId={userId}
               onCategoryChange={setManualCategory}
               onBack={onBack}
@@ -727,6 +728,8 @@ interface ManualBodyProps {
   filled: number
   total: number
   category: ManualCategory
+  /** Personal 계정: 직군(KTX/일반) 토글을 숨기고 일반 근무로 고정. */
+  isPersonal: boolean
   /** Owner uid — used to load the per-user codebook for the paint palette. */
   userId?: string
   onCategoryChange: (next: ManualCategory) => void
@@ -871,7 +874,7 @@ function activeKey(active: ActiveCode): string | null {
 }
 
 function ManualBody({
-  rows, year, month, filled, total, category, userId, onCategoryChange,
+  rows, year, month, filled, total, category, isPersonal, userId, onCategoryChange,
   onBack, onChange, onAppendRest,
 }: ManualBodyProps) {
   const headerLabel = category === 'ktx' ? '다이 · 출근 · 퇴근' : '근무'
@@ -930,22 +933,28 @@ function ManualBody({
         </div>
       </div>
 
-      {/* Category picker — 직군. */}
-      <p className="px-1 pb-1.5 text-[11px] font-semibold tracking-wider uppercase text-ink-300">직군</p>
-      <div className="grid grid-cols-2 gap-1.5 mb-3">
-        <CategoryChip
-          active={category === 'ktx'}
-          title="KTX 승무"
-          sub="다이 + 출퇴근"
-          onClick={() => onCategoryChange('ktx')}
-        />
-        <CategoryChip
-          active={category === 'general'}
-          title="일반 근무"
-          sub="출퇴근만"
-          onClick={() => onCategoryChange('general')}
-        />
-      </div>
+      {/* Category picker — 직군. Personal 계정은 KTX 승무(다이번호) 모드가
+          무의미하므로 토글을 숨기고 일반 근무로 고정한다 (manualCategory 기본값이
+          이미 general). KTX 계정만 두 직군을 오갈 수 있다. */}
+      {!isPersonal && (
+        <>
+          <p className="px-1 pb-1.5 text-[11px] font-semibold tracking-wider uppercase text-ink-300">직군</p>
+          <div className="grid grid-cols-2 gap-1.5 mb-3">
+            <CategoryChip
+              active={category === 'ktx'}
+              title="KTX 승무"
+              sub="다이 + 출퇴근"
+              onClick={() => onCategoryChange('ktx')}
+            />
+            <CategoryChip
+              active={category === 'general'}
+              title="일반 근무"
+              sub="출퇴근만"
+              onClick={() => onCategoryChange('general')}
+            />
+          </div>
+        </>
+      )}
 
       {/* KTX 안내 strip — 다이번호 직접 입력 모드 */}
       {category === 'ktx' && (
