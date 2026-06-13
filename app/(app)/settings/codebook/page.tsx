@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/Toast'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { Switch } from '@/components/ui/Switch'
 import {
-  ChevronLeftIcon, ChevronRightIcon, PlusIcon, CloseIcon,
+  ChevronLeftIcon, ChevronRightIcon, PlusIcon,
 } from '@/components/ui/icons'
 import { getCurrentSession, type Session } from '@/lib/auth'
 import {
@@ -329,10 +329,9 @@ function CodeForm({
           <button
             type="button"
             onClick={onRemove}
-            aria-label="코드 삭제"
-            className="h-[50px] px-3 rounded-[11px] border-[1.5px] border-line bg-bg text-danger grid place-items-center"
+            className="h-[50px] px-4 rounded-[11px] border-[1.5px] border-line bg-bg text-danger text-[15px] font-bold grid place-items-center"
           >
-            <CloseIcon size={14} />
+            삭제
           </button>
         )}
         <button
