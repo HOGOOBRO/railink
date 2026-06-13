@@ -234,7 +234,8 @@ export default function CalendarPage() {
       }
       // Nothing cached for any colleague → the gap is real this run; announce
       // the in-flight fetch instead of silently showing only my schedule.
-      setColsSyncing(!s.isDemo && memberUids.length > 0 && Object.keys(cols).length === 0)
+      const colsPending = !s.isDemo && memberUids.length > 0 && Object.keys(cols).length === 0
+      setColsSyncing(colsPending)
 
       setSession(s)
       setGroupsState(nextGroups)
@@ -266,7 +267,11 @@ export default function CalendarPage() {
       // Cleared unconditionally at the end of this effect (covers demo + remote +
       // empty-remote paths), so it can never hang. Cached months stay instant —
       // the demo's local-sync branch resolves before the 150ms gate, no flash.
-      setBooting(mine.length === 0)
+      // Also hold the skeleton when NO colleague month is cached yet (colsPending):
+      // gating boot on my-schedule alone would paint my-only with the shared bars
+      // missing, which reads as "shared schedules vanished" on a cold open. Returning
+      // users with cached colleagues have colsPending=false, so they stay instant.
+      setBooting(mine.length === 0 || colsPending)
       // Personal first-entry hint: shown until dismissed (persisted per uid).
       setHintDismissed(
         s.profileType !== 'personal' ||
