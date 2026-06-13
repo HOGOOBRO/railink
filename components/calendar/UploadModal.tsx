@@ -70,6 +70,7 @@ interface ManualRow {
   day: number       // 1..31
   dow: string       // 한글 요일
   dia?: string
+  tr?: string       // 열번 (대표열번1 · 대표열번2)
   st?: string
   et?: string
   holiday?: boolean
@@ -102,6 +103,7 @@ function buildInitialManualRows(
         row.sun = !!hit.diaNr && /주휴/.test(hit.diaNr)
       } else {
         row.dia = hit.diaNr
+        row.tr = hit.trainNr
         row.st = hit.startTime
         row.et = hit.endTime
       }
@@ -118,7 +120,7 @@ function manualRowsToParsed(
   const yyyy = String(year)
   const mm = String(month).padStart(2, '0')
   for (const r of rows) {
-    const filled = r.holiday || r.dia || r.st || r.et
+    const filled = r.holiday || r.dia || r.tr || r.st || r.et
     if (!filled) continue
     const date = `${yyyy}-${mm}-${String(r.day).padStart(2, '0')}`
     if (r.holiday) {
@@ -127,6 +129,7 @@ function manualRowsToParsed(
       out.push({
         date, isOff: false,
         diaNr: (r.dia || '').trim() || undefined,
+        trainNr: (r.tr || '').trim() || undefined,
         startTime: (r.st || '').trim() || undefined,
         endTime: (r.et || '').trim() || undefined,
       })
@@ -235,7 +238,7 @@ export function UploadModal({
     () => daysInMonth(defaultYear, defaultMonth), [defaultYear, defaultMonth],
   )
   // 일반 근무는 dia 없이 시간만 채울 수 있으니 st/et 도 filled로 인정.
-  const manualFilled = manualRows.filter(r => r.holiday || r.dia || r.st || r.et).length
+  const manualFilled = manualRows.filter(r => r.holiday || r.dia || r.tr || r.st || r.et).length
 
   function setManualRow(i: number, patch: Partial<ManualRow>) {
     setManualRows(rs => rs.map((r, idx) => idx === i ? { ...r, ...patch } : r))
@@ -1051,13 +1054,22 @@ function ManualBody({
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <input
                     value={r.dia ?? ''}
                     placeholder="H----"
                     onChange={e => onChange(i, { dia: e.target.value })}
                     className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
                       r.dia ? 'border-line-2 bg-surface' : 'border-line bg-bg'
+                    }`}
+                    style={{ width: 80 }}
+                  />
+                  <input
+                    value={r.tr ?? ''}
+                    placeholder="열번"
+                    onChange={e => onChange(i, { tr: e.target.value })}
+                    className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
+                      r.tr ? 'border-line-2 bg-surface' : 'border-line bg-bg'
                     }`}
                     style={{ width: 84 }}
                   />
@@ -1084,10 +1096,9 @@ function ManualBody({
                     }`}
                     style={{ width: 62 }}
                   />
-                  <div className="flex-1" />
                   <button
-                    onClick={() => onChange(i, { holiday: true, dia: undefined, st: undefined, et: undefined })}
-                    className="font-en text-[11px] font-bold text-brand"
+                    onClick={() => onChange(i, { holiday: true, dia: undefined, tr: undefined, st: undefined, et: undefined })}
+                    className="font-en text-[11px] font-bold text-brand ml-auto"
                   >
                     휴무
                   </button>

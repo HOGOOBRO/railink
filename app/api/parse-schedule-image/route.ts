@@ -464,8 +464,9 @@ function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: numb
   const lines: string[] = [
     'You are extracting a monthly work schedule from a screenshot.',
     'The image may be one of two layouts — recognize which and proceed accordingly:',
-    '  (A) Single-user KORAIL/KTX crew roster — one person\'s month-long calendar grid. Each cell holds a duty code (e.g. H1055), 1-2 train numbers, and up to 3 clock times.',
-    '  (B) Team shift-roster spreadsheet — a row per person. The leftmost column is a Korean name; subsequent columns are dates 1..31, each cell containing a SHORT code letter (D, N, A, B, 출장, 연) and NO clock times.',
+    '  (A) Single-user KORAIL/KTX roster — ONE person\'s month. It appears EITHER as a calendar grid (each cell stacks a duty code + 1-2 train numbers + up to 3 clock times) OR, most commonly, as a per-day TABLE (XROIS) with one row per date and labeled columns: 사업일자(date) | 다이아번호(duty code) | 대표열번1 | 대표열번2 (train numbers) | 출근시각(start) | 퇴근시각(end) | 휴일여부 (Y=off / N=work). In layout (A) you MUST extract the train numbers.',
+    '  (B) Team shift-roster spreadsheet — a row per PERSON. The leftmost column is a list of Korean NAMES; subsequent columns are dates 1..31, each cell containing a SHORT code letter (D, N, A, B, 출장, 연) and NO clock times.',
+    'DISAMBIGUATION (decide this FIRST): look at the leftmost column. If it holds DATES / 사업일자 (e.g. "2026.07.01") or day numbers running down the rows, it is layout (A) — a single person\'s schedule, so you MUST extract the train numbers. Treat it as layout (B) ONLY when the leftmost column is a list of PERSON NAMES.',
     imageCount > 1
       ? `There are ${imageCount} screenshots. Treat them as cropped pieces of the same monthly schedule, in upload order.`
       : 'There is one screenshot.',
@@ -476,6 +477,7 @@ function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: numb
     '## Period (year + month)',
     'On layout (A), the period is printed near the top as "YYYY년 MM월 현재" (e.g. "2026년 06월 현재"), and the two-digit month is often shown as a large faint watermark digit behind the grid (e.g. "06").',
     'On layout (B), look for a sheet tab/title like "2026.06" or "6월" near the top of the screenshot — the column headers are usually plain day numbers 1..31.',
+    'On the per-day TABLE (XROIS), every row already carries a FULL date in the 사업일자 column (e.g. "2026.07.01"). Read each date directly from its own row; do not infer it from a header. The "1 2 3 4 5" tabs at the very top are page navigation — ignore them.',
     'Read that header/watermark/tab exactly. The month is 01-12 — use it verbatim.',
     'Cross-check: the weekday of day 1 must be consistent with the year and month you read.',
     `Use fallback ${defaultYear}-${String(defaultMonth).padStart(2, '0')} ONLY when no month label is visible anywhere.`,
@@ -488,11 +490,20 @@ function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: numb
     '- Times: FIRST time = startTime, LAST = endTime, IGNORE the middle one. HH:MM.',
     '- OVERNIGHT (박차/1박/야간): end < start ⇒ next day. Write end in 24+ hour notation (01:08 → 25:08, 11:49 → 35:49).',
     '- isOff: true for S, S(주휴), 휴무, 오프 (these cells have no times).',
+    '',
+    '### Layout (A) — per-day TABLE (XROIS) column mapping',
+    '- One row = one date. Map columns directly, header by header:',
+    '  · 다이아번호 → diaNr (verbatim: H1055, H1G37, ~(H1042), S, …).',
+    '  · 대표열번1 + 대표열번2 → trainNr. Join the two with " · " and DROP any "-" placeholder. So 대표열번1="165", 대표열번2="170" → "165 · 170"; "209" + "-" → "209"; both "-" → empty.',
+    '  · 출근시각 → startTime, 퇴근시각 → endTime. This table has EXACTLY two time columns (no middle time to skip).',
+    '  · 휴일여부 = Y ⇒ isOff:true (that row\'s diaNr is usually "S" and its train/time cells are "-"). 휴일여부 = N ⇒ a working day, so train numbers MUST be filled from 대표열번1/2.',
+    '- A "-" in any cell means empty. NEVER leave trainNr empty on a working (N) row when 대표열번1/2 show numbers.',
   ]
   if (userName) {
     lines.push(
       '',
-      '## Layout (B) — team shift-roster (CRITICAL when this layout is detected)',
+      '## Layout (B) — team shift-roster',
+      'PRECONDITION: apply this whole section ONLY when the leftmost column is a list of Korean PERSON names. If the leftmost column holds dates / 사업일자 / day numbers (the XROIS per-day table), this is layout (A) — IGNORE this entire section and extract train numbers as layout (A) describes. Do NOT leave trainNr empty for a single-person date table.',
       `### Step 1 — find the name row`,
       `- The user\'s name is: "${userName}". The leftmost column is a list of Korean names.`,
       `- Find the SINGLE row whose name exactly equals "${userName}" — ignore Korean whitespace and any parenthetical suffix like (이름).`,
@@ -721,10 +732,15 @@ function normalizeDia(value: string): string {
 }
 
 function normalizeTrainNr(value: string): string {
+  // Split on every separator (comma, dot, middot) and whitespace, then drop
+  // "-" placeholders (an empty 대표열번 column in the XROIS table) and blanks
+  // so "209 · -" never reaches storage as a dangling separator. KTX train
+  // numbers are bare integers, so whitespace is always a delimiter.
   return normalizeDigits(value)
-    .replace(/\s*[,.、]\s*/g, ' · ')
-    .replace(/\s+/g, ' ')
-    .trim()
+    .split(/[,.、·\s]+/)
+    .map(token => token.trim())
+    .filter(token => token && token !== '-')
+    .join(' · ')
 }
 
 function detectOff(diaNr: string): boolean {
