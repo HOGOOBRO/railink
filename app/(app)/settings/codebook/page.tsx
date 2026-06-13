@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/Toast'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { Switch } from '@/components/ui/Switch'
 import {
-  ChevronLeftIcon, ChevronRightIcon, PlusIcon, CloseIcon,
+  ChevronLeftIcon, ChevronRightIcon, PlusIcon,
 } from '@/components/ui/icons'
 import { getCurrentSession, type Session } from '@/lib/auth'
 import {
@@ -29,6 +29,20 @@ export default function CodebookSettingsPage() {
   const [session, setSession] = useState<Session | null>(null)
   const [state, setState] = useState<CodebookState>({ codes: [] })
   const [sheet, setSheet] = useState<SheetMode>({ type: 'closed' })
+
+  // 업로드 직접입력의 "코드 관리"에서 넘어왔으면(?from=calendar) 뒤로/완료가
+  // 설정이 아니라 직접입력으로 복귀해야 한다 (캘린더로 나갔다 다시 들어오는
+  // 어색한 흐름 제거).
+  const [fromUpload, setFromUpload] = useState(false)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setFromUpload(new URLSearchParams(window.location.search).get('from') === 'calendar')
+    }
+  }, [])
+
+  function returnToUpload() {
+    router.push('/calendar?reopen=upload')
+  }
 
   useEffect(() => {
     let alive = true
@@ -91,14 +105,18 @@ export default function CodebookSettingsPage() {
     >
       <header className="h-topbar flex items-center justify-between gap-1 px-1.5 border-b border-line bg-surface shrink-0">
         <div className="flex items-center gap-1">
-          <Link
-            href="/settings/info"
-            aria-label="뒤로"
-            className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
-          >
-            <ChevronLeftIcon size={20} />
-          </Link>
-          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">내 근무 코드</h3>
+          {/* 업로드에서 온 경우(from=calendar) 복귀는 하단 "입력으로 돌아가기"
+              바 하나로 통일 — 상단 화살표는 숨겨 중복 CTA를 없앤다. */}
+          {!fromUpload && (
+            <Link
+              href="/settings/info"
+              aria-label="뒤로"
+              className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
+            >
+              <ChevronLeftIcon size={20} />
+            </Link>
+          )}
+          <h3 className={`text-[18px] font-bold tracking-tight text-ink-900 ${fromUpload ? 'pl-2' : ''}`}>내 근무 코드</h3>
         </div>
         <button
           onClick={() => setSheet({ type: 'create' })}
@@ -142,15 +160,18 @@ export default function CodebookSettingsPage() {
               ))}
             </div>
 
-            <button
-              onClick={() => setSheet({ type: 'create' })}
-              className="mt-2.5 w-full flex items-center justify-center gap-1.5 px-3 py-3 rounded-[12px] border border-dashed border-line-2 bg-surface text-callout font-semibold text-ink-700 active:bg-bg"
-            >
-              <PlusIcon size={14} /> 코드 추가하기
-            </button>
           </>
         )}
       </div>
+
+      {fromUpload && (
+        <div className="px-4 py-3 pb-[calc(12px+env(safe-area-inset-bottom))] border-t border-line bg-surface shrink-0">
+          <p className="text-center text-[11px] text-ink-500 mb-2">코드 추가가 끝났으면 입력으로 돌아가세요</p>
+          <Button variant="primary" size="default" className="w-full" onClick={returnToUpload}>
+            <ChevronLeftIcon size={16} /> 입력으로 돌아가기
+          </Button>
+        </div>
+      )}
 
       <BottomSheet open={sheet.type !== 'closed'} onClose={() => setSheet({ type: 'closed' })}>
         {sheet.type !== 'closed' && (
@@ -253,10 +274,14 @@ function CodeForm({
       />
 
       {/* off toggle — borderless row + switch */}
-      <button
-        type="button"
+      {/* off toggle — 행 어디든 탭하면 토글. 단 Switch 자체가 <button>이라
+          예전엔 onClick 있는 부모 <button> 안에 중첩돼(잘못된 마크업) 스위치를
+          누르면 Switch onChange + 부모 onClick이 둘 다 발동, 토글이 상쇄돼
+          무반응이었다. 부모를 div로 바꾸고, 스위치 직접 탭은 stopPropagation으로
+          부모 핸들러까지 번지지 않게 해 정확히 한 번만 토글한다. */}
+      <div
         onClick={() => { setIsOff(v => !v); setError(null) }}
-        className="w-full flex items-center justify-between gap-3 py-3.5 active:opacity-70"
+        className="w-full flex items-center justify-between gap-3 py-3.5 active:opacity-70 cursor-pointer"
       >
         <div className="text-left">
           <div className="text-[15px] font-semibold text-ink-900">휴무 코드</div>
@@ -264,8 +289,10 @@ function CodeForm({
             출퇴근 시간 없이 쉬는 날로 표시돼요
           </div>
         </div>
-        <Switch on={isOff} onChange={v => { setIsOff(v); setError(null) }} ariaLabel="휴무 코드 토글" />
-      </button>
+        <span onClick={e => e.stopPropagation()}>
+          <Switch on={isOff} onChange={v => { setIsOff(v); setError(null) }} ariaLabel="휴무 코드 토글" />
+        </span>
+      </div>
       <div className="h-px bg-line mb-3.5" />
 
       {/* times — hidden when 휴무 on */}
@@ -308,16 +335,15 @@ function CodeForm({
           <button
             type="button"
             onClick={onRemove}
-            aria-label="코드 삭제"
-            className="h-[50px] px-3 rounded-[11px] border border-line-2 bg-surface text-danger grid place-items-center"
+            className="h-[50px] px-4 rounded-[11px] border-[1.5px] border-danger bg-danger-soft text-danger text-[15px] font-bold grid place-items-center"
           >
-            <CloseIcon size={14} />
+            삭제
           </button>
         )}
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 h-[50px] rounded-[11px] border border-line-2 bg-surface text-ink-900 text-[15px] font-bold"
+          className="flex-1 h-[50px] rounded-[11px] border-[1.5px] border-line bg-bg text-ink-900 text-[15px] font-bold"
         >
           취소
         </button>
