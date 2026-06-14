@@ -202,6 +202,27 @@ export function addToActiveGroup(
   return { state, group, entry, alreadyIn: false }
 }
 
+/* Connected-but-ungrouped warning de-dup. A multi-use invite can connect more
+ * people than fit in one 비교 그룹 (MAX_PER_GROUP): the calendar mount auto-adds
+ * what it can, and the rest stay connected (share exists) but ungrouped. We warn
+ * the owner ONCE per such uid so the mount effect doesn't re-toast every visit. */
+const OVERFLOW_KEY = 'railink_group_overflow_v1'
+
+/** Record uids that couldn't be auto-added (group at cap) and return how many are
+ *  NEWLY overflowed (not warned before). Callers toast only when the result > 0. */
+export function noteGroupOverflow(ownerUid: string, overflowUids: string[]): number {
+  if (typeof window === 'undefined' || overflowUids.length === 0) return 0
+  let store: Record<string, string[]>
+  try { store = JSON.parse(localStorage.getItem(OVERFLOW_KEY) ?? '{}') } catch { store = {} }
+  const seen = new Set(store[ownerUid] ?? [])
+  const fresh = overflowUids.filter(u => !seen.has(u))
+  if (fresh.length) {
+    store[ownerUid] = [...seen, ...fresh]
+    localStorage.setItem(OVERFLOW_KEY, JSON.stringify(store))
+  }
+  return fresh.length
+}
+
 /** Remove a colleague from the active group. */
 export function removeFromActiveGroup(ownerUid: string, memberUid: string): GroupsState {
   const state = getGroupsState(ownerUid)
