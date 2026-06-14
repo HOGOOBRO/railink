@@ -1,0 +1,62 @@
+/* ============================================================
+   RaiLink Landing — phone shell only.
+   The screen content reuses the REAL app calendar chrome
+   (CalCell, Avatar, real Tailwind classes) so the mockup matches
+   the actual product 1:1. Only the device frame + iOS status bar
+   live here. Radius/shadow tokens aren't CSS vars in globals, so
+   literals are inlined.
+   ============================================================ */
+
+/* Height follows content (the real calendar chrome has fixed pixel heights);
+   forcing a device aspect-ratio would clip the grid at narrow widths. Width
+   still scales the calendar responsively, exactly like the real app on phones
+   of different widths. */
+/* 베젤은 padding이 아니라 border로 — border는 둥근 모서리에서도 안쪽 반경이
+   자동 보정돼 두께가 균일하게 렌더된다(padding은 모서리에서 두꺼워짐). */
+.phone {
+  position: relative;
+  width: 340px;
+  background: #0E1320;
+  border: 4px solid #0E1320;
+  border-radius: 40px;
+  box-shadow: 0 28px 64px rgba(8, 22, 44, .20), 0 10px 24px rgba(8, 22, 44, .10);
+  flex: none;
+}
+.screen {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: var(--surface);
+  border-radius: 36px;
+}
+/* Dynamic Island 스타일 — 상단에서 분리된 둥근 알약(늘어진 탭처럼 안 보이게). */
+.notch {
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 31%;
+  height: 22px;
+  background: #0E1320;
+  border-radius: 999px;
+  z-index: 6;
+}
+.status {
+  position: relative;
+  height: 46px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 22px 0;
+  font-family: var(--font-en);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+.status .sig {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.status .sig svg { display: block; }

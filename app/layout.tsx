@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { JetBrains_Mono } from 'next/font/google'
 import { ToastProvider } from '@/components/ui/Toast'
+import { AppFrame } from '@/components/AppFrame'
 import { SwRegister } from '@/components/SwRegister'
 import { Analytics } from '@/components/Analytics'
 import './globals.css'
@@ -81,7 +82,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
         <ToastProvider>
-          <div className="app-frame">{children}</div>
+          <AppFrame>{children}</AppFrame>
         </ToastProvider>
         <SwRegister />
         <Analytics />
