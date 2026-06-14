@@ -511,6 +511,44 @@ export async function setMarketingConsent(consent: boolean): Promise<{ ok: boole
   return { ok: true }
 }
 
+/* ── Job category (확장 우선순위용; personal 전용) ──────────────────────────── */
+
+/** 현재 계정의 직군. null = 미응답 — Google 가입(가입 폼을 안 거침)과 직무 수집
+ *  기능 이전 가입자. 캘린더의 1회 직무 프롬프트가 이걸 보고 뜬다(personal 한정). */
+export async function getJobCategory(): Promise<{ category: string | null } | null> {
+  if (typeof window !== 'undefined' && localStorage.getItem(DEMO_SESSION_KEY)) return null
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('job_category')
+    .eq('id', user.id)
+    .maybeSingle()
+  if (error || !data) return null
+  return { category: (data.job_category as string | null) ?? null }
+}
+
+/** 직군 저장. 'other'일 때만 job_other에 자유입력 텍스트를 남기고, 그 외엔
+ *  job_other를 비운다(이전에 기타였다가 바꾼 경우 정리). */
+export async function setJobCategory(category: string, other?: string): Promise<{ ok: boolean; message?: string }> {
+  if (typeof window !== 'undefined' && localStorage.getItem(DEMO_SESSION_KEY)) {
+    return { ok: false, message: '데모 계정은 직무를 저장할 수 없어요.' }
+  }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, message: '로그인 상태를 확인하지 못했어요. 다시 로그인한 뒤 시도해 주세요.' }
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      job_category: category,
+      job_other: category === 'other' ? (other?.trim() || null) : null,
+    })
+    .eq('id', user.id)
+  if (error) {
+    return { ok: false, message: '직무 저장 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
+  }
+  return { ok: true }
+}
+
 /* ── Profile visibility (search exposure; separate from schedule sharing) ───── */
 
 /** Set whether my profile shows up in colleague search. Goes through the
