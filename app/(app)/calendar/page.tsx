@@ -533,11 +533,15 @@ export default function CalendarPage() {
   const overlayOpen = detailOpen || searchOpen || uploadOpen || menuOpen || manageOpen || inviteOpen || !!memberSheet || wizardOpen
 
   // 권유 시트를 띄우는 순간 노출 1회 계측(trigger별). open/trigger를 같이 세팅한다.
+  // 데모 계정엔 띄우지 않는다 — 가입 전 사용자라 초대 흐름이 무의미하고(데모의 목표는
+  // 가입 전환), invite_prompt_view도 발사하지 않는다. first_compare·schedule_create 등
+  // 기존 활성화 지표는 호출부에서 따로 계측되므로 영향 없음.
   const showNudge = useCallback((trigger: InvitePromptTrigger) => {
+    if (session?.isDemo) return
     nudgeViaCtaRef.current = false
     setNudgeTrigger(trigger)
     setNudgeOpen(true)
-    track('invite_prompt_view', { trigger, demo: session?.isDemo ? 'yes' : 'no' })
+    track('invite_prompt_view', { trigger, demo: 'no' })
   }, [session?.isDemo])
 
   // X·백드롭·스와이프(=거절)로 닫힐 때만 dismiss. 주 버튼 경로(nudgeViaCtaRef)는 제외.
