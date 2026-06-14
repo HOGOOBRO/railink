@@ -169,7 +169,7 @@ export function InviteCreateSheet({
             </div>
             <p className="flex items-center gap-1.5 text-caption text-ink-500 mb-5">
               <span className="text-warn shrink-0"><InfoIcon size={14} /></span>
-              이 링크는 <strong className="text-ink-700">14일 동안, 한 번만</strong> 쓸 수 있어요.
+              이 링크는 <strong className="text-ink-700">14일 동안, 최대 30명까지</strong> 쓸 수 있어요.
             </p>
 
             <button

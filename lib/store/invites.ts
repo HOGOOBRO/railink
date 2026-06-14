@@ -1,8 +1,9 @@
-/* Invite links — thin client over the create/consume/revoke RPCs from the
- * 20260531000000 migration. An invite is single-use and 14-day. consume_invite
- * creates a BIDIRECTIONAL accepted schedule_shares pair, so after consuming, the
- * inviter shows up in the new user's `viewing` list (lib/store/shares.ts) and
- * vice-versa — no separate accept step.
+/* Invite links — thin client over the create/consume/revoke RPCs. An invite is
+ * 14-day and MULTI-USE: a new link can be accepted by up to 30 people (cap +
+ * counter, see 20260614000000_invite_multi_use.sql; older links stay single-use).
+ * consume_invite creates a BIDIRECTIONAL accepted schedule_shares pair, so after
+ * consuming, the inviter shows up in the new user's `viewing` list
+ * (lib/store/shares.ts) and vice-versa — no separate accept step.
  *
  * Demo accounts (localStorage session) never hit Supabase: createInvite returns
  * a stable fake token so the 친구 초대 sheet still demonstrates, and consume/
@@ -31,9 +32,9 @@ export type ConsumeInviteResult =
   | { ok: false; code: InviteErrorCode; message: string }
 
 export type InviteErrorCode =
-  | 'invite_not_found' | 'invite_used' | 'invite_revoked' | 'invite_expired'
-  | 'invite_self' | 'invite_email_mismatch' | 'invite_rate_limit'
-  | 'not_authenticated' | 'unknown'
+  | 'invite_not_found' | 'invite_used' | 'invite_full' | 'invite_revoked'
+  | 'invite_expired' | 'invite_self' | 'invite_email_mismatch'
+  | 'invite_rate_limit' | 'not_authenticated' | 'unknown'
 
 /** A row from the owner's own invites list (RLS: owner_id = me). */
 export interface MyInvite {
@@ -48,8 +49,8 @@ export interface MyInvite {
 
 function parseCode(message: string): InviteErrorCode {
   const known: InviteErrorCode[] = [
-    'invite_not_found', 'invite_used', 'invite_revoked', 'invite_expired',
-    'invite_self', 'invite_email_mismatch', 'invite_rate_limit',
+    'invite_not_found', 'invite_used', 'invite_full', 'invite_revoked',
+    'invite_expired', 'invite_self', 'invite_email_mismatch', 'invite_rate_limit',
   ]
   for (const c of known) if (message.includes(c)) return c
   if (/not authenticated/i.test(message)) return 'not_authenticated'
@@ -59,6 +60,7 @@ function parseCode(message: string): InviteErrorCode {
 const CODE_COPY: Record<InviteErrorCode, string> = {
   invite_not_found: '유효하지 않은 초대 링크예요.',
   invite_used: '이미 사용된 초대 링크예요.',
+  invite_full: '초대 인원이 다 찼어요. 초대한 분께 새 링크를 요청해 주세요.',
   invite_revoked: '취소된 초대 링크예요.',
   invite_expired: '만료된 초대 링크예요. 새 링크를 요청해 주세요.',
   invite_self: '본인이 만든 링크로는 가입할 수 없어요.',
@@ -185,7 +187,7 @@ export function clearPendingInvite(): void {
 }
 
 const TERMINAL_CODES: InviteErrorCode[] = [
-  'invite_not_found', 'invite_used', 'invite_revoked',
+  'invite_not_found', 'invite_used', 'invite_full', 'invite_revoked',
   'invite_expired', 'invite_self', 'invite_email_mismatch',
 ]
 
