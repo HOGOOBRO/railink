@@ -3,6 +3,7 @@
 import { useEffect, useRef, useMemo, useState, type ReactNode } from 'react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { SearchIcon, ArrowRightIcon, UserPlusIcon } from '@/components/ui/icons'
 import type { Colleague } from '@/lib/demo-data'
 import type { ProfileLookup } from '@/lib/store/colleagues'
@@ -163,9 +164,13 @@ export function SearchOverlay({
         </p>
 
         {loading ? (
-          <p className="py-16 px-4 text-center text-callout text-ink-500">
-            검색 가능한 동료를 확인하고 있어요.
-          </p>
+          // 정적인 "확인하고 있어요" 한 줄 대신 동료 행 스켈레톤 — 행마다 살짝
+          // 지연을 줘서 시머가 위→아래로 물결치게 한다(첫 진입이 덜 멈춰 보이게).
+          <div>
+            {SKEL_ROWS.map((w, i) => (
+              <SearchRowSkeleton key={i} nameW={w.name} officeW={w.office} delayMs={i * 110} />
+            ))}
+          </div>
         ) : colleagues.length === 0 && !showSabun && !showEmail ? (
           // Directory 자체가 비어있음 — 다른 가입자가 없거나, 가입은 했지만 모두
           // 공개 범위 = 비공개라 RLS가 가린 경우. (옛 share_schedule=false 사용자가
@@ -338,6 +343,31 @@ const pillCls = (tone: 'brand' | 'muted') =>
   `text-caption font-semibold px-3.5 py-2 rounded-pill shrink-0 ${
     tone === 'brand' ? 'bg-brand-050 text-brand' : 'bg-bg text-ink-500'
   }`
+
+// 로딩 스켈레톤 행 너비 — 실제 동료 목록처럼 들쭉날쭉하게(균일하면 더 인위적).
+const SKEL_ROWS = [
+  { name: 'w-24', office: 'w-16' },
+  { name: 'w-20', office: 'w-20' },
+  { name: 'w-28', office: 'w-14' },
+  { name: 'w-16', office: 'w-20' },
+  { name: 'w-24', office: 'w-12' },
+  { name: 'w-20', office: 'w-16' },
+]
+
+/** ResultRow와 같은 레이아웃의 시머 행. delayMs로 행별 물결 지연. */
+function SearchRowSkeleton({ nameW, officeW, delayMs }: { nameW: string; officeW: string; delayMs: number }) {
+  const d = { animationDelay: `${delayMs}ms` }
+  return (
+    <div className="flex items-center gap-3 px-2 py-3">
+      <Skeleton className="w-avatar-lg h-avatar-lg rounded-full shrink-0" style={d} />
+      <div className="flex-1 min-w-0">
+        <Skeleton className={`h-3.5 rounded ${nameW}`} style={d} />
+        <Skeleton className={`h-2.5 rounded mt-1.5 ${officeW}`} style={d} />
+      </div>
+      <Skeleton className="w-14 h-8 rounded-pill shrink-0" style={d} />
+    </div>
+  )
+}
 
 function ResultRow({
   u, visibility, added, pending, onPick,
