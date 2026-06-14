@@ -40,6 +40,7 @@ import {
   getGroupsState, saveGroupsState, activeGroupOf, allMemberUids,
   addToActiveGroup, removeFromActiveGroup, setActiveGroup,
   createGroup, renameGroup, deleteGroup, reorderGroups, MAX_PER_GROUP,
+  enableRemoteGroupSync, disableRemoteGroupSync, hydrateGroupsFromRemote,
 } from '@/lib/store/groups'
 import {
   findColleagueInDirectory,
@@ -177,6 +178,14 @@ export default function CalendarPage() {
   // already on screen and unchanged — there we keep it and skeleton only the grid
   // so the group chips don't disappear/reappear (the flicker users reported).
   const bootedOnce = useRef(false)
+  // 디렉터리+share 동기화가 한 번이라도 끝났는지. true가 된 뒤로는 reload 범프
+  // (동료 추가)나 월 이동이 검색 목록을 "불러오는 중"으로 되돌리지 않게 한다 —
+  // 검색 중에 추가할 때마다 목록이 깜빡(새로고침)되던 문제 방지. 갱신은 백그라운드.
+  const directorySynced = useRef(false)
+  // 그룹 서버 동기화를 이번 세션에서 한 번이라도 맞췄는지. reload·월 이동마다
+  // 서버를 다시 읽으면, 방금 추가한 멤버(낙관 반영)를 stale 서버 값으로 덮어쓸
+  // 수 있어 1회만 hydrate한다. 이후엔 로컬이 권위, 변경은 서버로 push만.
+  const groupsHydrated = useRef(false)
   // Name of the colleague whose schedule is being fetched right now (④) — drives
   // the inline "불러오는 중" chip + bar. null when nothing is mid-fetch.
   const [loadingColleague, setLoadingColleague] = useState<string | null>(null)
@@ -202,6 +211,16 @@ export default function CalendarPage() {
       }
       if (!alive) return
       if (!s) { router.replace('/login'); return }
+      // 실계정: 이번 세션 첫 부팅에 서버 그룹을 읽어 로컬과 맞춘다(기기 재설치
+      // 복원). 1회만 — 이후 부팅은 로컬을 권위로 두고 서버엔 push만 한다.
+      if (s.isDemo) {
+        disableRemoteGroupSync()
+      } else if (!groupsHydrated.current) {
+        enableRemoteGroupSync(s.uid)
+        await hydrateGroupsFromRemote(s.uid)
+        if (!alive) return
+        groupsHydrated.current = true
+      }
       // Groups + members. Demo colleagues are hidden from real accounts — filter
       // each group's members (same isolation rule the compare store had).
       const st = getGroupsState(s.uid)
@@ -354,7 +373,9 @@ export default function CalendarPage() {
         if (invitedOwner) showToast(`${invitedOwner.name} 님과 연결됐어요!`, 'success')
       }
 
-      setColleagueLoading(true)
+      // 첫 동기화에서만 로딩 표시를 띄운다. 이후 reload(동료 추가)·월 이동은
+      // 이미 로드된 디렉터리를 백그라운드로 갱신할 뿐, 검색 목록을 비우지 않는다.
+      if (!directorySynced.current) setColleagueLoading(true)
       // §4/§5 share statuses are fetched *concurrently* with the directory, and
       // colleagueLoading stays on until both land — otherwise the search rows
       // appear first with every pill reading "추가" and flip to "요청 중" a beat
@@ -444,7 +465,7 @@ export default function CalendarPage() {
       // Directory + share statuses are both in — search rows render complete.
       // (The auto-grouping `return` above skips this on purpose: it bumps
       // `reload`, the effect re-runs, and that pass releases the flag.)
-      if (alive) { setColleagueLoading(false); setShareSynced(true) }
+      if (alive) { setColleagueLoading(false); setShareSynced(true); directorySynced.current = true }
     })()
     return () => { alive = false }
   }, [router, year, month, reload, showToast])
@@ -953,6 +974,7 @@ export default function CalendarPage() {
 
   async function handleLogout() {
     setMenuOpen(false)
+    disableRemoteGroupSync() // 대기 중 그룹 push 폐기 — 다음 계정으로 새지 않게
     try {
       await logout()
     } catch {

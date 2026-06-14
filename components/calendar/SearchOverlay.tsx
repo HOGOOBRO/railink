@@ -107,6 +107,9 @@ export function SearchOverlay({
   // 결과를 탭하면 곧바로 신청/제거하지 않고 확인을 한 번 받는다 — 실수 탭 방지.
   const [confirmTarget, setConfirmTarget] = useState<Colleague | null>(null)
   const confirmAdding = confirmTarget ? !comparedUids.has(confirmTarget.uid) : false
+  // 이미 수락/대기 중인 상대는 그룹에 추가해도 새 요청이 나가지 않는다 —
+  // toggleCompare가 status별로 분기하므로 안내 문구도 거기에 맞춘다.
+  const confirmStatus = confirmTarget ? shareStatus[confirmTarget.uid] : undefined
 
   return (
     <div
@@ -285,7 +288,11 @@ export function SearchOverlay({
           body={
             confirmAdding
               ? shareGated
-                ? '추가하면 상대에게 일정 공유 신청이 전송돼요.'
+                ? confirmStatus === 'accepted'
+                  ? '이미 일정을 공유 중인 동료예요. 이 그룹에도 추가합니다 (새 요청 없음).'
+                  : confirmStatus === 'pending'
+                    ? '이미 공유 요청을 보낸 상태예요. 그룹에만 추가하고 요청은 다시 보내지 않아요.'
+                    : '추가하면 상대에게 일정 공유 신청이 전송돼요.'
                 : '비교 목록에 추가합니다.'
               : '비교 목록에서 제거합니다.'
           }
