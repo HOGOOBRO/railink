@@ -11,8 +11,8 @@ export interface Session {
   part?: string
   photo?: string
   /** 'ktx_attendant' (사번·파트 있음) or 'personal' (없음). Read from
-   *  user_metadata; defaults to 'ktx_attendant' for legacy rows / pre-migration
-   *  accounts so existing KTX users are unaffected. */
+   *  profiles.profile_type (source of truth); falls back to user_metadata, then
+   *  'ktx_attendant', so legacy / pre-migration accounts are unaffected. */
   profileType: ProfileType
   /** True when this session is the local demo (localStorage), not Supabase. */
   isDemo: boolean
@@ -62,14 +62,15 @@ function getDemoSession(): Session | null {
 
 /* ── Unified session (used by calendar / menu) ─────────────────────────────── */
 
-/* In-memory photo cache (keyed by uid). The ONLY network read in
- * getCurrentSession is the profiles.photo lookup, and getCurrentSession runs
- * on every (app) page mount — so without this, each route change pays a
- * profiles round-trip (through /api/sb-proxy) and shows a loading gate while
- * it resolves. Caching just the photo for the SPA lifetime makes navigation
- * network-free; uid/email/name/metadata still come live from getSession().
- * Cached only on a successful fetch; invalidated on photo change + logout. */
-let photoCache: { uid: string; photo: string | undefined } | null = null
+/* In-memory profile cache (keyed by uid). getCurrentSession runs on every (app)
+ * page mount and needs two fields from the profiles table: photo AND
+ * profile_type (the source of truth — see the note in getCurrentSession). Without
+ * a cache, each route change pays a profiles round-trip (through /api/sb-proxy)
+ * and shows a loading gate while it resolves. Caching both for the SPA lifetime
+ * makes navigation network-free; uid/email/name/metadata still come live from
+ * getSession(). Cached only on a successful fetch; invalidated on photo change
+ * + logout. */
+let profileCache: { uid: string; photo: string | undefined; profileType: ProfileType } | null = null
 
 export async function getCurrentSession(): Promise<Session | null> {
   const { data } = await supabase.auth.getSession()
@@ -77,20 +78,35 @@ export async function getCurrentSession(): Promise<Session | null> {
   if (!u) return getDemoSession()
   if (typeof window !== 'undefined') localStorage.removeItem(DEMO_SESSION_KEY)
   const m = (u.user_metadata ?? {}) as Record<string, string>
-  // Photo lives in profiles, NOT user_metadata (see updatePhoto for why).
-  // Fall back to metadata.photo only for legacy rows that haven't been
-  // cleaned up yet; new writes never touch metadata.
-  let photo = m.photo || undefined
-  if (!photo) {
-    if (photoCache && photoCache.uid === u.id) {
-      photo = photoCache.photo
-    } else {
-      try {
-        const { data: prof } = await supabase
-          .from('profiles').select('photo').eq('id', u.id).maybeSingle()
-        photo = (prof?.photo as string | null | undefined) || undefined
-        photoCache = { uid: u.id, photo }   // cache only on a clean fetch
-      } catch { /* profiles fetch is best-effort; leave cache unset to retry */ }
+  // profile_type: user_metadata is a LEGACY FALLBACK only. The source of truth is
+  // profiles.profile_type — the new-user trigger AND every later change (Google
+  // OAuth classification, a manual dashboard edit) write the profiles row, NOT
+  // user_metadata. Reading metadata here misses those and mis-shows a 'personal'
+  // user as KTX (the calendar's 등록 UI branches entirely on this).
+  const metaType: ProfileType = m.profile_type === 'personal' ? 'personal' : 'ktx_attendant'
+  // Photo also lives in profiles (see updatePhoto); metadata.photo is the legacy
+  // fallback, preferred first to preserve prior behavior. One cached profiles read
+  // resolves both photo and profile_type.
+  let photo: string | undefined
+  let profileType: ProfileType
+  if (profileCache && profileCache.uid === u.id) {
+    photo = profileCache.photo
+    profileType = profileCache.profileType
+  } else {
+    try {
+      const { data: prof } = await supabase
+        .from('profiles').select('photo, profile_type').eq('id', u.id).maybeSingle()
+      // No profiles row (shouldn't happen post-trigger) → fall back to metadata.
+      profileType = prof
+        ? (prof.profile_type === 'personal' ? 'personal' : 'ktx_attendant')
+        : metaType
+      photo = m.photo || (prof?.photo as string | null | undefined) || undefined
+      profileCache = { uid: u.id, photo, profileType }   // cache only on a clean fetch
+    } catch {
+      // profiles fetch is best-effort; fall back to metadata and DON'T cache so
+      // the next call retries against the source of truth.
+      profileType = metaType
+      photo = m.photo || undefined
     }
   }
   return {
@@ -100,7 +116,7 @@ export async function getCurrentSession(): Promise<Session | null> {
     employeeId: m.employee_id ?? '',
     part: m.part || undefined,
     photo,
-    profileType: m.profile_type === 'personal' ? 'personal' : 'ktx_attendant',
+    profileType,
     isDemo: false,
   }
 }
@@ -309,15 +325,19 @@ export async function updatePhoto(photo: string | null): Promise<{ ok: boolean; 
     .eq('id', user.id)
   if (error) return { ok: false, message: error.message }
   // Keep the in-memory cache in sync so the new photo shows immediately on the
-  // next getCurrentSession (e.g. when the photo page navigates back).
-  photoCache = { uid: user.id, photo: photo ?? undefined }
+  // next getCurrentSession (e.g. when the photo page navigates back). photo
+  // changed, profile_type did not — preserve the cached profileType. If there's
+  // no cache yet, null it so the next getCurrentSession refetches both fields.
+  profileCache = profileCache && profileCache.uid === user.id
+    ? { ...profileCache, photo: photo ?? undefined }
+    : null
   return { ok: true }
 }
 
 /* ── Logout ────────────────────────────────────────────────────────────────── */
 
 export async function logout(): Promise<void> {
-  photoCache = null
+  profileCache = null
   // 푸시 구독 정리 — 안 하면 공용 브라우저에서 다음 로그인 계정이 이전 계정의
   // 알림을 받는다(구독은 endpoint로 서버에 남고, getPushStatus는 'enabled'라
   // 재구독도 안 일어남). signOut 전에 토큰이 살아있을 때 RPC가 통하도록 먼저.

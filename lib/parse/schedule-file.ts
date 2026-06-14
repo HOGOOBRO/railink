@@ -159,9 +159,19 @@ function clean(value: Cell): string {
 }
 
 function normalizeTrainNr(combined: string, train1: string, train2: string): string {
-  if (train1 && train2) return `${train1} · ${train2}`
-  if (train1 || train2) return train1 || train2
-  if (combined) return combined.replace(/\s*[,.]\s*/g, ' · ')
+  // "-" 는 대표열번2 미사용 등의 빈 자리표시자 — 떼어 내 "209 · -" 같은
+  // 매달린 구분자가 저장되지 않게 한다 (AI·직접입력 경로와 동일 규칙).
+  const t1 = (train1 ?? '').trim() === '-' ? '' : (train1 ?? '').trim()
+  const t2 = (train2 ?? '').trim() === '-' ? '' : (train2 ?? '').trim()
+  if (t1 && t2) return `${t1} · ${t2}`
+  if (t1 || t2) return t1 || t2
+  if (combined) {
+    return combined
+      .split(/[,.\s·]+/)
+      .map(s => s.trim())
+      .filter(s => s && s !== '-')
+      .join(' · ')
+  }
   return ''
 }
 

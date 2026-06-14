@@ -211,15 +211,16 @@ export function UploadModal({
   )
   const [manualCategory, setManualCategory] = useState<ManualCategory>(isPersonal ? 'general' : 'ktx')
 
-  // 일반 카테고리 첫 활성 시 한 달 전체 펼치고 평일=09:00/18:00, 토·일=휴무로
-  // default 시드. 사용자가 이미 입력한 칸은 손대지 않음. seedRef로 한 번만.
-  const seededGeneralRef = useRef(false)
+  // 일반 카테고리 첫 활성 시 한 달 전체로 펼치기만 한다 (칩으로 칠할 날들이 다
+  // 보이게). 자동 채움은 하지 않는다 — 사용자가 안 건드린 빈 날이 멋대로 근무로
+  // 저장되지 않도록. 규칙 근무는 아래 "평일 09–18 일괄 채우기" 버튼으로 opt-in.
+  const expandedGeneralRef = useRef(false)
   useEffect(() => {
-    if (manualCategory !== 'general' || seededGeneralRef.current) return
-    seededGeneralRef.current = true
+    if (manualCategory !== 'general' || expandedGeneralRef.current) return
+    expandedGeneralRef.current = true
     const total = daysInMonth(defaultYear, defaultMonth)
     setManualRows(rs => {
-      // 부족한 일수 채우기
+      if (rs.length >= total) return rs
       const expanded = [...rs]
       for (let d = expanded.length + 1; d <= total; d++) {
         expanded.push({
@@ -227,16 +228,29 @@ export function UploadModal({
           dow: DOW_KR[new Date(defaultYear, defaultMonth - 1, d).getDay()],
         })
       }
-      // 평일 / 주말 default 적용 (이미 holiday이거나 사용자가 채운 row는 그대로)
-      return expanded.map(r => {
-        if (r.holiday || r.dia || r.st || r.et) return r
-        const isWeekend = r.dow === '토' || r.dow === '일'
-        return isWeekend
-          ? { ...r, holiday: true, sun: false }
-          : { ...r, st: '09:00', et: '18:00' }
-      })
+      return expanded
     })
   }, [manualCategory, defaultYear, defaultMonth])
+
+  // 일괄 채우기 직전 상태 스냅샷 — 실수로 눌러도 한 번에 되돌릴 수 있게.
+  const [fillUndo, setFillUndo] = useState<ManualRow[] | null>(null)
+
+  // opt-in 일괄 채우기: 모든 평일을 09:00–18:00로 덮어쓴다 (08–17 등 기존
+  // 시간도 09–18로 바뀜). 주말과 명시적 '휴무'일은 그대로 보존. 코드(다이)·열번은
+  // 비워서 raw 09–18 시간으로 표시되게 한다. 누르기 직전 상태를 저장해 되돌리기 제공.
+  function fillWeekdays() {
+    setFillUndo(manualRows)
+    setManualRows(manualRows.map(r => {
+      if (r.dow === '토' || r.dow === '일') return r
+      if (r.holiday) return r
+      return { ...r, dia: undefined, tr: undefined, st: '09:00', et: '18:00' }
+    }))
+  }
+  function undoFillWeekdays() {
+    if (!fillUndo) return
+    setManualRows(fillUndo)
+    setFillUndo(null)
+  }
   const monthTotal = useMemo(
     () => daysInMonth(defaultYear, defaultMonth), [defaultYear, defaultMonth],
   )
@@ -244,6 +258,7 @@ export function UploadModal({
   const manualFilled = manualRows.filter(r => r.holiday || r.dia || r.tr || r.st || r.et).length
 
   function setManualRow(i: number, patch: Partial<ManualRow>) {
+    setFillUndo(null) // 개별 편집을 시작하면 직전 일괄채우기 되돌리기는 만료
     setManualRows(rs => rs.map((r, idx) => idx === i ? { ...r, ...patch } : r))
   }
 
@@ -650,6 +665,9 @@ export function UploadModal({
               onBack={onBack}
               onChange={setManualRow}
               onAppendRest={appendRemainingDays}
+              onFillWeekdays={fillWeekdays}
+              onUndoFill={undoFillWeekdays}
+              canUndoFill={fillUndo !== null}
             />
             {saving && (
               <StatusBox tone="info">
@@ -736,6 +754,12 @@ interface ManualBodyProps {
   onBack: () => void
   onChange: (i: number, patch: Partial<ManualRow>) => void
   onAppendRest: () => void
+  /** 일반 모드 opt-in: 평일을 09–18로 일괄 채움(덮어쓰기). */
+  onFillWeekdays: () => void
+  /** 직전 일괄 채우기 되돌리기. */
+  onUndoFill: () => void
+  /** 되돌릴 일괄 채우기 스냅샷이 있는지. */
+  canUndoFill: boolean
 }
 
 interface PreviewBodyProps {
@@ -875,7 +899,7 @@ function activeKey(active: ActiveCode): string | null {
 
 function ManualBody({
   rows, year, month, filled, total, category, isPersonal, userId, onCategoryChange,
-  onBack, onChange, onAppendRest,
+  onBack, onChange, onAppendRest, onFillWeekdays, onUndoFill, canUndoFill,
 }: ManualBodyProps) {
   const headerLabel = category === 'ktx' ? '다이 · 출근 · 퇴근' : '근무'
 
@@ -1032,6 +1056,27 @@ function ManualBody({
                 )}
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {category === 'general' && (
+        <div className="mb-2.5 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onFillWeekdays}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-[12px] border border-line-2 bg-surface text-caption font-semibold text-ink-700 active:bg-bg"
+          >
+            평일 09:00~18:00 일괄 채우기
+          </button>
+          {canUndoFill && (
+            <button
+              type="button"
+              onClick={onUndoFill}
+              className="shrink-0 px-3.5 py-2.5 rounded-[12px] border-[1.5px] border-line bg-bg text-caption font-bold text-ink-700 active:opacity-70"
+            >
+              되돌리기
+            </button>
           )}
         </div>
       )}
