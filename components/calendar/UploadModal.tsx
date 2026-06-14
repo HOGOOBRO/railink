@@ -178,6 +178,24 @@ function normalizePreviewRows(rows: ParsedScheduleRow[]): ParsedScheduleRow[] {
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
 }
 
+/** Personal accounts have no KTX duty(다이)/열번(train) concept — their direct-input
+ *  UI never exposes those fields. But the photo-OCR and file paths have zero
+ *  profileType branching and will happily extract dia/train from a KTX roster,
+ *  producing a "general 계정인데 KTX 다이가 박힌" inconsistent schedule. Drop those
+ *  from WORKING rows here (keep the 'S' off-marker + times). Returns whether
+ *  anything was stripped so the caller can tell the user why the preview lost them. */
+function stripKtxFieldsForPersonal(
+  rows: ParsedScheduleRow[],
+): { rows: ParsedScheduleRow[]; stripped: boolean } {
+  let stripped = false
+  const next = rows.map(row => {
+    if (row.isOff || (!row.diaNr && !row.trainNr)) return row
+    stripped = true
+    return { ...row, diaNr: undefined, trainNr: undefined }
+  })
+  return { rows: next, stripped }
+}
+
 function nextPreviewDate(rows: ParsedScheduleRow[], year: number, month: number): string {
   const usedDays = new Set(rows.map(row => Number(row.date.slice(8, 10))).filter(Number.isFinite))
   const total = daysInMonth(year, month)
@@ -288,7 +306,13 @@ export function UploadModal({
 
     try {
       const parsed = await parseScheduleFile(file, defaultYear)
-      setRows(displayPreviewRows(parsed))
+      const display = isPersonal
+        ? stripKtxFieldsForPersonal(parsed)
+        : { rows: parsed, stripped: false }
+      setRows(displayPreviewRows(display.rows))
+      if (display.stripped) {
+        setNotice('이 계정은 일반 근무용이라 다이·열번은 빼고 근무 시간만 저장돼요.')
+      }
       onPreview()
     } catch (err) {
       setError(err instanceof Error ? err.message : '파일을 읽는 중 문제가 생겼어요.')
@@ -316,7 +340,10 @@ export function UploadModal({
 
     try {
       const result = await recognizeScheduleImage(files, defaultYear, defaultMonth, setOcr, userName)
-      setRows(displayPreviewRows(result.rows))
+      const display = isPersonal
+        ? stripKtxFieldsForPersonal(result.rows)
+        : { rows: result.rows, stripped: false }
+      setRows(displayPreviewRows(display.rows))
       setOcrText(result.text)
       const usageText = result.usage
         ? ` 이번 달 ${result.usage.used}/${result.usage.limit}회 사용.`
@@ -326,7 +353,10 @@ export function UploadModal({
           ? ` 이미지에서 ${result.period.year}년 ${result.period.month}월로 읽었어요.`
           : ` 월 표기가 불명확해 현재 화면의 ${result.period.year}년 ${result.period.month}월 기준으로 읽었어요.`
         : ''
-      setNotice(`AI 인식 신뢰도 ${Math.round(result.confidence)}%.${periodText} 여러 장을 올린 경우 겹치는 날짜는 병합했어요.${usageText}`)
+      const personalNote = display.stripped
+        ? ' 이 계정은 일반 근무용이라 다이·열번은 빼고 근무 시간만 저장돼요.'
+        : ''
+      setNotice(`AI 인식 신뢰도 ${Math.round(result.confidence)}%.${periodText} 여러 장을 올린 경우 겹치는 날짜는 병합했어요.${usageText}${personalNote}`)
       onPreview()
     } catch (err) {
       setError(err instanceof Error ? err.message : '이미지를 읽는 중 문제가 생겼어요.')
@@ -393,7 +423,7 @@ export function UploadModal({
     (step === 'manual' && manualFilled === 0)
 
   const footerStatus =
-    saving ? 'Supabase에 저장하고 확인 중'
+    saving ? '근무표를 저장하는 중'
     : step === 'pick' ? '입력 방식을 골라 주세요'
     : step === 'manual' ? '직접 입력 중'
     : `총 ${rows.length}건`
@@ -622,7 +652,7 @@ export function UploadModal({
             {saving && (
               <StatusBox tone="info">
                 <span className="text-brand shrink-0"><InfoIcon size={16} /></span>
-                <span>Supabase에 저장하고 저장 건수를 확인하고 있어요.</span>
+                <span>근무표를 저장하고 있어요. 잠시만 기다려 주세요.</span>
               </StatusBox>
             )}
             {error && (
@@ -672,7 +702,7 @@ export function UploadModal({
             {saving && (
               <StatusBox tone="info">
                 <span className="text-brand shrink-0"><InfoIcon size={16} /></span>
-                <span>Supabase에 저장하고 저장 건수를 확인하고 있어요.</span>
+                <span>근무표를 저장하고 있어요. 잠시만 기다려 주세요.</span>
               </StatusBox>
             )}
             {error && (
