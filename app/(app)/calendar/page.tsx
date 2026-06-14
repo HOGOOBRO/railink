@@ -27,7 +27,8 @@ import { BootSplash } from '@/components/loading/BootSplash'
 import { Spinner } from '@/components/ui/Spinner'
 import { useDelayedFlag } from '@/lib/use-delayed-flag'
 import type { MonthPerson, MonthShift } from '@/components/calendar/MonthTimeline'
-import { getCurrentSession, logout, getMarketingConsent, setMarketingConsent, type Session } from '@/lib/auth'
+import { getCurrentSession, logout, getMarketingConsent, setMarketingConsent, getJobCategory, setJobCategory, type Session } from '@/lib/auth'
+import { JOB_OPTIONS } from '@/lib/profile-fields'
 import { track } from '@/lib/analytics'
 import {
   getMonthSchedules,
@@ -141,6 +142,12 @@ export default function CalendarPage() {
   // 가입자)에게만 뜬다 (marketing_consent_at IS NULL).
   const [mktAsk, setMktAsk] = useState(false)
   const [mktBusy, setMktBusy] = useState(false)
+  // 직무 1회 프롬프트 — personal 계정 중 직무 미응답(Google 가입·직무 수집 이전
+  // 가입자)에게만 뜬다 (job_category IS NULL). 확장 우선순위용, 선택 안 해도 됨.
+  const [jobAsk, setJobAsk] = useState(false)
+  const [jobBusy, setJobBusy] = useState(false)
+  const [jobSel, setJobSel] = useState<string | null>(null)
+  const [jobOther, setJobOther] = useState('')
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -816,6 +823,38 @@ export default function CalendarPage() {
     if (!res.ok) return
     localStorage.setItem(`railink_mkt_asked_${session.uid}`, '1')
     if (consent) showToast('새 소식이 나오면 알려드릴게요.', 'success')
+  }
+
+  // 직무 프롬프트 노출 판정 — personal && job_category IS NULL 일 때만. job엔 별도
+  // "물어본 시각" 컬럼이 없어 답을 안 고르고 닫은 경우는 per-uid localStorage
+  // 가드로만 막는다(같은 기기 재노출 방지). 직무를 실제로 고르면 서버 값이 차서
+  // 모든 기기에서 다시 안 뜬다.
+  useEffect(() => {
+    if (!session || session.isDemo || session.profileType !== 'personal') return
+    const key = `railink_job_asked_${session.uid}`
+    if (typeof window !== 'undefined' && localStorage.getItem(key)) return
+    let alive = true
+    getJobCategory().then(r => {
+      if (!alive || !r) return
+      if (r.category) { localStorage.setItem(key, '1'); return }
+      setJobAsk(true)
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [session])
+
+  // 저장(직무 선택) 또는 닫기('나중에'·backdrop) 공유 경로. 닫기 = 미응답이라
+  // 서버엔 안 쓰고 가드만 채워 다시 안 묻는다. 선택 시에만 서버 저장.
+  async function answerJob(category: string | null) {
+    if (!session || jobBusy) return
+    if (category) {
+      setJobBusy(true)
+      const res = await setJobCategory(category, jobOther)
+      setJobBusy(false)
+      if (!res.ok) { showToast(res.message ?? '저장에 실패했어요.', 'danger'); return }
+      showToast('알려주셔서 고마워요!', 'success')
+    }
+    setJobAsk(false)
+    localStorage.setItem(`railink_job_asked_${session.uid}`, '1')
   }
 
   async function onPushNudgeEnable() {
@@ -1521,6 +1560,55 @@ export default function CalendarPage() {
             </Button>
             <Button className="flex-1" disabled={mktBusy} onClick={() => answerMarketing(true)}>
               좋아요, 받을게요
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
+
+      {/* 직무 1회 프롬프트 — 마케팅 시트가 떠 있으면 그게 먼저(한 번에 하나만).
+          가입 폼을 안 거친 personal 계정(주로 Google 가입)의 직무를 백필한다. */}
+      <BottomSheet open={jobAsk && !mktAsk} onClose={() => answerJob(null)}>
+        <div className="px-5 pt-2 pb-8">
+          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">어떤 일을 하세요?</h3>
+          <p className="mt-2 text-callout text-ink-700 leading-relaxed">
+            더 도움이 되는 기능을 준비하려고 여쭤봐요. 선택은 안 해도 괜찮고, 답하지 않아도 이용에는 아무 영향이 없어요.
+          </p>
+          <div className="flex flex-wrap gap-2 mt-4" role="group" aria-label="직무 선택">
+            {JOB_OPTIONS.map(opt => {
+              const active = jobSel === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setJobSel(active ? null : opt.value)}
+                  className={`px-3.5 py-2 rounded-pill border-2 text-[14px] font-bold transition-colors ${
+                    active ? 'border-brand bg-brand-050 text-brand' : 'border-line bg-surface text-ink-700'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+          {jobSel === 'other' && (
+            <input
+              value={jobOther}
+              onChange={e => setJobOther(e.target.value)}
+              placeholder="어떤 일을 하시나요?"
+              className="w-full mt-3 px-3.5 h-12 rounded-sm border-2 border-line bg-surface font-kr text-body placeholder:text-ink-500 focus:outline-none focus:border-brand"
+            />
+          )}
+          <div className="flex gap-2.5 mt-5">
+            <Button variant="outline" className="flex-1" disabled={jobBusy} onClick={() => answerJob(null)}>
+              나중에
+            </Button>
+            <Button
+              className="flex-1"
+              disabled={jobBusy || !jobSel || (jobSel === 'other' && !jobOther.trim())}
+              onClick={() => answerJob(jobSel)}
+            >
+              알려주기
             </Button>
           </div>
         </div>
