@@ -11,8 +11,11 @@ const jetbrainsMono = JetBrains_Mono({
   variable: '--jetbrains-mono',
 })
 
-const SITE_TITLE = 'RaiLink · 근무 스케줄 공유'
-const SITE_DESC = '내 일정과 함께 보는 사람의 일정을 한 화면에서. 동료와 근무 스케줄을 맞춰보는 앱.'
+// 한글 표기 "레일링크"를 제목·설명에 반드시 포함 — 한국어 검색("레일링크",
+// "근무표 공유")이 매칭될 문서가 사이트에 있어야 한다 (2026-06 SEO 진단).
+const SITE_TITLE = '레일링크 RaiLink · 근무표 공유 캘린더'
+const SITE_DESC =
+  '레일링크는 교대근무자를 위한 무료 근무표 공유 캘린더예요. 내 근무 스케줄을 등록하고 동료와 겹치는 휴무를 한눈에 확인하세요.'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://railink.app'),
