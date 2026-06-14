@@ -13,6 +13,7 @@ import { CalCell, type CellBar } from '@/components/calendar/CalCell'
 import { DetailSheet } from '@/components/calendar/DetailSheet'
 import { MenuSheet } from '@/components/calendar/MenuSheet'
 import { InviteCreateSheet } from '@/components/calendar/InviteCreateSheet'
+import { InvitePromptSheet, type InvitePromptTrigger } from '@/components/calendar/InvitePromptSheet'
 import { PersonalHintCard } from '@/components/calendar/PersonalHintCard'
 import { SearchOverlay } from '@/components/calendar/SearchOverlay'
 import { UploadModal } from '@/components/calendar/UploadModal'
@@ -41,6 +42,7 @@ import {
   addToActiveGroup, removeFromActiveGroup, setActiveGroup,
   createGroup, renameGroup, deleteGroup, reorderGroups, MAX_PER_GROUP,
   enableRemoteGroupSync, disableRemoteGroupSync, hydrateGroupsFromRemote,
+  noteGroupOverflow,
 } from '@/lib/store/groups'
 import {
   findColleagueInDirectory,
@@ -150,6 +152,13 @@ export default function CalendarPage() {
   const [manageOpen, setManageOpen] = useState(false)
   const [manageStartCreate, setManageStartCreate] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  // 초대 권유 시트(노출·거절 계측). open과 trigger를 분리해 둔다 — 닫힘 애니메이션
+  // 동안에도 마지막 변형 카피가 유지되도록(open=false 시 trigger는 그대로).
+  const [nudgeOpen, setNudgeOpen] = useState(false)
+  const [nudgeTrigger, setNudgeTrigger] = useState<InvitePromptTrigger | null>(null)
+  const [firstCompareNudgePending, setFirstCompareNudgePending] = useState(false)
+  // 주 버튼("초대 링크 만들기")으로 닫힐 때 dismiss 이중계수를 막는 플래그.
+  const nudgeViaCtaRef = useRef(false)
   // Email to pre-scope the invite when opened from a failed email search.
   const [invitePrefillEmail, setInvitePrefillEmail] = useState<string | null>(null)
   // Default true = hidden, so the personal first-entry card never flashes for
@@ -429,6 +438,7 @@ export default function CalendarPage() {
           const ungrouped = shares.viewing.filter(v => !inGroupUids.has(v.ownerId))
           if (ungrouped.length) {
             let addedAny = false
+            const overflowUids: string[] = []
             for (const v of ungrouped) {
               const prof = directoryList.find(d => d.uid === v.ownerId)
               const res = addToActiveGroup(s.uid, {
@@ -442,6 +452,16 @@ export default function CalendarPage() {
               // active group is at the 10-person cap. Guard the reload on a real
               // change so a capped group can't loop the mount effect forever.
               if (res.entry || res.alreadyIn) addedAny = true
+              else overflowUids.push(v.ownerId)
+            }
+            // Multi-use invite can connect more people than fit in one 그룹. Tell
+            // the owner so the overflow connections aren't silently lost — once
+            // per uid (noteGroupOverflow) so this doesn't re-toast every mount.
+            if (overflowUids.length && noteGroupOverflow(s.uid, overflowUids) > 0) {
+              showToast(
+                `${overflowUids.length}명이 더 연결됐어요. 비교 그룹은 최대 ${MAX_PER_GROUP}명까지라, 새 그룹을 만들어 정리해 주세요.`,
+                'default',
+              )
             }
             if (addedAny) { if (alive) setReload(n => n + 1); return }
           }
@@ -508,6 +528,40 @@ export default function CalendarPage() {
 
   const hasMySchedule = myByDate.size > 0
 
+  // 열려 있는 오버레이가 하나라도 있는지(권유 시트 자신은 제외) — 트리거 ① 가드와
+  // 하단 JSX가 공유한다. early-return 위에서 선언해야 훅(가드 effect)이 참조할 수 있다.
+  const overlayOpen = detailOpen || searchOpen || uploadOpen || menuOpen || manageOpen || inviteOpen || !!memberSheet || wizardOpen
+
+  // 권유 시트를 띄우는 순간 노출 1회 계측(trigger별). open/trigger를 같이 세팅한다.
+  const showNudge = useCallback((trigger: InvitePromptTrigger) => {
+    nudgeViaCtaRef.current = false
+    setNudgeTrigger(trigger)
+    setNudgeOpen(true)
+    track('invite_prompt_view', { trigger, demo: session?.isDemo ? 'yes' : 'no' })
+  }, [session?.isDemo])
+
+  // X·백드롭·스와이프(=거절)로 닫힐 때만 dismiss. 주 버튼 경로(nudgeViaCtaRef)는 제외.
+  const closeNudge = useCallback(() => {
+    if (!nudgeViaCtaRef.current && nudgeTrigger) {
+      track('invite_prompt_dismiss', { trigger: nudgeTrigger, demo: session?.isDemo ? 'yes' : 'no' })
+    }
+    setNudgeOpen(false)
+  }, [nudgeTrigger, session?.isDemo])
+
+  // 주 버튼: 권유 시트를 닫고 기존 친구 초대 시트를 연다(거기서 invite_create가 발사됨).
+  const handleNudgeCreate = useCallback(() => {
+    nudgeViaCtaRef.current = true
+    setNudgeOpen(false)
+    setInviteOpen(true)
+  }, [])
+
+  // 트리거 ① 오버레이 가드: 첫 겹쳐보기 직후, 다른 시트가 다 닫혀 화면이 깨끗해지면 띄운다.
+  useEffect(() => {
+    if (!firstCompareNudgePending || overlayOpen || nudgeOpen) return
+    setFirstCompareNudgePending(false)
+    showNudge('first_compare')
+  }, [firstCompareNudgePending, overlayOpen, nudgeOpen, showNudge])
+
   // first_compare — 내 일정 위에 동료 일정이 처음 겹쳐 그려진 순간(활성화 지표).
   // 계정당 1회: 기존 1회성 플래그들과 같은 per-uid localStorage 가드(브라우저
   // 단위라 새 기기에선 드물게 중복 — 기존 이벤트들과 동일하게 수용).
@@ -519,6 +573,8 @@ export default function CalendarPage() {
     if (!hasMySchedule || !colleagueDrawn) return
     localStorage.setItem(key, '1')
     track('first_compare', { demo: session.isDemo ? 'yes' : 'no' })
+    // 변형 ① 권유 예약 — 실제 노출은 위 가드 effect가 화면이 깨끗해질 때 처리.
+    setFirstCompareNudgePending(true)
   }, [session, booting, compares, compareByDate, hasMySchedule])
 
   const weeks = buildMonthCells(year, month)
@@ -978,6 +1034,8 @@ export default function CalendarPage() {
     setMySched(getMonthSchedules(session.uid, savedYear, savedMonth))
     track('schedule_create', { demo: session.isDemo ? 'yes' : 'no' })
     showToast(`${entries.length}건 등록 완료`, 'success')
+    // 변형 ② 권유 — 업로드할 때마다 띄움(캡 없음). 연결된 친구 수로 카피만 분기.
+    showNudge(compares.length === 0 ? 'upload_empty' : 'upload_has_friends')
   }
 
   async function handleLogout() {
@@ -1014,7 +1072,7 @@ export default function CalendarPage() {
       : <div className="min-h-[100dvh] bg-surface" />
   }
 
-  const overlayOpen = detailOpen || searchOpen || uploadOpen || menuOpen || manageOpen || inviteOpen || !!memberSheet || wizardOpen
+  // overlayOpen 은 first_compare 가드 effect와 공유하려고 early-return 위에서 선언했다.
   const compareColorOf = (c: CompareEntry) => cssColor(c.color)
   const hasGroups = groupsState.groups.length > 0
   const atCompareCap = compares.length >= MAX_PER_GROUP
@@ -1129,7 +1187,7 @@ export default function CalendarPage() {
             shareSynced 게이트(1회성): 새 기기/시크릿 첫 부팅은 auto-grouping이 서버
             share로 그룹을 복원하기 전이라, 게이트 없이는 빈 CTA가 먼저 번쩍인다.
             (colleagueLoading은 월 이동마다 true로 돌아와 CTA가 깜빡여서 못 쓴다.) */}
-        {shareSynced && compares.length === 0 && (
+        {shareSynced && compares.length === 0 && !(nudgeOpen && nudgeTrigger === 'upload_empty') && (
           <div className="mx-4 mt-1 flex flex-col items-center text-center gap-1 rounded-lg bg-brand-050 border border-brand-100 px-5 py-5">
             <p className="text-callout font-bold text-ink-900">아직 비교할 동료가 없어요</p>
             <p className="text-caption text-ink-500 leading-relaxed">
@@ -1421,6 +1479,17 @@ export default function CalendarPage() {
           onInvite={openInvite}
           onLogout={handleLogout}
         />
+      </BottomSheet>
+
+      {/* ── 초대 권유 시트(노출·거절 계측) ── */}
+      <BottomSheet open={nudgeOpen} onClose={closeNudge}>
+        {nudgeTrigger && (
+          <InvitePromptSheet
+            trigger={nudgeTrigger}
+            onClose={closeNudge}
+            onCreate={handleNudgeCreate}
+          />
+        )}
       </BottomSheet>
 
       {/* ── 친구 초대 ── */}
