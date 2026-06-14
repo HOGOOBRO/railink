@@ -954,7 +954,15 @@ export default function CalendarPage() {
 
   async function handleUploadSave(rows: ParsedScheduleRow[]) {
     if (!session) throw new Error('로그인 상태를 확인한 뒤 다시 저장해 주세요.')
-    const entries = rows.map(row => ({ ...row, uid: session.uid }))
+    // Personal accounts have no KTX 다이/열번 concept. The photo-OCR and file
+    // paths have no profileType branching and can extract those from a KTX
+    // roster, so strip them here at the single save chokepoint — the guarantee
+    // that no personal schedule ever persists KTX-only fields it can't view or
+    // edit. Off rows keep their 'S' marker; working rows lose dia/train only.
+    const normalized = session.profileType === 'personal'
+      ? rows.map(row => (row.isOff ? row : { ...row, diaNr: undefined, trainNr: undefined }))
+      : rows
+    const entries = normalized.map(row => ({ ...row, uid: session.uid }))
     if (!session.isDemo) {
       await replaceRemoteUserScheduleMonths(session.uid, entries)
     }
