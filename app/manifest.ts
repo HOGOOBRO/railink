@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'RaiLink · 근무 스케줄 공유',
+    name: '레일링크 RaiLink · 근무표 공유 캘린더',
     short_name: 'RaiLink',
-    description: '내 일정과 함께 보는 사람의 일정을 한 화면에서. 동료와 근무 스케줄을 맞춰보는 앱.',
+    description: '레일링크는 교대근무자를 위한 무료 근무표 공유 캘린더예요. 내 근무 스케줄을 등록하고 동료와 겹치는 휴무를 한눈에 확인하세요.',
     // Installed-app users are almost always logged in, so start at /calendar:
     // its loader shows a neutral surface while the session resolves, then the
     // calendar. Starting at /login instead flashed the login form on every cold
