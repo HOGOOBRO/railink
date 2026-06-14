@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Input } from '@/components/ui/Input'
+import { CbSelect } from '@/components/ui/CbSelect'
 import { Button } from '@/components/ui/Button'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { BrandMark, ChevronLeftIcon, EyeIcon, GoogleIcon } from '@/components/ui/icons'
@@ -12,6 +13,7 @@ import { signup, getCurrentSession, resendConfirmation, signInWithGoogle } from 
 import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
 import type { Visibility, ProfileType } from '@/lib/types/schedule'
 import { savePendingInvite, peekInvite } from '@/lib/store/invites'
+import { BRANCHES, BRANCH_OTHER, JOB_OPTIONS } from '@/lib/profile-fields'
 
 // The very first question — branches the whole form. Both options are equal;
 // "아니에요" describes the persona ("개인"), never the signup method, and never
@@ -26,10 +28,13 @@ const VIS_OPTIONS: RadioOption<Visibility>[] = [
   { value: 'private', title: '비공개', desc: '검색에는 안 떠요. 사번을 정확히 아는 동료만 공유를 요청할 수 있어요.' },
 ]
 
+
 interface FormErrors {
   email?: string
   employeeId?: string
   name?: string
+  branch?: string
+  job?: string
   password?: string
   passwordConfirm?: string
   terms?: string
@@ -94,9 +99,15 @@ export default function SignupPage() {
   const [inviteToken, setInviteToken] = useState<string | null>(null)
   const [inviterName, setInviterName] = useState<string | null>(null)
   const [form, setForm] = useState({
-    email: '', employeeId: '', name: '', part: '',
+    email: '', employeeId: '', name: '',
     password: '', passwordConfirm: '',
   })
+  // KTX 소속 지사: 드롭다운 선택값(BRANCHES 중 하나 또는 '기타'), '기타'면 branchOther 사용.
+  const [branch, setBranch] = useState('')
+  const [branchOther, setBranchOther] = useState('')
+  // personal 직군: 칩 단일선택(JOB_OPTIONS value), 'other'면 jobOther 사용.
+  const [jobCategory, setJobCategory] = useState<string | null>(null)
+  const [jobOther, setJobOther] = useState('')
   const [terms, setTerms] = useState({
     tos: false, privacy: false, marketing: false,
   })
@@ -166,6 +177,13 @@ export default function SignupPage() {
     }
     if (!form.name) e.name = '이름을 입력해 주세요.'
     else if (!isKtx && form.name.length > 30) e.name = '이름은 30자 이내로 입력해 주세요.'
+    // 지사·직무는 둘 다 선택(optional) — 가입 전환을 막지 않는다. 단 '기타'를
+    // 골랐으면 텍스트를 받아야 데이터로 의미가 있어 그때만 필수.
+    if (isKtx) {
+      if (branch === BRANCH_OTHER && !branchOther.trim()) e.branch = '소속 지사를 입력해 주세요.'
+    } else if (jobCategory === 'other' && !jobOther.trim()) {
+      e.job = '직무를 입력해 주세요.'
+    }
     if (!form.password) e.password = '비밀번호를 입력해 주세요.'
     else if (form.password.length < 8) e.password = '비밀번호는 8자 이상으로 설정해 주세요.'
     else if (!/[A-Za-z]/.test(form.password) || !/\d/.test(form.password)) e.password = '영문과 숫자를 모두 포함해 주세요.'
@@ -180,16 +198,22 @@ export default function SignupPage() {
     if (Object.keys(errs).length) { setErrors(errs); return }
     if (isKtx && !visibility) return  // guarded by the disabled submit button
 
+    // KTX 소속 지사: '기타' 선택 시 직접 입력값, 아니면 드롭다운 선택값.
+    const branchValue = branch === BRANCH_OTHER ? branchOther.trim() : branch
+
     setLoading(true)
     const result = await signup({
       email: form.email,
       password: form.password,
-      // personal has no 사번/파트; trigger clamps personal visibility to private.
+      // personal has no 사번/지사; trigger clamps personal visibility to private.
       employeeId: isKtx ? form.employeeId : '',
       name: form.name,
-      part: isKtx ? (form.part || undefined) : undefined,
+      part: isKtx ? (branchValue || undefined) : undefined,
       visibility: isKtx ? (visibility as Visibility) : 'private',
       profileType,
+      // personal 전용: 직군(확장 우선순위용). KTX엔 보내지 않는다.
+      jobCategory: !isKtx ? (jobCategory ?? undefined) : undefined,
+      jobOther: !isKtx && jobCategory === 'other' ? (jobOther.trim() || undefined) : undefined,
       // Survives the email-confirm redirect via ?invite= even on another browser.
       inviteToken,
       marketingConsent: terms.marketing,
@@ -360,12 +384,84 @@ export default function SignupPage() {
             value={form.name} onChange={set('name')} error={errors.name}
           />
           {isKtx && (
-            <Input
-              id="part" label="소속 파트"
-              hint="팀 내 사용하는 파트 명칭이 있으면 적어 주세요."
-              placeholder="예: A · B · C"
-              value={form.part} onChange={set('part')}
-            />
+            /* 소속 지사 — 정해진 6개 드롭다운(약속 잡기 시간 선택과 동일한 CbSelect
+               디자인) + '기타' 선택 시 직접 입력. 선택은 optional. */
+            <div className="flex flex-col gap-1">
+              <span className="text-caption font-semibold tracking-wide text-ink-900">소속 지사</span>
+              <CbSelect
+                value={branch}
+                placeholder="소속 지사를 선택해 주세요"
+                options={[...BRANCHES.map(b => ({ v: b, label: b })), { v: BRANCH_OTHER, label: '기타' }]}
+                onChange={v => { setBranch(v); setErrors(p => ({ ...p, branch: undefined })) }}
+              />
+              {branch === BRANCH_OTHER && (
+                <div className="mt-1.5">
+                  <Input
+                    id="branchOther" aria-label="소속 지사 직접 입력"
+                    placeholder="소속 지사를 입력해 주세요"
+                    value={branchOther}
+                    onChange={e => { setBranchOther(e.target.value); setErrors(p => ({ ...p, branch: undefined })) }}
+                    error={errors.branch}
+                  />
+                </div>
+              )}
+              {branch !== BRANCH_OTHER && errors.branch && (
+                <p className="flex items-start gap-1 text-caption text-danger mt-0.5">
+                  <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-danger text-ink-on-brand text-[10px] font-bold grid place-items-center mt-px">!</span>
+                  {errors.branch}
+                </p>
+              )}
+            </div>
+          )}
+
+          {!isKtx && (
+            /* 직무 — 단일선택 칩. 확장 우선순위 판단용(개인화 아님). 선택은
+               optional이라 가입 전환을 막지 않는다. '기타' 선택 시 직접 입력. */
+            <div className="flex flex-col gap-1">
+              <span className="text-caption font-semibold tracking-wide text-ink-900">직무</span>
+              <div className="flex flex-wrap gap-2 mt-0.5" role="group" aria-label="직무 선택">
+                {JOB_OPTIONS.map(opt => {
+                  const active = jobCategory === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => {
+                        setJobCategory(active ? null : opt.value)
+                        setErrors(p => ({ ...p, job: undefined }))
+                      }}
+                      className={`px-3.5 py-2 rounded-pill border-2 text-[14px] font-bold transition-colors ${
+                        active ? 'border-brand bg-brand-050 text-brand' : 'border-line bg-surface text-ink-700'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {jobCategory === 'other' && (
+                <div className="mt-1.5">
+                  <Input
+                    id="jobOther" aria-label="직무 직접 입력"
+                    placeholder="어떤 일을 하시나요?"
+                    value={jobOther}
+                    onChange={e => { setJobOther(e.target.value); setErrors(p => ({ ...p, job: undefined })) }}
+                    error={errors.job}
+                  />
+                </div>
+              )}
+              {jobCategory !== 'other' && (
+                errors.job
+                  ? (
+                    <p className="flex items-start gap-1 text-caption text-danger mt-0.5">
+                      <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-danger text-ink-on-brand text-[10px] font-bold grid place-items-center mt-px">!</span>
+                      {errors.job}
+                    </p>
+                  )
+                  : <p className="text-caption font-normal tracking-normal text-ink-300">선택은 안 해도 괜찮아요.</p>
+              )}
+            </div>
           )}
 
           <div className="flex flex-col gap-2">
