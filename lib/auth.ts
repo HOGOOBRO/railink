@@ -214,6 +214,13 @@ export interface SignupInput {
    *  Recorded into profiles by handle_new_user_profile()
    *  (20260612000000_marketing_consent). */
   marketingConsent: boolean
+  /** 직군(personal 가입 폼의 직무 칩). 'nurse' | 'flight_attendant' | 'beauty' |
+   *  'other'. 확장 우선순위 판단용 — KTX 가입에선 보내지 않는다(undefined).
+   *  handle_new_user_profile() → profiles.job_category
+   *  (20260614020000_signup_job_category). */
+  jobCategory?: string
+  /** jobCategory === 'other'일 때 직접 입력한 직군 텍스트. 그 외엔 보내지 않는다. */
+  jobOther?: string
 }
 
 export type SignupResult =
@@ -249,6 +256,11 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
         // Present-or-absent matters: the trigger stamps 응답 시각 only when the
         // key exists, so Google OAuth rows (no metadata) stay "never asked".
         marketing_consent: input.marketingConsent,
+        // Read by handle_new_user_profile() → profiles.job_category / job_other
+        // (20260614020000). 키가 있을 때만 기록되므로, KTX 가입처럼 직군을 안
+        // 받는 경우엔 아예 키를 싣지 않는다(미응답 = NULL 유지).
+        ...(input.jobCategory ? { job_category: input.jobCategory } : {}),
+        ...(input.jobOther ? { job_other: input.jobOther } : {}),
         // Read by consume_invite_on_signup() → creates the bidirectional accepted
         // share at account creation (20260601000000), independent of the email
         // redirect. The client-side localStorage/URL path stays as a fallback.

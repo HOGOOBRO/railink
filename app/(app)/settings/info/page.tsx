@@ -27,6 +27,8 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { DangerConfirm } from '@/components/ui/DangerConfirm'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
+import { CbSelect } from '@/components/ui/CbSelect'
+import { BRANCHES, BRANCH_OTHER } from '@/lib/profile-fields'
 import type { Visibility } from '@/lib/types/schedule'
 
 const VIS_OPTIONS: RadioOption<Visibility>[] = [
@@ -49,7 +51,10 @@ export default function SettingsInfoPage() {
   const [offDays, setOffDays] = useState(0)
 
   const [name, setName] = useState('')
-  const [part, setPart] = useState('')
+  // 소속 지사: 드롭다운 선택값(BRANCHES 중 하나 또는 '기타'), '기타'면 branchOther.
+  // 저장 값은 profiles.part 컬럼(파트 → 지사로 의미 교체).
+  const [branch, setBranch] = useState('')
+  const [branchOther, setBranchOther] = useState('')
   const [email, setEmail] = useState('')
   // Birthday ('' = unset). initialBirthday tracks the saved value for dirty-check.
   const [birthday, setBirthday] = useState('')
@@ -139,7 +144,14 @@ export default function SettingsInfoPage() {
       const off = sched.filter(e => e.isOff).length
       setSession(s)
       setName(s.name)
-      setPart(s.part ?? '')
+      // 저장된 part(지사)를 드롭다운/기타로 복원. 목록에 없는 값(레거시 파트
+      // 'A'·'B' 등이나 직접 입력 지사)은 '기타'로 띄워 그대로 편집 가능하게.
+      {
+        const p = s.part ?? ''
+        if (p === '') { setBranch(''); setBranchOther('') }
+        else if ((BRANCHES as readonly string[]).includes(p)) { setBranch(p); setBranchOther('') }
+        else { setBranch(BRANCH_OTHER); setBranchOther(p) }
+      }
       setEmail(s.email)
       setCompareCount(allMemberUids(getGroupsState(s.uid)).length)
       setWorkDays(sched.length - off)
@@ -227,10 +239,13 @@ export default function SettingsInfoPage() {
     reloadShares()
   }
 
+  // 저장될 지사 값: '기타'면 직접 입력값, 아니면 드롭다운 선택값.
+  const branchValue = branch === BRANCH_OTHER ? branchOther.trim() : branch
+
   const dirty = useMemo(() => {
     if (!session) return false
-    return name !== session.name || part !== (session.part ?? '') || birthday !== initialBirthday
-  }, [session, name, part, birthday, initialBirthday])
+    return name !== session.name || branchValue !== (session.part ?? '') || birthday !== initialBirthday
+  }, [session, name, branchValue, birthday, initialBirthday])
 
   // Section B rows: 요청 받음 → 공유 중. "내가 요청 중"은 캘린더 비교 그룹이
   // 단일 진실 출처이므로 여기엔 노출하지 않는다 — 그룹에서 빼는 동작이 곧 취소다.
@@ -246,7 +261,7 @@ export default function SettingsInfoPage() {
     const res = await updateProfile({
       name: name.trim(),
       employeeId: session.employeeId,
-      part: part.trim() || undefined,
+      part: branchValue || undefined,
     })
     if (!res.ok) {
       setSaving(false)
@@ -264,7 +279,7 @@ export default function SettingsInfoPage() {
       setInitialBirthday(birthday)
     }
     setSaving(false)
-    setSession({ ...session, name: name.trim(), part: part.trim() || undefined })
+    setSession({ ...session, name: name.trim(), part: branchValue || undefined })
     showToast('변경 사항을 저장했어요.', 'success')
   }
 
@@ -330,7 +345,7 @@ export default function SettingsInfoPage() {
           <p className={`mt-0.5 text-caption text-ink-500 ${session.profileType === 'personal' ? 'font-kr' : 'font-en'}`}>
             {session.profileType === 'personal'
               ? '개인 계정'
-              : `${session.employeeId}${session.part ? ` · ${session.part}파트` : ''}`}
+              : `${session.employeeId}${session.part ? ` · ${session.part}` : ''}`}
           </p>
           <div className="mt-3.5 flex items-stretch gap-5">
             <Stat label="비교 동료" value={compareCount} />
@@ -363,14 +378,26 @@ export default function SettingsInfoPage() {
               )}
             </FieldRow>
           </div>
-          {/* 사번·소속 파트는 KTX 전용 식별 정보 — personal 계정에는 숨김. */}
+          {/* 사번·소속 지사는 KTX 전용 식별 정보 — personal 계정에는 숨김. */}
           {session.profileType !== 'personal' && (
             <>
               <FieldRow label="사번" lock>
                 <FlatInput value={session.employeeId} onChange={() => {}} mono readOnly />
               </FieldRow>
-              <FieldRow label="소속 파트" hint="A · B · C 중에서 입력해 주세요.">
-                <FlatInput value={part} onChange={setPart} placeholder="예: B" />
+              <FieldRow label="소속 지사" hint={branch === BRANCH_OTHER ? undefined : '소속 지사를 선택해 주세요.'}>
+                <div className="py-1">
+                  <CbSelect
+                    value={branch}
+                    placeholder="소속 지사를 선택해 주세요"
+                    options={[...BRANCHES.map(b => ({ v: b, label: b })), { v: BRANCH_OTHER, label: '기타' }]}
+                    onChange={setBranch}
+                  />
+                  {branch === BRANCH_OTHER && (
+                    <div className="mt-2">
+                      <FlatInput value={branchOther} onChange={setBranchOther} placeholder="소속 지사를 입력해 주세요" />
+                    </div>
+                  )}
+                </div>
               </FieldRow>
             </>
           )}
