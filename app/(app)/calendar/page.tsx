@@ -802,11 +802,11 @@ export default function CalendarPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (new URLSearchParams(window.location.search).get('reopen') === 'upload') {
-      window.history.replaceState({}, '', '/calendar')
       setUploadStep('manual')
       setUploadOpen(true)
+      router.replace('/calendar') // 쿼리 정리는 라우터로 (history API 직접 조작 대신)
     }
-  }, [])
+  }, [router])
   const openManage = (startCreate = false) => {
     closeOverlays(); setManageStartCreate(startCreate); setManageOpen(true)
   }

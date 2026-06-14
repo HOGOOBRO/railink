@@ -211,15 +211,16 @@ export function UploadModal({
   )
   const [manualCategory, setManualCategory] = useState<ManualCategory>(isPersonal ? 'general' : 'ktx')
 
-  // 일반 카테고리 첫 활성 시 한 달 전체 펼치고 평일=09:00/18:00, 토·일=휴무로
-  // default 시드. 사용자가 이미 입력한 칸은 손대지 않음. seedRef로 한 번만.
-  const seededGeneralRef = useRef(false)
+  // 일반 카테고리 첫 활성 시 한 달 전체로 펼치기만 한다 (칩으로 칠할 날들이 다
+  // 보이게). 자동 채움은 하지 않는다 — 사용자가 안 건드린 빈 날이 멋대로 근무로
+  // 저장되지 않도록. 규칙 근무는 아래 "평일 09–18 일괄 채우기" 버튼으로 opt-in.
+  const expandedGeneralRef = useRef(false)
   useEffect(() => {
-    if (manualCategory !== 'general' || seededGeneralRef.current) return
-    seededGeneralRef.current = true
+    if (manualCategory !== 'general' || expandedGeneralRef.current) return
+    expandedGeneralRef.current = true
     const total = daysInMonth(defaultYear, defaultMonth)
     setManualRows(rs => {
-      // 부족한 일수 채우기
+      if (rs.length >= total) return rs
       const expanded = [...rs]
       for (let d = expanded.length + 1; d <= total; d++) {
         expanded.push({
@@ -227,16 +228,18 @@ export function UploadModal({
           dow: DOW_KR[new Date(defaultYear, defaultMonth - 1, d).getDay()],
         })
       }
-      // 평일 / 주말 default 적용 (이미 holiday이거나 사용자가 채운 row는 그대로)
-      return expanded.map(r => {
-        if (r.holiday || r.dia || r.st || r.et) return r
-        const isWeekend = r.dow === '토' || r.dow === '일'
-        return isWeekend
-          ? { ...r, holiday: true, sun: false }
-          : { ...r, st: '09:00', et: '18:00' }
-      })
+      return expanded
     })
   }, [manualCategory, defaultYear, defaultMonth])
+
+  // opt-in 일괄 채우기: 빈 평일만 09:00–18:00로. 이미 채운 날·주말·휴무는 보존.
+  function fillWeekdays() {
+    setManualRows(rs => rs.map(r => {
+      if (r.holiday || r.dia || r.tr || r.st || r.et) return r
+      if (r.dow === '토' || r.dow === '일') return r
+      return { ...r, st: '09:00', et: '18:00' }
+    }))
+  }
   const monthTotal = useMemo(
     () => daysInMonth(defaultYear, defaultMonth), [defaultYear, defaultMonth],
   )
@@ -650,6 +653,7 @@ export function UploadModal({
               onBack={onBack}
               onChange={setManualRow}
               onAppendRest={appendRemainingDays}
+              onFillWeekdays={fillWeekdays}
             />
             {saving && (
               <StatusBox tone="info">
@@ -736,6 +740,8 @@ interface ManualBodyProps {
   onBack: () => void
   onChange: (i: number, patch: Partial<ManualRow>) => void
   onAppendRest: () => void
+  /** 일반 모드 opt-in: 빈 평일을 09–18로 일괄 채움. */
+  onFillWeekdays: () => void
 }
 
 interface PreviewBodyProps {
@@ -875,7 +881,7 @@ function activeKey(active: ActiveCode): string | null {
 
 function ManualBody({
   rows, year, month, filled, total, category, isPersonal, userId, onCategoryChange,
-  onBack, onChange, onAppendRest,
+  onBack, onChange, onAppendRest, onFillWeekdays,
 }: ManualBodyProps) {
   const headerLabel = category === 'ktx' ? '다이 · 출근 · 퇴근' : '근무'
 
@@ -1034,6 +1040,16 @@ function ManualBody({
             </>
           )}
         </div>
+      )}
+
+      {category === 'general' && (
+        <button
+          type="button"
+          onClick={onFillWeekdays}
+          className="mb-2.5 w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-[12px] border border-line-2 bg-surface text-caption font-semibold text-ink-700 active:bg-bg"
+        >
+          평일 09:00~18:00 일괄 채우기
+        </button>
       )}
 
       <div className="border border-line rounded-[12px] overflow-hidden">
