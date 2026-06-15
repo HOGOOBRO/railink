@@ -116,28 +116,41 @@ export function PhoneMock({
     return codes.map(c => ({ color: CODE_COLOR[c], isOff: false }))
   }
 
-  // 390폭 캔버스를 목업 화면 폭에 맞춰 통째로 축소. 화면 높이는 아이폰 비율
-  // (aspect-ratio)로 고정되므로 측정 전에도 비율이 맞는다.
-  const screenRef = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(1)
+  // 폰 폭을 측정해, 베젤 두께·모서리 반경을 폭에 비례시킨다(고정 px이면 작은
+  // before/after 폰에서 비율상 더 두껍고 둥글게 보임). 기준은 hero 348px:
+  // border 4 / phone radius 40 / screen radius 36. 화면 높이는 아이폰 비율로 고정.
+  const phoneRef = useRef<HTMLDivElement>(null)
+  const [phoneW, setPhoneW] = useState(0)
 
   useEffect(() => {
-    const el = screenRef.current
+    const el = phoneRef.current
     if (!el) return
-    const measure = () => setScale(el.clientWidth / DESIGN_W)
+    const measure = () => setPhoneW(el.offsetWidth)
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
 
-  const phoneStyle: CSSProperties = {}
+  const measured = phoneW > 0
+  const border = measured ? (phoneW * 4) / 348 : 4
+  const phoneRadius = measured ? (phoneW * 40) / 348 : 40
+  const screenRadius = measured ? (phoneW * 36) / 348 : 36
+  const scale = measured ? (phoneW - 2 * border) / DESIGN_W : 1
+
+  const phoneStyle: CSSProperties = {
+    borderWidth: `${border}px`,
+    borderRadius: `${phoneRadius}px`,
+  }
   if (size) phoneStyle.width = size
   if (rotate) phoneStyle.transform = `rotate(${rotate}deg)`
 
   return (
-    <div className={styles.phone} style={phoneStyle}>
-      <div className={styles.screen} ref={screenRef} style={{ aspectRatio: `${DESIGN_W} / ${DESIGN_H}` }}>
+    <div className={styles.phone} ref={phoneRef} style={phoneStyle}>
+      <div
+        className={styles.screen}
+        style={{ aspectRatio: `${DESIGN_W} / ${DESIGN_H}`, borderRadius: `${screenRadius}px` }}
+      >
         <div
           className="relative flex flex-col origin-top-left"
           style={{ width: DESIGN_W, height: DESIGN_H, transform: `scale(${scale})` }}

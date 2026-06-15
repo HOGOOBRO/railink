@@ -5,6 +5,7 @@ import { LandingRedirect } from '@/components/LandingRedirect'
 import { PhoneMock } from '@/components/landing/PhoneMock'
 import { Reveal } from '@/components/landing/Reveal'
 import { NavCta } from '@/components/landing/NavCta'
+import { DemoButton } from '@/components/landing/DemoButton'
 
 // 랜딩 — 검색엔진과 첫 방문자가 보는 유일한 "내용 있는" 페이지. 설득형 마케팅
 // 랜딩(디자인 핸드오프 Direction A "같이 쉬는 날")으로, 핵심 기능 "겹쳐보기"를
@@ -112,10 +113,12 @@ const EYEBROW =
 const BTN =
   'inline-flex items-center justify-center gap-2 rounded-sm font-kr font-semibold whitespace-nowrap transition-[transform,background-color,border-color,box-shadow] duration-150 active:scale-[.98]'
 const BTN_LG = `${BTN} h-[52px] px-6 text-[16px]`
-const BTN_PRIMARY = 'bg-brand text-ink-on-brand shadow-sh-brand hover:bg-brand-700'
-const BTN_OUTLINE = 'bg-surface text-ink-900 border border-line-2 hover:border-brand-300'
+// border-solid 명시: globals.css의 button{border:none}가 border-style을 죽여
+// <button>에선 테두리가 안 보이므로(Tailwind border는 두께만 지정).
+const BTN_PRIMARY = 'bg-brand text-ink-on-brand hover:bg-brand-700'
+const BTN_OUTLINE = 'bg-surface text-ink-900 border border-solid border-line-2 hover:border-brand-300'
 const BTN_ON_DARK = 'bg-white text-brand hover:bg-brand-050'
-const BTN_GHOST_DARK = 'bg-white/[0.08] text-white border border-white/20 hover:bg-white/[0.14]'
+const BTN_GHOST_DARK = 'bg-white/[0.08] text-white border border-solid border-white/25 hover:bg-white/[0.14]'
 
 function ArrowRightBig() {
   return (
@@ -189,10 +192,16 @@ export default function LandingPage() {
               <Link href="/signup" className={`${BTN_LG} ${BTN_PRIMARY}`}>
                 무료로 시작하기
               </Link>
-              <a href="#magic" className={`${BTN_LG} ${BTN_OUTLINE}`}>
-                겹쳐보기가 뭔가요?
-              </a>
+              <DemoButton className={`${BTN_LG} ${BTN_OUTLINE}`}>
+                데모로 둘러보기
+              </DemoButton>
             </div>
+            <a
+              href="#magic"
+              className="mt-3.5 inline-flex items-center gap-1 text-[14px] font-semibold text-brand hover:text-brand-700"
+            >
+              겹쳐보기가 뭔가요? <span aria-hidden>→</span>
+            </a>
             <div className="mt-[22px] flex flex-wrap items-center gap-4 text-[13px] text-ink-500">
               <span>가입 1분</span>
               <span className="h-1 w-1 rounded-full bg-ink-300" />
@@ -238,7 +247,9 @@ export default function LandingPage() {
                 <div className="mt-1.5 text-[clamp(16px,1.9vw,20px)] font-bold tracking-[-0.01em] text-ink-900">내 근무만</div>
               </div>
             </div>
-            <div className="mx-auto grid h-[54px] w-[54px] rotate-90 place-items-center rounded-full bg-brand text-white shadow-sh-brand min-[780px]:rotate-0">
+            {/* Before→After 연결 표시 — 폰의 네이비 FAB와 구분되게 연한 브랜드 톤
+                연결 글리프로(채워진 네이비 원=FAB와 충돌). */}
+            <div className="mx-auto grid h-[54px] w-[54px] rotate-90 place-items-center rounded-full border border-solid border-brand-100 bg-brand-050 text-brand min-[780px]:rotate-0">
               <ArrowRightBig />
             </div>
             <div className="flex flex-col items-center gap-[18px]">
@@ -341,10 +352,17 @@ export default function LandingPage() {
             <Link href="/signup" className={`${BTN_LG} ${BTN_ON_DARK}`}>
               무료로 시작하기
             </Link>
-            <Link href="/login" className={`${BTN_LG} ${BTN_GHOST_DARK}`}>
-              로그인
-            </Link>
+            <DemoButton className={`${BTN_LG} ${BTN_GHOST_DARK}`}>
+              데모로 둘러보기
+            </DemoButton>
           </div>
+          {/* 로그인은 텍스트 링크로 강등 — CTA 버튼은 가입·데모 둘만 두어 위계 정리. */}
+          <Link
+            href="/login"
+            className="mt-4 inline-block text-[14px] font-semibold text-brand-100 hover:text-white"
+          >
+            이미 계정이 있나요? 로그인
+          </Link>
         </Reveal>
       </section>
 
