@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { BrandMark } from '@/components/ui/icons'
 import { LandingRedirect } from '@/components/LandingRedirect'
 import { PhoneMock } from '@/components/landing/PhoneMock'
+import { DayDetailMock } from '@/components/landing/DayDetailMock'
 import { Reveal } from '@/components/landing/Reveal'
 import { NavCta } from '@/components/landing/NavCta'
 import { DemoButton } from '@/components/landing/DemoButton'
@@ -262,6 +263,26 @@ export default function LandingPage() {
                 <div className="mt-1.5 text-[clamp(16px,1.9vw,20px)] font-bold tracking-[-0.01em] text-ink-900">동료까지 겹쳐보면</div>
               </div>
             </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ── Day detail (하루 보기) ── 월간 겹쳐보기에서 하루로 줌인 */}
+      <section className="py-[clamp(56px,8vw,104px)]">
+        <div className={WRAP}>
+          <Reveal className="mx-auto mb-[clamp(36px,5vw,56px)] max-w-[40em] text-center">
+            <span className={EYEBROW}>Zoom in · 하루 보기</span>
+            <h2 className="mt-3.5 text-[clamp(28px,4.2vw,52px)] font-extrabold leading-[1.06] tracking-[-0.03em] [text-wrap:balance]">
+              겹치는 휴무,<br />시간까지 맞춰봐요.
+            </h2>
+            <p className="mx-auto mt-4 max-w-[34em] text-[clamp(15px,1.7vw,18px)] leading-[1.6] text-ink-700 [text-wrap:pretty]">
+              쉬는 날이 겹쳤다면, 그날 서로 몇 시에 일하고 언제 비는지까지 한눈에.
+              <br className="hidden min-[480px]:block" />
+              {' '}약속 시간 잡기가 훨씬 쉬워져요.
+            </p>
+          </Reveal>
+          <Reveal className="flex justify-center">
+            <DayDetailMock size="clamp(280px,30vw,340px)" />
           </Reveal>
         </div>
       </section>
