@@ -6,6 +6,7 @@ import { PhoneMock } from '@/components/landing/PhoneMock'
 import { Reveal } from '@/components/landing/Reveal'
 import { NavCta } from '@/components/landing/NavCta'
 import { DemoButton } from '@/components/landing/DemoButton'
+import { TrackedLink } from '@/components/landing/TrackedLink'
 
 // 랜딩 — 검색엔진과 첫 방문자가 보는 유일한 "내용 있는" 페이지. 설득형 마케팅
 // 랜딩(디자인 핸드오프 Direction A "같이 쉬는 날")으로, 핵심 기능 "겹쳐보기"를
@@ -150,9 +151,9 @@ export default function LandingPage() {
           {/* GNB CTA는 처음엔 숨김 — hero CTA와 안 겹치고, 스크롤로 hero를 지나치면
               나타나 전환을 이어 유도한다. */}
           <div className="flex items-center gap-[18px]">
-            <Link href="/login" className="text-[14px] font-semibold text-ink-700">
+            <TrackedLink href="/login" action="login" location="nav" className="text-[14px] font-semibold text-ink-700">
               로그인
-            </Link>
+            </TrackedLink>
             <NavCta className={`${BTN} ${BTN_PRIMARY} h-[42px] px-[18px] text-[14px]`} />
           </div>
         </div>
@@ -189,19 +190,21 @@ export default function LandingPage() {
               교대근무 동료의 일정을 내 캘린더 위에 겹쳐 보세요. 둘 다 쉬는 날이 환하게 표시돼, 약속 잡기가 메시지 한 번이면 끝나요.
             </p>
             <div id="hero-cta-anchor" className="mt-[30px] flex flex-wrap gap-3">
-              <Link href="/signup" className={`${BTN_LG} ${BTN_PRIMARY}`}>
+              <TrackedLink href="/signup" action="signup" location="hero" className={`${BTN_LG} ${BTN_PRIMARY}`}>
                 무료로 시작하기
-              </Link>
-              <DemoButton className={`${BTN_LG} ${BTN_OUTLINE}`}>
+              </TrackedLink>
+              <DemoButton location="hero" className={`${BTN_LG} ${BTN_OUTLINE}`}>
                 데모로 둘러보기
               </DemoButton>
             </div>
-            <a
+            <TrackedLink
               href="#magic"
+              action="learn_more"
+              location="hero"
               className="mt-3.5 inline-flex items-center gap-1 text-[14px] font-semibold text-brand hover:text-brand-700"
             >
               겹쳐보기가 뭔가요? <span aria-hidden>→</span>
-            </a>
+            </TrackedLink>
             <div className="mt-[22px] flex flex-wrap items-center gap-4 text-[13px] text-ink-500">
               <span>가입 1분</span>
               <span className="h-1 w-1 rounded-full bg-ink-300" />
@@ -349,20 +352,22 @@ export default function LandingPage() {
             가입은 1분, 모든 기능이 무료예요. 동료를 초대하면 일정 비교가 바로 시작돼요.
           </p>
           <div className="mt-[34px] flex flex-wrap justify-center gap-3">
-            <Link href="/signup" className={`${BTN_LG} ${BTN_ON_DARK}`}>
+            <TrackedLink href="/signup" action="signup" location="final" className={`${BTN_LG} ${BTN_ON_DARK}`}>
               무료로 시작하기
-            </Link>
-            <DemoButton className={`${BTN_LG} ${BTN_GHOST_DARK}`}>
+            </TrackedLink>
+            <DemoButton location="final" className={`${BTN_LG} ${BTN_GHOST_DARK}`}>
               데모로 둘러보기
             </DemoButton>
           </div>
           {/* 로그인은 텍스트 링크로 강등 — CTA 버튼은 가입·데모 둘만 두어 위계 정리. */}
-          <Link
+          <TrackedLink
             href="/login"
+            action="login"
+            location="final"
             className="mt-4 inline-block text-[14px] font-semibold text-brand-100 hover:text-white"
           >
             이미 계정이 있나요? 로그인
-          </Link>
+          </TrackedLink>
         </Reveal>
       </section>
 
