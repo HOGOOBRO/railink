@@ -36,43 +36,48 @@ export function LegalPage({ title, effectiveDate, children }: LegalPageProps) {
       className="flex flex-col min-h-[100dvh] bg-bg"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
-      <header className="h-topbar flex items-center gap-1 px-1.5 border-b border-line bg-surface shrink-0 sticky top-0 z-10">
-        {hasBack ? (
-          <button
-            type="button"
-            onClick={() => router.back()}
-            aria-label="뒤로"
-            className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
-          >
-            <ChevronLeftIcon size={20} />
-          </button>
-        ) : (
-          <Link
-            href="/settings/help"
-            aria-label="뒤로"
-            className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
-          >
-            <ChevronLeftIcon size={20} />
-          </Link>
-        )}
-        <h3 className="text-[18px] font-bold tracking-tight text-ink-900">{title}</h3>
+      {/* 풀폭 바 + 안쪽 콘텐츠는 PC 가독 폭으로 가운데 정렬(모바일에선 풀폭 유지). */}
+      <header className="border-b border-line bg-surface shrink-0 sticky top-0 z-10">
+        <div className="mx-auto w-full max-w-[768px] h-topbar flex items-center gap-1 px-1.5">
+          {hasBack ? (
+            <button
+              type="button"
+              onClick={() => router.back()}
+              aria-label="뒤로"
+              className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
+            >
+              <ChevronLeftIcon size={20} />
+            </button>
+          ) : (
+            <Link
+              href="/settings/help"
+              aria-label="뒤로"
+              className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
+            >
+              <ChevronLeftIcon size={20} />
+            </Link>
+          )}
+          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">{title}</h3>
+        </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-5 pt-5 pb-12">
-        <p className="font-en text-[11px] tracking-wider uppercase text-ink-500 mb-1">
-          EFFECTIVE
-        </p>
-        <p className="font-en text-callout text-ink-700 mb-6">{effectiveDate}</p>
+      <main className="flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-[768px] px-5 pt-5 pb-12 sm:pt-8">
+          <p className="font-en text-[11px] tracking-wider uppercase text-ink-500 mb-1">
+            EFFECTIVE
+          </p>
+          <p className="font-en text-callout text-ink-700 mb-6">{effectiveDate}</p>
 
-        <article className="legal-prose">{children}</article>
+          <article className="legal-prose">{children}</article>
 
-        <p className="mt-10 text-caption text-ink-500 leading-relaxed">
-          이 문서에 대한 문의는{' '}
-          <a className="text-brand font-semibold" href="mailto:hello@railink.app">
-            hello@railink.app
-          </a>{' '}
-          으로 보내주세요.
-        </p>
+          <p className="mt-10 text-caption text-ink-500 leading-relaxed">
+            이 문서에 대한 문의는{' '}
+            <a className="text-brand font-semibold" href="mailto:hello@railink.app">
+              hello@railink.app
+            </a>{' '}
+            으로 보내주세요.
+          </p>
+        </div>
       </main>
     </div>
   )
