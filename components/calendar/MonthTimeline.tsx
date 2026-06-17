@@ -290,9 +290,10 @@ export function MonthTimeline({
             )}
             {p.shifts.map((s, si) => {
               if (s.layover) {
-                // 외국 체류(레이오버) 연속 블록 — 비행 사이를 메운다. 줄무늬·점선으로 구분.
+                // 외국 체류(레이오버) 연속 블록 — 비행 사이를 메운다. 채움용이라 MIN_CARD_H로
+                // 강제로 키우지 않는다(짧은 턴어라운드 시 인바운드 카드와 겹침 방지).
                 const lt = yOf((s.day - 1) * 24 + s.start)
-                const lh = Math.max(MIN_CARD_H, yOf((s.day - 1) * 24 + s.end) - lt)
+                const lh = Math.max(2, yOf((s.day - 1) * 24 + s.end) - lt)
                 return (
                   <div
                     key={si}
