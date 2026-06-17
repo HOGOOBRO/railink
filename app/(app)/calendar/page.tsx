@@ -1124,12 +1124,10 @@ export default function CalendarPage() {
 
   async function handleUploadSave(rows: ParsedScheduleRow[]) {
     if (!session) throw new Error('로그인 상태를 확인한 뒤 다시 저장해 주세요.')
-    // Personal accounts have no KTX 다이/열번 concept. The photo-OCR and file
-    // paths have no profileType branching and can extract those from a KTX
-    // roster, so strip them here at the single save chokepoint — the guarantee
-    // that no personal schedule ever persists KTX-only fields it can't view or
-    // edit. Off rows keep their 'S' marker; working rows lose dia/train only.
-    const normalized = session.profileType === 'personal'
+    // 일반 personal 계정은 KTX 다이/열번 개념이 없어 저장 시 그 필드를 지운다(단일
+    // 저장 길목 보장). 단 항공 승무원(personal + airline)은 편명·코드가 유의미하므로
+    // 제외 — 안 그러면 YP 편명이 저장 직전에 날아간다.
+    const normalized = session.profileType === 'personal' && !session.airline
       ? rows.map(row => (row.isOff ? row : { ...row, diaNr: undefined, trainNr: undefined }))
       : rows
     const entries = normalized.map(row => ({ ...row, uid: session.uid }))
