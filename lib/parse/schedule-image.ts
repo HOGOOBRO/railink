@@ -59,6 +59,9 @@ export async function recognizeScheduleImage(
   /** 팀 표(여러 사람 row)에서 자기 행을 골라내기 위해 보내는 본인 풀네임.
    *  KTX 단일 표는 무시됨. 빈 문자열이면 팀 표 인식을 비활성화. */
   userName?: string,
+  /** 소속 항공사 코드(AIRLINES.code). 있으면 서버가 해당 항공사 로스터 레이아웃을
+   *  적용한다(예: 'air-premia' 그리드). 없으면 KTX 로스터로 처리. */
+  airline?: string,
 ): Promise<RecognizedScheduleImage> {
   const files = Array.isArray(input) ? input : [input]
   if (!files.length) {
@@ -87,6 +90,7 @@ export async function recognizeScheduleImage(
   form.append('defaultYear', String(defaultYear))
   form.append('defaultMonth', String(defaultMonth))
   if (userName?.trim()) form.append('userName', userName.trim())
+  if (airline?.trim()) form.append('airline', airline.trim())
 
   const token = await getImageAuthToken()
   form.append('accessToken', token)

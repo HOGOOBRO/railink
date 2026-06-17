@@ -11,17 +11,9 @@ import { BrandMark, ChevronLeftIcon, EyeIcon, GoogleIcon } from '@/components/ui
 import { useToast } from '@/components/ui/Toast'
 import { signup, getCurrentSession, resendConfirmation, signInWithGoogle } from '@/lib/auth'
 import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
-import type { Visibility, ProfileType } from '@/lib/types/schedule'
+import type { Visibility } from '@/lib/types/schedule'
 import { savePendingInvite, peekInvite } from '@/lib/store/invites'
-import { BRANCHES, BRANCH_OTHER, JOB_OPTIONS } from '@/lib/profile-fields'
-
-// The very first question — branches the whole form. Both options are equal;
-// "아니에요" describes the persona ("개인"), never the signup method, and never
-// uses hierarchy words ("외부/게스트").
-const KTX_OPTIONS: RadioOption<ProfileType>[] = [
-  { value: 'ktx_attendant', title: '네', desc: 'KTX 객실승무원이에요.' },
-  { value: 'personal', title: '아니에요', desc: '개인으로 가입해요.' },
-]
+import { BRANCHES, BRANCH_OTHER, JOB_OPTIONS, CATEGORY_OPTIONS, AIRLINES, findAirline, type SignupCategory } from '@/lib/profile-fields'
 
 const VIS_OPTIONS: RadioOption<Visibility>[] = [
   { value: 'public', title: '공개', desc: '이름·사진이 동료 검색에 떠요. 일정은 따로 수락이 필요해요.' },
@@ -35,6 +27,7 @@ interface FormErrors {
   name?: string
   branch?: string
   job?: string
+  airline?: string
   password?: string
   passwordConfirm?: string
   terms?: string
@@ -95,7 +88,9 @@ export default function SignupPage() {
   const router = useRouter()
   const { showToast } = useToast()
 
-  const [profileType, setProfileType] = useState<ProfileType>('ktx_attendant')
+  // 가입 첫 질문(직무 카테고리). KTX 중심 분기를 대체. airline은 '항공 승무원'일 때 소속.
+  const [category, setCategory] = useState<SignupCategory>('ktx')
+  const [airline, setAirline] = useState('')
   const [inviteToken, setInviteToken] = useState<string | null>(null)
   const [inviterName, setInviterName] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -118,7 +113,10 @@ export default function SignupPage() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [sentTo, setSentTo] = useState<string | null>(null)
 
-  const isKtx = profileType === 'ktx_attendant'
+  const isKtx = category === 'ktx'
+  const isAirline = category === 'airline'
+  // 저장용 profile_type: KTX는 ktx_attendant, 항공/기타는 personal(+airline 태그).
+  const profileType = isKtx ? 'ktx_attendant' : 'personal'
 
   useEffect(() => {
     let alive = true
@@ -141,7 +139,7 @@ export default function SignupPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setInviteToken(token)
     savePendingInvite(token)
-    setProfileType('personal')
+    setCategory('other')
     // Resolve the inviter's name (anon RPC) for the header; null → generic copy.
     peekInvite(token).then(setInviterName)
   }, [])
@@ -181,6 +179,8 @@ export default function SignupPage() {
     // 골랐으면 텍스트를 받아야 데이터로 의미가 있어 그때만 필수.
     if (isKtx) {
       if (branch === BRANCH_OTHER && !branchOther.trim()) e.branch = '소속 지사를 입력해 주세요.'
+    } else if (isAirline) {
+      if (!airline) e.airline = '항공사를 선택해 주세요.'
     } else if (jobCategory === 'other' && !jobOther.trim()) {
       e.job = '직무를 입력해 주세요.'
     }
@@ -211,9 +211,11 @@ export default function SignupPage() {
       part: isKtx ? (branchValue || undefined) : undefined,
       visibility: isKtx ? (visibility as Visibility) : 'private',
       profileType,
-      // personal 전용: 직군(확장 우선순위용). KTX엔 보내지 않는다.
-      jobCategory: !isKtx ? (jobCategory ?? undefined) : undefined,
-      jobOther: !isKtx && jobCategory === 'other' ? (jobOther.trim() || undefined) : undefined,
+      // 항공 승무원: 소속 항공사 태그(데이터 축적·항공사 테마·파서 레이아웃 키).
+      airline: isAirline ? (airline || undefined) : undefined,
+      // '기타'(personal) 전용: 직군(확장 우선순위용). KTX·항공엔 보내지 않는다.
+      jobCategory: category === 'other' ? (jobCategory ?? undefined) : undefined,
+      jobOther: category === 'other' && jobCategory === 'other' ? (jobOther.trim() || undefined) : undefined,
       // Survives the email-confirm redirect via ?invite= even on another browser.
       inviteToken,
       marketingConsent: terms.marketing,
@@ -346,20 +348,47 @@ export default function SignupPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3.5" noValidate>
-          {/* The first question — branch toggle */}
+          {/* The first question — 직무 카테고리(KTX / 항공 / 기타) */}
           <div className="border-b border-line pb-3.5 mb-1">
-            <p className="text-[15px] font-bold text-ink-900">코레일 KTX 승무원이세요?</p>
+            <p className="text-[15px] font-bold text-ink-900">어떤 일을 하세요?</p>
             <RadioGroup
-              options={KTX_OPTIONS}
-              value={profileType}
-              onChange={setProfileType}
-              ariaLabel="가입 분기"
-              className="grid grid-cols-2 gap-2 mt-3"
+              options={CATEGORY_OPTIONS}
+              value={category}
+              onChange={setCategory}
+              ariaLabel="직무 선택"
+              className="flex flex-col gap-2 mt-3"
             />
+            {isAirline && (
+              /* 소속 항공사 — CbSelect 재사용. 활성 항공사만 선택 가능, 준비중은
+                 '(준비중)'으로 보이되 선택 시 안내 후 무시. */
+              <div className="mt-3 flex flex-col gap-1">
+                <span className="text-caption font-semibold tracking-wide text-ink-900">항공사</span>
+                <CbSelect
+                  value={airline}
+                  placeholder="항공사를 선택해 주세요"
+                  options={AIRLINES.map(a => ({ v: a.code, label: a.active ? a.label : `${a.label} (준비중)` }))}
+                  onChange={code => {
+                    const a = findAirline(code)
+                    if (a && !a.active) { showToast(`${a.label}는 아직 준비 중이에요.`, 'default'); return }
+                    setAirline(code)
+                    setErrors(p => ({ ...p, airline: undefined }))
+                  }}
+                />
+                {errors.airline && (
+                  <p className="flex items-start gap-1 text-caption text-danger mt-0.5">
+                    <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-danger text-ink-on-brand text-[10px] font-bold grid place-items-center mt-px">!</span>
+                    {errors.airline}
+                  </p>
+                )}
+                <p className="text-caption font-normal tracking-normal text-ink-300">
+                  지금은 에어프레미아 근무표 인식만 지원해요. 다른 항공사는 준비 중이에요.
+                </p>
+              </div>
+            )}
             {inviteToken && (
               <p className="mt-2.5 flex items-start gap-1 text-[11px] text-ink-300 leading-relaxed">
                 <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-ink-300 text-ink-on-brand text-[9px] font-bold grid place-items-center mt-px">i</span>
-                어느 쪽을 고르든 {inviterName ? `${inviterName} 님` : '초대한 분'}과 자동으로 연결돼요. KTX 승무원이면 ‘네’를 골라 주세요.
+                어떤 직무를 고르든 {inviterName ? `${inviterName} 님` : '초대한 분'}과 자동으로 연결돼요.
               </p>
             )}
           </div>
@@ -414,7 +443,7 @@ export default function SignupPage() {
             </div>
           )}
 
-          {!isKtx && (
+          {category === 'other' && (
             /* 직무 — 단일선택 칩. 확장 우선순위 판단용(개인화 아님). 선택은
                optional이라 가입 전환을 막지 않는다. '기타' 선택 시 직접 입력. */
             <div className="flex flex-col gap-1">

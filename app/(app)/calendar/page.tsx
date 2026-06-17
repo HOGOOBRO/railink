@@ -1234,7 +1234,7 @@ export default function CalendarPage() {
           <div className="mx-4 mt-1 flex flex-col items-center text-center gap-1 rounded-lg bg-brand-050 border border-brand-100 px-5 py-5">
             <p className="text-callout font-bold text-ink-900">아직 비교할 동료가 없어요</p>
             <p className="text-caption text-ink-500 leading-relaxed">
-              동기를 초대하면 가입할 때<br />서로 일정이 자동으로 연결돼요
+              친구나 동기를 초대하면 가입할 때<br />서로 일정이 자동으로 연결돼요
             </p>
             <button
               onClick={() => openInvite()}
@@ -1503,6 +1503,7 @@ export default function CalendarPage() {
             appointments={apptCards}
             apptsLoading={apptsLoading}
             selfUid={session.uid}
+            airline={session.isDemo ? undefined : session.airline}
             onDeleteAppt={handleApptDelete}
             onRespond={handleApptRespond}
             onClose={() => setDetailOpen(false)}
@@ -1683,6 +1684,7 @@ export default function CalendarPage() {
           userName={session.isDemo ? undefined : session.name}
           userId={session.uid}
           isPersonal={session.profileType === 'personal'}
+          airline={session.isDemo ? undefined : session.airline}
           initialRows={mySched.map(e => ({
             date: e.date, isOff: e.isOff,
             diaNr: e.diaNr, trainNr: e.trainNr,

@@ -22,6 +22,8 @@ interface DetailSheetProps {
   /** 약속이 아직 fetch 중 — 건수 대신 '약속 확인 중'을 보여 0건으로 오해되지 않게. */
   apptsLoading?: boolean
   selfUid: string
+  /** 보는 사람의 소속 항공사. 있으면 근무 상세 라벨을 근무코드/편명으로(KTX는 다이아/열번). */
+  airline?: string
   onDeleteAppt?: (id: string) => void
   onRespond?: (id: string, accept: boolean) => void
   onClose: () => void
@@ -30,7 +32,7 @@ interface DetailSheetProps {
 }
 
 export function DetailSheet({
-  date, year, month, today, people, birthdaysByDay, appointments = [], apptsLoading = false, selfUid, onDeleteAppt, onRespond, onClose, onAddCompare, onEdit,
+  date, year, month, today, people, birthdaysByDay, appointments = [], apptsLoading = false, selfUid, airline, onDeleteAppt, onRespond, onClose, onAddCompare, onEdit,
 }: DetailSheetProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const dim = new Date(year, month, 0).getDate()
@@ -252,17 +254,17 @@ export function DetailSheet({
               <div className="mt-2.5 flex flex-col gap-1.5">
                 {shiftDetail.dia && (
                   <div className="flex items-center gap-2">
-                    <span className="text-caption text-ink-500 w-10 shrink-0">다이아</span>
+                    <span className="text-caption text-ink-500 w-12 shrink-0">{airline ? '근무코드' : '다이아'}</span>
                     <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.dia}</span>
                   </div>
                 )}
                 <div className="flex items-center gap-2">
-                  <span className="text-caption text-ink-500 w-10 shrink-0">시간</span>
+                  <span className="text-caption text-ink-500 w-12 shrink-0">시간</span>
                   <span className="font-en text-callout font-bold text-ink-900">{fmtClock(shiftDetail.start)} – {fmtClock(shiftDetail.end)}</span>
                 </div>
                 {shiftDetail.trainNr && (
                   <div className="flex items-start gap-2">
-                    <span className="text-caption text-ink-500 w-10 shrink-0 mt-0.5">열번</span>
+                    <span className="text-caption text-ink-500 w-12 shrink-0 mt-0.5">{airline ? '편명' : '열번'}</span>
                     <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.trainNr.split(/\s*[·,]\s*|\s+/).filter(Boolean).join(' · ')}</span>
                   </div>
                 )}

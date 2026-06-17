@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import { AirlineTheme } from '@/components/AirlineTheme'
+import { OnboardingGate } from '@/components/OnboardingGate'
 
 // Authenticated area (calendar, settings) — never index. The pages are client
 // components that redirect unauth users via JS, but Googlebot doesn't run that;
@@ -9,5 +11,11 @@ export const metadata: Metadata = {
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>
+  return (
+    <>
+      <AirlineTheme />
+      <OnboardingGate />
+      {children}
+    </>
+  )
 }

@@ -9,13 +9,17 @@
   --font-en: var(--jetbrains-mono), ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --font-kr: 'Pretendard', system-ui, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
 
-  /* Brand */
+  /* Brand (RaiLink 기본 네이비) */
   --brand:     #0C3C60;
   --brand-700: #0A3050;
   --brand-500: #1B5685;
   --brand-300: #6E94B5;
   --brand-100: #D6E2EC;
   --brand-050: #EEF3F8;
+
+  /* Accent(포인트) 토큰. 기본은 brand와 동일(중립). 항공사 테마가 덮어쓴다. */
+  --accent:      var(--brand);
+  --accent-soft: var(--brand-050);
 
   /* Surface / Line */
   --bg:        #F5F6F8;
@@ -52,6 +56,24 @@
   --c8: #65A30D;  --c8-soft: #E1F1C7;
   --c9: #0F766E;  --c9-soft: #CCFBF1;
   --c10: #BE185D; --c10-soft: #FCE7F3;
+}
+
+/* ─── 항공사별 브랜드 테마 ───
+   data-airline 슬러그를 <html>에 걸면(AirlineTheme) --brand/--accent 스케일이
+   통째로 바뀐다. Tailwind brand-* 유틸이 전부 var(--brand-*)를 참조하므로
+   컴포넌트 수정 없이 색이 갈아끼워진다. 활성 항공사만 정의(준비중은 추후).
+
+   Air Premia: 네이비 #002554(primary) + 코랄레드 #E34027(point).
+   (참고: Airhex 로고색 #EC542C — 거의 동일한 코랄레드) */
+[data-airline="air-premia"] {
+  --brand:     #002554;
+  --brand-700: #001B3D;
+  --brand-500: #1B4980;
+  --brand-300: #6680A6;
+  --brand-100: #CCD6E4;
+  --brand-050: #EAEEF5;
+  --accent:      #E34027;
+  --accent-soft: #FBE3DE;
 }
 
 @layer base {
@@ -171,4 +193,28 @@
 @media (prefers-reduced-motion: reduce) {
   .rl-skel { animation: none; }
   .rl-float-soft { animation: none !important; }
+}
+
+/* ─── Roster example "AI 스캔" 라인 (RosterExampleCard) ───
+   그리드를 위→아래로 훑는 코랄 글로우 바. accent 토큰을 써서 항공사 테마에 맞춰짐. */
+@keyframes rl-scan {
+  0%   { top: -12%; opacity: 0; }
+  12%  { opacity: .9; }
+  85%  { opacity: .9; }
+  100% { top: 100%;  opacity: 0; }
+}
+.rl-scan-line {
+  top: -12%;
+  height: 18px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in oklab, var(--accent) 50%, transparent),
+    transparent
+  );
+  filter: blur(1px);
+  animation: rl-scan 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rl-scan-line { animation: none; opacity: 0; }
 }

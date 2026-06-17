@@ -1,0 +1,64 @@
+{
+  "_description": "Airline crew roster activity/duty code legend. Codes are AIRLINE/SYSTEM-specific (no industry standard except SSIM for schedules). 'category' is normalized; 'is_off' marks non-working days for RaiLink's sharing layer. Extracted from sample rosters' own legend boxes + research. Verify per operator.",
+  "_categories": ["FLIGHT", "DEADHEAD", "STANDBY", "OFF", "LEAVE", "TRAINING", "GROUND", "REST", "LAYOVER", "POSITIONING", "ATTRIBUTE", "UNKNOWN"],
+  "systems": {
+    "air_premia_and_jeju_grid": {
+      "vendor": "grid/calendar format (Air Premia printed grid; Jeju Air via CrewConnex app)",
+      "seen_in": ["sample 1 = Air Premia (YP) printed month grid", "sample 2 = Jeju Air CrewConnex app (4V codes, Oct20 colored grid)"],
+      "format": "calendar grid; cell = code + 1-2 flight numbers + ONE clock-time range. NO sector shown. Full month on one page (Air Premia) or scrolling app view (Jeju CrewConnex).",
+      "codes": {
+        "ANLV": { "category": "LEAVE", "label_ko": "연차", "label_en": "Annual leave", "is_off": true, "source": "sample1 legend box" },
+        "OFF": { "category": "OFF", "label_en": "Day-off", "is_off": true, "source": "sample1 legend box" },
+        "OVMRIG": { "category": "LEAVE", "label_ko": "결혼휴가", "label_en": "Marriage leave", "is_off": true, "source": "sample1 legend box", "note": "Research suggests OVMRIG commonly = over-max-rig pay flag elsewhere; this operator uses it for marriage leave. Confirms codes are per-airline." },
+        "RDO": { "category": "OFF", "label_en": "Request Day-off", "is_off": true, "source": "sample1 legend box" },
+        "REST": { "category": "REST", "label_ko": "Duty 중 Rest", "label_en": "In-duty rest", "is_off": false, "source": "sample1 legend box" },
+        "STH": { "category": "STANDBY", "label_ko": "자택 대기 근무", "label_en": "Home standby", "is_off": false, "source": "sample1 legend box" },
+        "TCRE": { "category": "TRAINING", "label_ko": "정기 객실승무원 훈련", "label_en": "Recurrent cabin crew training", "is_off": false, "source": "sample1 legend box" },
+        "DAFF": { "category": "OFF", "label_ko": "휴무", "label_en": "Day off", "is_off": true, "source": "sample2 legend box" },
+        "DORQ": { "category": "OFF", "label_ko": "휴무신청", "label_en": "Day off request", "is_off": true, "source": "sample2 legend box" },
+        "HSTB": { "category": "STANDBY", "label_en": "Standby (HOME)", "is_off": false, "source": "sample2 legend box" }
+      }
+    },
+    "arms": {
+      "vendor": "Sheorey Digital Systems (Powered by ARMS)",
+      "seen_in": ["samples 4-10 (Jin Air, LJ)"],
+      "format": "per-day scrolling list. Day header shows BRF (briefing). Each flight card: flight_no + sector(ICN-TPE) + times. NO aircraft type. Detail behind '>' (hidden).",
+      "codes": {
+        "DO_I": { "category": "OFF", "label_en": "Day off (individual)", "is_off": true, "source": "samples4-10, inferred" },
+        "DO_RQ": { "category": "OFF", "label_en": "Day off (requested)", "is_off": true, "source": "samples4-10, inferred" },
+        "LEAVE": { "category": "LEAVE", "label_en": "Leave; printed as 'LEAVE - <suffix>' (HV0 / ALB / PVC), full day 00:00-23:59", "is_off": true, "source": "samples 9-10", "note": "Suffix meaning unconfirmed (likely leave-type or station code). Treat whole day as off." },
+        "DH": { "category": "DEADHEAD", "label_en": "Deadhead / positioning as pax; printed 'DH DH-FLT (LJxxx)'", "is_off": false, "source": "samples 7,8" },
+        "BRF": { "category": "ATTRIBUTE", "label_en": "Briefing/report time (duty header attribute, not a duty)", "is_off": false, "source": "samples4-10" },
+        "_car_icon": { "category": "POSITIONING", "label_en": "Ground transport provided between airports (e.g. GMP<->ICN)", "is_off": false, "source": "samples 6,8" }
+      }
+    },
+    "asiana_table": {
+      "vendor": "Asiana (OZ) roster table",
+      "seen_in": ["sample 3 (Asiana; April; flights 349/541/701/272 etc)"],
+      "format": "table: DATE | FLIGHT | SHOWUP | SECTOR | STD | STA | ETD. Richest single view: has report time + sector + multi-leg. Layover shown as station-only rows.",
+      "codes": {
+        "DAY OFF": { "category": "OFF", "label_en": "Day off", "is_off": true },
+        "STBY확인요망": { "category": "STANDBY", "label_en": "Standby (confirmation required)", "is_off": false },
+        "장거리 STBY확인요망": { "category": "STANDBY", "label_en": "Long-haul standby (confirmation required)", "is_off": false },
+        "연차휴가": { "category": "LEAVE", "label_en": "Annual leave", "is_off": true },
+        "_station_only_row": { "category": "LAYOVER", "label_en": "A row with only a station code (FRA/BKK/ICN) and no flight = layover/position marker; bridges outbound and return legs", "is_off": false, "note": "Key derivation signal: crew is at that station overnight." },
+        "_showup_format": { "category": "ATTRIBUTE", "label_en": "SHOWUP like 'T2 04 10:40' = Terminal 2, day 04, report 10:40; 'G 07 11:25' = gate/other, day 07, 11:25", "is_off": false }
+      }
+    }
+  },
+  "research_standard_codes": {
+    "_note": "Cross-airline concepts (regulator-defined), mnemonics vary. Use to seed normalization.",
+    "DH/DHD": "Deadhead (counts as duty, 14 CFR 117.3)",
+    "STBY/SBY": "Standby (generic)",
+    "HSB/HSTB/STH": "Home standby",
+    "ASBY/APSB": "Airport standby",
+    "RES/RSV": "Reserve (CAUTION: RES=Resigned in some systems)",
+    "DO/RDO/SD/FDO/DO_I/DO_RQ": "Day off variants",
+    "REST/RP": "Rest period",
+    "LVE/LEAVE/AL/VAC/ANLV": "Annual leave/vacation",
+    "SICK/SCK": "Sick leave",
+    "TCRE/SIM/GS/TRG": "Training (recurrent/sim/ground school/generic)",
+    "BRF/DEBRF": "Briefing/debriefing",
+    "OVMRIG": "Over-max-rig pay flag (but per-airline; sample1 = marriage leave)"
+  }
+}

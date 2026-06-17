@@ -8,8 +8,9 @@ import { LoadDots } from '@/components/ui/LoadDots'
  * already owns that, and the row count is unknown until parsing finishes.
  *
  * Columns default to the KTX roster shape (사업일자 · 다이/열번 · 출근 · 퇴근).
- * Personal rosters have no 다이/열번 — pass ktx={false} to drop that column. */
-export function AnalyzeTableSkeleton({ ktx = true }: { ktx?: boolean }) {
+ * Personal rosters have no 다이/열번 — pass ktx={false} to drop that column.
+ * 항공 승무원은 codeLabel='근무코드/편명'로 컬럼 라벨만 바꾼다(KTX 용어 노출 방지). */
+export function AnalyzeTableSkeleton({ ktx = true, codeLabel = '다이/열번' }: { ktx?: boolean; codeLabel?: string }) {
   const cols = ktx ? 'grid-cols-[90px_1fr_56px_56px]' : 'grid-cols-[1fr_56px_56px]'
 
   return (
@@ -19,7 +20,7 @@ export function AnalyzeTableSkeleton({ ktx = true }: { ktx?: boolean }) {
           className={`grid ${cols} gap-2 bg-bg px-2.5 py-2 border-b border-line text-[10px] font-bold text-ink-500 uppercase tracking-[0.04em]`}
         >
           <span>사업일자</span>
-          {ktx && <span>다이/열번</span>}
+          {ktx && <span>{codeLabel}</span>}
           <span>출근</span>
           <span>퇴근</span>
         </div>
