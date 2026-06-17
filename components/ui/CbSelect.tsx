@@ -13,6 +13,12 @@ import { CheckIcon, ChevronDownIcon } from '@/components/ui/icons'
 export interface CbOption {
   v: string
   label: string
+  /** 오른쪽에 붙는 작은 칩(예: '준비중'). */
+  badge?: string
+  /** 흐리게 표시(예: 준비중 항공사). */
+  muted?: boolean
+  /** 선택 불가한 섹션 헤더 행. */
+  header?: boolean
 }
 
 const ROW_H = 44
@@ -56,7 +62,12 @@ export function CbSelect({
           open ? 'border-brand' : 'border-line'
         } ${disabled ? 'opacity-50 cursor-default' : 'cursor-pointer'} ${cur ? 'text-ink-900' : 'text-ink-300'}`}
       >
-        <span className="overflow-hidden text-ellipsis whitespace-nowrap">{cur ? cur.label : placeholder}</span>
+        <span className="flex items-center gap-1.5 min-w-0">
+          <span className="overflow-hidden text-ellipsis whitespace-nowrap">{cur ? cur.label : placeholder}</span>
+          {cur?.badge && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-xs bg-bg text-ink-500 shrink-0">{cur.badge}</span>
+          )}
+        </span>
         <span className={`text-ink-500 grid shrink-0 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}>
           <ChevronDownIcon size={16} />
         </span>
@@ -73,19 +84,34 @@ export function CbSelect({
               style={{ maxHeight: PANEL_H }}
             >
               {options.map(o => {
+                if (o.header) {
+                  return (
+                    <div
+                      key={o.v}
+                      className="px-3 pt-2.5 pb-1 text-[11px] font-semibold tracking-wide text-ink-300 select-none"
+                    >
+                      {o.label}
+                    </div>
+                  )
+                }
                 const on = o.v === value
                 return (
                   <button
                     type="button"
                     key={o.v}
                     onClick={() => { onChange(o.v); setOpen(false) }}
-                    className={`w-full px-3 rounded-[10px] font-en text-[15px] flex items-center justify-between text-left ${
-                      on ? 'bg-brand-050 text-brand-700 font-bold' : 'text-ink-900 font-medium'
+                    className={`w-full px-3 rounded-[10px] font-en text-[15px] flex items-center justify-between gap-2 text-left ${
+                      on ? 'bg-brand-050 text-brand-700 font-bold' : o.muted ? 'text-ink-500 font-medium' : 'text-ink-900 font-medium'
                     }`}
                     style={{ height: ROW_H }}
                   >
-                    {o.label}
-                    {on && <span className="text-brand grid"><CheckIcon size={15} /></span>}
+                    <span className="overflow-hidden text-ellipsis whitespace-nowrap">{o.label}</span>
+                    <span className="flex items-center gap-1.5 shrink-0">
+                      {o.badge && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-xs bg-bg text-ink-500">{o.badge}</span>
+                      )}
+                      {on && <span className="text-brand grid"><CheckIcon size={15} /></span>}
+                    </span>
                   </button>
                 )
               })}
