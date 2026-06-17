@@ -327,37 +327,55 @@ export function MonthTimeline({
               }
               const top = yOf((s.day - 1) * 24 + s.start)
               const h = Math.max(MIN_CARD_H, yOf((s.day - 1) * 24 + s.end) - top)
+              // 블록이 짧으면 내용이 잘리므로 압축 레이아웃(출발→도착 한 줄). 길면 펼침.
+              const compact = h < 104
+              const depTxt = s.depLabel ?? (s.cont === 'end' ? '전날부터' : fmtClock(s.start))
+              const arrTxt = s.arrLabel ?? (s.cont === 'start' ? '익일 계속' : fmtClock(s.end))
               return (
                 <button
                   type="button"
                   key={si}
                   onClick={() => onTapShift?.({ name: p.name, dia: s.dia, trainNr: s.trainNr, start: s.start, end: s.end, depLabel: s.depLabel, arrLabel: s.arrLabel, dir: s.dir })}
-                  className="absolute left-0 right-0 flex flex-col justify-between overflow-hidden leading-tight text-left"
+                  className={`absolute left-0 right-0 flex flex-col overflow-hidden leading-tight text-left ${compact ? 'justify-center gap-1.5' : 'justify-between'}`}
                   style={{ top, height: h, background: `color-mix(in oklab, ${p.color} 12%, white)`, borderStyle: 'solid', borderColor: `color-mix(in oklab, ${p.color} 26%, white)`, borderLeftColor: p.color, borderTopWidth: s.connectTop ? 0 : 1, borderRightWidth: 1, borderBottomWidth: s.connectBottom ? 0 : 1, borderLeftWidth: 3, borderTopLeftRadius: s.connectTop ? 0 : 10, borderTopRightRadius: s.connectTop ? 0 : 10, borderBottomLeftRadius: s.connectBottom ? 0 : 10, borderBottomRightRadius: s.connectBottom ? 0 : 10, padding: '5px 6px 6px' }}
                 >
-                  <div className="flex flex-col gap-1 min-w-0">
-                    <div className="flex items-center gap-1 min-w-0">
-                      <Initial name={p.name} photo={p.photo} color={p.color} />
-                      <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
-                      {p.tag && <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>}
-                    </div>
-                    {s.dir && (
-                      <div className="text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>{s.dir}</div>
-                    )}
-                    {s.dia && (
-                      <div className="font-en text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>{s.dia}</div>
-                    )}
-                    {s.route && (
-                      <div className="font-en text-[10px] font-bold text-ink-700 truncate self-start">{s.route}</div>
-                    )}
-                    <span className="font-en text-[11px] font-bold text-ink-900">{s.depLabel ?? (s.cont === 'end' ? '전날부터' : fmtClock(s.start))}</span>
+                  <div className="flex items-center gap-1 min-w-0">
+                    <Initial name={p.name} photo={p.photo} color={p.color} />
+                    <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
+                    {p.tag && <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>}
                   </div>
-                  <div className="flex items-end justify-between gap-1 min-w-0">
-                    <span className="font-en text-[11px] font-bold text-ink-900">↓ {s.arrLabel ?? (s.cont === 'start' ? '익일 계속' : fmtClock(s.end))}</span>
-                    {s.trainNr && (
-                      <span className="font-en text-[10px] font-bold text-ink-700 px-1.5 py-0.5 bg-bg rounded-xs truncate">{prettyTrain(s.trainNr)}</span>
-                    )}
-                  </div>
+                  {compact ? (
+                    <>
+                      {(s.dir || s.dia) && (
+                        <div className="flex items-center gap-1 min-w-0">
+                          {s.dir && <span className="text-[10px] font-bold bg-white px-1 rounded-xs whitespace-nowrap shrink-0" style={{ color: p.color }}>{s.dir}</span>}
+                          {s.dia && <span className="font-en text-[10px] font-bold bg-white px-1 rounded-xs whitespace-nowrap shrink-0" style={{ color: p.color }}>{s.dia}</span>}
+                        </div>
+                      )}
+                      <span className="font-en text-[10.5px] font-bold text-ink-900 truncate">{depTxt} → {arrTxt}</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex flex-col gap-1 min-w-0">
+                        {s.dir && (
+                          <div className="text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>{s.dir}</div>
+                        )}
+                        {s.dia && (
+                          <div className="font-en text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>{s.dia}</div>
+                        )}
+                        {s.route && (
+                          <div className="font-en text-[10px] font-bold text-ink-700 truncate self-start">{s.route}</div>
+                        )}
+                        <span className="font-en text-[11px] font-bold text-ink-900">{depTxt}</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-1 min-w-0">
+                        <span className="font-en text-[11px] font-bold text-ink-900">↓ {arrTxt}</span>
+                        {s.trainNr && (
+                          <span className="font-en text-[10px] font-bold text-ink-700 px-1.5 py-0.5 bg-bg rounded-xs truncate">{prettyTrain(s.trainNr)}</span>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </button>
               )
             })}
