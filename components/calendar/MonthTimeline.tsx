@@ -30,6 +30,7 @@ export interface MonthShift {
   // 밤샘 연속근무로 한쪽 시각만 있는 날. 'end'=전날 시작분이 이 날에서 끝남(시작=0 채움),
   // 'start'=이 날 시작했고 익일 계속됨(끝=24 채움). 표시에서 0/24 대신 안내 라벨로 바꾼다.
   cont?: 'start' | 'end'
+  route?: string     // 편명→노선("ICN→HKG→ICN"). 항공사 노선표에서 유도(lib/airline-routes).
 }
 
 /** One appointment positioned in the timeline. start/end are decimal hours
@@ -290,6 +291,7 @@ export function MonthTimeline({
                       {s.trainNr && <span className="font-en text-[11px] font-bold text-ink-700 truncate">{prettyTrain(s.trainNr)}</span>}
                       <span className="text-[9px] font-bold px-1 rounded-pill text-ink-700 shrink-0 whitespace-nowrap" style={{ background: 'color-mix(in oklab, var(--warn) 38%, white)' }}>시간 미입력</span>
                     </div>
+                    {s.route && <span className="font-en text-[10px] font-bold text-ink-700 truncate">{s.route}</span>}
                   </div>
                 )
               }
@@ -311,6 +313,9 @@ export function MonthTimeline({
                     </div>
                     {s.dia && (
                       <div className="font-en text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>{s.dia}</div>
+                    )}
+                    {s.route && (
+                      <div className="font-en text-[10px] font-bold text-ink-700 truncate self-start">{s.route}</div>
                     )}
                     <span className="font-en text-[11px] font-bold text-ink-900">{s.cont === 'end' ? '전날부터' : fmtClock(s.start)}</span>
                   </div>

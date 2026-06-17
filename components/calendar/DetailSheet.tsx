@@ -6,6 +6,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { CloseIcon, PlusIcon, EditIcon, CakeIcon, PlaceIcon } from '@/components/ui/icons'
 import { MonthTimeline, DAY_PX, type MonthPerson, type ApptCard, type ShiftDetail } from './MonthTimeline'
 import { DOW_KR, fmtClock } from '@/lib/schedule-utils'
+import { routeForFlights } from '@/lib/airline-routes'
 import { holidayNameFor } from '@/lib/holidays-kr'
 import type { CompareColor } from '@/lib/types/schedule'
 
@@ -266,6 +267,12 @@ export function DetailSheet({
                   <div className="flex items-start gap-2">
                     <span className="text-caption text-ink-500 w-12 shrink-0 mt-0.5">{airline ? '편명' : '열번'}</span>
                     <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.trainNr.split(/\s*[·,]\s*|\s+/).filter(Boolean).join(' · ')}</span>
+                  </div>
+                )}
+                {routeForFlights(airline, shiftDetail.trainNr) && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-caption text-ink-500 w-12 shrink-0">노선</span>
+                    <span className="font-en text-callout font-bold text-ink-900">{routeForFlights(airline, shiftDetail.trainNr)}</span>
                   </div>
                 )}
               </div>

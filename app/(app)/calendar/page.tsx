@@ -66,6 +66,7 @@ import { buildDemoBirthdays, type Colleague } from '@/lib/demo-data'
 import {
   DOW_KR, buildMonthCells, hmToDecimal,
 } from '@/lib/schedule-utils'
+import { routeForFlights } from '@/lib/airline-routes'
 import { holidayNameFor } from '@/lib/holidays-kr'
 import type { ParsedScheduleRow } from '@/lib/parse/schedule-file'
 import type { ApptCard } from '@/components/calendar/MonthTimeline'
@@ -82,12 +83,14 @@ const MIGRATION_KEY = 'rl.migrationNotice.dismissed'
 // Overnight (박차) is normalized to a 24+ end (end clock earlier than start),
 // and continuation rows ("~(H1048)") are dropped — the start-day card spans the
 // midnight divider instead of being duplicated on the next day.
-function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: number, month: number): MonthShift[] {
+function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: number, month: number, airline?: string): MonthShift[] {
   const dim = new Date(year, month, 0).getDate()
   const mm = String(month).padStart(2, '0')
   const out: MonthShift[] = []
   const skip = new Set<number>()
   const at = (d: number) => entryOf(`${year}-${mm}-${String(d).padStart(2, '0')}`)
+  // 편명 → 노선("ICN→HKG→ICN"). 항공사 노선표가 있을 때만 채워짐.
+  const rt = (trainNr?: string) => routeForFlights(airline, trainNr) ?? undefined
   for (let d = 1; d <= dim; d++) {
     if (skip.has(d)) continue
     const e = at(d)
@@ -97,14 +100,14 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
     const hasStart = !!e.startTime, hasEnd = !!e.endTime
     if (!hasStart && !hasEnd) {
       // 시작·끝 둘 다 없는 진짜 미입력 — "시간 미입력"으로 노출(편명/코드는 카드에 표시).
-      out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: 0, end: 0, noTime: true })
+      out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: 0, end: 0, noTime: true, route: rt(e.trainNr) })
       continue
     }
     if (hasStart && hasEnd) {
       const start = hmToDecimal(e.startTime as string)
       let end = hmToDecimal(e.endTime as string)
       if (end < start) end += 24
-      out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start, end })
+      out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start, end, route: rt(e.trainNr) })
       continue
     }
     // 한쪽 시각만 = 밤샘 연속근무(YP102 0945~ / ~1620). 시작만 있는 날 + 다음날 끝만 있는
@@ -112,22 +115,24 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
     if (hasStart) {
       const nx = at(d + 1)
       if (nx && !nx.isOff && nx.endTime && !nx.startTime) {
+        const trainNr = e.trainNr || nx.trainNr
         out.push({
           day: d,
           dia: e.diaNr || nx.diaNr,
-          trainNr: e.trainNr || nx.trainNr,
+          trainNr,
           start: hmToDecimal(e.startTime as string),
           end: hmToDecimal(nx.endTime) + 24,   // 다음날 도착 → +24h, 하나의 연속 블록
+          route: rt(trainNr),
         })
         skip.add(d + 1)
         continue
       }
       // 짝을 못 찾은 시작-only(예외) — 당일 끝까지 + '익일 계속' 라벨.
-      out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: hmToDecimal(e.startTime as string), end: 24, cont: 'start' })
+      out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: hmToDecimal(e.startTime as string), end: 24, cont: 'start', route: rt(e.trainNr) })
       continue
     }
     // 짝을 못 찾은 끝-only(예외) — '전날부터' 라벨.
-    out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: 0, end: hmToDecimal(e.endTime as string), cont: 'end' })
+    out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: 0, end: hmToDecimal(e.endTime as string), cont: 'end', route: rt(e.trainNr) })
   }
   return out
 }
@@ -714,14 +719,14 @@ export default function CalendarPage() {
     const ppl: MonthPerson[] = [{
       uid: session.uid,
       color: BRAND, name: session.name, tag: '나', photo: session.photo,
-      shifts: monthShifts(iso => myByDate.get(iso), year, month),
+      shifts: monthShifts(iso => myByDate.get(iso), year, month, session.airline),
     }]
     for (const c of compares) {
       const pending = !session.isDemo && shareStatus[c.uid] === 'pending'
       ppl.push({
         uid: c.uid,
         color: cssColor(c.color), name: c.name, photo: c.photo,
-        shifts: pending ? [] : monthShifts(iso => compareByDate.get(c.uid)?.get(iso), year, month),
+        shifts: pending ? [] : monthShifts(iso => compareByDate.get(c.uid)?.get(iso), year, month, session.airline),
         pending,
       })
     }
