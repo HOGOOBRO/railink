@@ -99,9 +99,11 @@ function wallToUtcMs(year: number, month: number, day: number, hh: number, mm: n
 // 원래 현지시각은 메모(localTime)로 남긴다.
 function placeShift(
   year: number, month: number,
-  depDay: number, depLocal: string, fromTz: string,
-  arrDay: number, arrLocal: string, toTz: string,
+  depDay: number, depLocal: string, fromAirport: string | undefined,
+  arrDay: number, arrLocal: string, toAirport: string | undefined,
 ): { day: number; start: number; end: number; localTime?: string } {
+  const fromTz = airportTz(fromAirport)
+  const toTz = airportTz(toAirport)
   if (fromTz === KST_TZ && toTz === KST_TZ) {
     const start = hmToDecimal(depLocal)
     let end = hmToDecimal(arrLocal)
@@ -116,12 +118,10 @@ function placeShift(
   while (arrUtc <= depUtc) arrUtc += 86_400_000
   const dk = new Date(depUtc + 9 * 3_600_000) // KST = UTC+9
   const start = dk.getUTCHours() + dk.getUTCMinutes() / 60
-  return {
-    day: dk.getUTCDate(),
-    start,
-    end: start + (arrUtc - depUtc) / 3_600_000,
-    localTime: `현지 ${depLocal}~${arrLocal}`,
-  }
+  // 현지시각 메모: 출발/도착 공항을 함께 적어 서로 다른 시간대임을 명확히 한다.
+  // (그냥 "09:45~16:20"이면 6시간 비행처럼 오해됨 → "LAX 09:45 → ICN 16:20")
+  const localTime = `현지 ${fromAirport ?? '출발'} ${depLocal} → ${toAirport ?? '도착'} ${arrLocal}`
+  return { day: dk.getUTCDate(), start, end: start + (arrUtc - depUtc) / 3_600_000, localTime }
 }
 
 // One person's working shifts across the month, for the continuous timeline.
@@ -134,10 +134,6 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
   const skip = new Set<number>()
   const at = (d: number) => entryOf(`${year}-${mm}-${String(d).padStart(2, '0')}`)
   const rt = (trainNr?: string) => routeForFlights(airline, trainNr) ?? undefined
-  const tzOf = (trainNr?: string) => {
-    const ep = flightEndpoints(airline, trainNr)
-    return { fromTz: airportTz(ep.from), toTz: airportTz(ep.to) }
-  }
   for (let d = 1; d <= dim; d++) {
     if (skip.has(d)) continue
     const e = at(d)
@@ -150,8 +146,8 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
       continue
     }
     if (hasStart && hasEnd) {
-      const { fromTz, toTz } = tzOf(e.trainNr)
-      const p = placeShift(year, month, d, e.startTime as string, fromTz, d, e.endTime as string, toTz)
+      const ep = flightEndpoints(airline, e.trainNr)
+      const p = placeShift(year, month, d, e.startTime as string, ep.from, d, e.endTime as string, ep.to)
       out.push({ day: p.day, dia: e.diaNr, trainNr: e.trainNr, start: p.start, end: p.end, route: rt(e.trainNr), localTime: p.localTime })
       continue
     }
@@ -160,8 +156,8 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
       const nx = at(d + 1)
       if (nx && !nx.isOff && nx.endTime && !nx.startTime) {
         const trainNr = e.trainNr || nx.trainNr
-        const { fromTz, toTz } = tzOf(trainNr)
-        const p = placeShift(year, month, d, e.startTime as string, fromTz, d + 1, nx.endTime, toTz)
+        const ep = flightEndpoints(airline, trainNr)
+        const p = placeShift(year, month, d, e.startTime as string, ep.from, d + 1, nx.endTime, ep.to)
         out.push({ day: p.day, dia: e.diaNr || nx.diaNr, trainNr, start: p.start, end: p.end, route: rt(trainNr), localTime: p.localTime })
         skip.add(d + 1)
         continue
