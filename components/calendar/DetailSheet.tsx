@@ -268,14 +268,31 @@ export function DetailSheet({
                     <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.dia}</span>
                   </div>
                 )}
-                <div className="flex items-start gap-2">
-                  <span className="text-caption text-ink-500 w-12 shrink-0 mt-0.5">시간</span>
-                  <span className="flex flex-col min-w-0">
-                    <span className="font-en text-callout font-bold text-ink-900">{fmtClock(shiftDetail.start)} – {fmtClock(shiftDetail.end)}{airline ? ' (인천 기준)' : ''}</span>
-                    <span className="text-caption text-ink-500 mt-0.5">{fmtDuration(shiftDetail.end - shiftDetail.start)}{airline ? ' 소요' : ''}</span>
-                    {shiftDetail.localTime && <span className="text-caption text-ink-500 font-en mt-0.5">{shiftDetail.localTime}</span>}
-                  </span>
-                </div>
+                {shiftDetail.depLabel && shiftDetail.arrLabel ? (
+                  /* 국제선: 각 공항을 그 공항 현지시각으로(항공권식) + 비행시간 별도. */
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="text-caption text-ink-500 w-12 shrink-0">출발</span>
+                      <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.depLabel}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-caption text-ink-500 w-12 shrink-0">도착</span>
+                      <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.arrLabel}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-caption text-ink-500 w-12 shrink-0">비행</span>
+                      <span className="text-callout font-bold text-ink-900">{fmtDuration(shiftDetail.end - shiftDetail.start)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex items-start gap-2">
+                    <span className="text-caption text-ink-500 w-12 shrink-0 mt-0.5">시간</span>
+                    <span className="flex flex-col min-w-0">
+                      <span className="font-en text-callout font-bold text-ink-900">{fmtClock(shiftDetail.start)} – {fmtClock(shiftDetail.end)}</span>
+                      <span className="text-caption text-ink-500 mt-0.5">{fmtDuration(shiftDetail.end - shiftDetail.start)}</span>
+                    </span>
+                  </div>
+                )}
                 {shiftDetail.trainNr && (
                   <div className="flex items-start gap-2">
                     <span className="text-caption text-ink-500 w-12 shrink-0 mt-0.5">{airline ? '편명' : '열번'}</span>

@@ -101,7 +101,7 @@ function placeShift(
   year: number, month: number,
   depDay: number, depLocal: string, fromAirport: string | undefined,
   arrDay: number, arrLocal: string, toAirport: string | undefined,
-): { day: number; start: number; end: number; localTime?: string } {
+): { day: number; start: number; end: number; depLabel?: string; arrLabel?: string } {
   const fromTz = airportTz(fromAirport)
   const toTz = airportTz(toAirport)
   if (fromTz === KST_TZ && toTz === KST_TZ) {
@@ -123,10 +123,12 @@ function placeShift(
   while (arrUtc <= depUtc) arrUtc += 86_400_000
   const dk = new Date(depUtc + 9 * 3_600_000) // KST = UTC+9
   const start = dk.getUTCHours() + dk.getUTCMinutes() / 60
-  // 현지시각 메모: 공항 + 0-23 벽시계로 표기(41:50 같은 표기·6시간 비행 오해 방지).
+  // 항공권식 라벨: 각 공항을 그 공항 현지시각으로(인천은 인천, LA는 LA). 0-23 벽시계.
+  // 화면엔 이 라벨을 쓰고, 블록 위치/길이는 위의 KST instant(start/end)로 잡는다.
   const pad = (n: number) => String(n).padStart(2, '0')
-  const localTime = `현지 ${fromAirport ?? '출발'} ${pad(sh)}:${pad(sm)} → ${toAirport ?? '도착'} ${pad(eh)}:${pad(em)}`
-  return { day: dk.getUTCDate(), start, end: start + (arrUtc - depUtc) / 3_600_000, localTime }
+  const depLabel = `${fromAirport ?? ''} ${pad(sh)}:${pad(sm)}`.trim()
+  const arrLabel = `${toAirport ?? ''} ${pad(eh)}:${pad(em)}`.trim()
+  return { day: dk.getUTCDate(), start, end: start + (arrUtc - depUtc) / 3_600_000, depLabel, arrLabel }
 }
 
 // One person's working shifts across the month, for the continuous timeline.
@@ -153,7 +155,7 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
     if (hasStart && hasEnd) {
       const ep = flightEndpoints(airline, e.trainNr)
       const p = placeShift(year, month, d, e.startTime as string, ep.from, d, e.endTime as string, ep.to)
-      out.push({ day: p.day, dia: e.diaNr, trainNr: e.trainNr, start: p.start, end: p.end, route: rt(e.trainNr), localTime: p.localTime })
+      out.push({ day: p.day, dia: e.diaNr, trainNr: e.trainNr, start: p.start, end: p.end, route: rt(e.trainNr), depLabel: p.depLabel, arrLabel: p.arrLabel })
       continue
     }
     // 한쪽 시각만 = 밤샘 연속근무. 시작만 있는 날 + 다음날 끝만 있는 날을 하나로 병합.
@@ -163,7 +165,7 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
         const trainNr = e.trainNr || nx.trainNr
         const ep = flightEndpoints(airline, trainNr)
         const p = placeShift(year, month, d, e.startTime as string, ep.from, d + 1, nx.endTime, ep.to)
-        out.push({ day: p.day, dia: e.diaNr || nx.diaNr, trainNr, start: p.start, end: p.end, route: rt(trainNr), localTime: p.localTime })
+        out.push({ day: p.day, dia: e.diaNr || nx.diaNr, trainNr, start: p.start, end: p.end, route: rt(trainNr), depLabel: p.depLabel, arrLabel: p.arrLabel })
         skip.add(d + 1)
         continue
       }
