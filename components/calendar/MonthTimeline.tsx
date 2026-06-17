@@ -31,7 +31,10 @@ export interface MonthShift {
   // 'start'=이 날 시작했고 익일 계속됨(끝=24 채움). 표시에서 0/24 대신 안내 라벨로 바꾼다.
   cont?: 'start' | 'end'
   route?: string     // 편명→노선("ICN→HKG→ICN"). 항공사 노선표에서 유도(lib/airline-routes).
-  localTime?: string // 국제선: 원래 현지시각 메모("현지 20:25~17:50"). 표시는 KST 기준.
+  // 국제선: 각 공항 현지시각 라벨("ICN 20:25"/"LAX 17:50"). 카드/상세는 이걸 표시하고
+  // 블록 위치·길이는 start/end(KST instant)로 잡는다. 없으면(국내/KTX) start/end를 그대로 표시.
+  depLabel?: string
+  arrLabel?: string
 }
 
 /** One appointment positioned in the timeline. start/end are decimal hours
@@ -96,7 +99,8 @@ export interface ShiftDetail {
   start: number
   end: number
   noTime?: boolean
-  localTime?: string
+  depLabel?: string
+  arrLabel?: string
 }
 
 export function MonthTimeline({
@@ -303,7 +307,7 @@ export function MonthTimeline({
                 <button
                   type="button"
                   key={si}
-                  onClick={() => onTapShift?.({ name: p.name, dia: s.dia, trainNr: s.trainNr, start: s.start, end: s.end, localTime: s.localTime })}
+                  onClick={() => onTapShift?.({ name: p.name, dia: s.dia, trainNr: s.trainNr, start: s.start, end: s.end, depLabel: s.depLabel, arrLabel: s.arrLabel })}
                   className="absolute left-0 right-0 flex flex-col justify-between overflow-hidden leading-tight text-left"
                   style={{ top, height: h, background: `color-mix(in oklab, ${p.color} 12%, white)`, boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${p.color} 30%, white)`, borderLeft: `3px solid ${p.color}`, borderRadius: 10, padding: '5px 6px 6px' }}
                 >
@@ -319,10 +323,10 @@ export function MonthTimeline({
                     {s.route && (
                       <div className="font-en text-[10px] font-bold text-ink-700 truncate self-start">{s.route}</div>
                     )}
-                    <span className="font-en text-[11px] font-bold text-ink-900">{s.cont === 'end' ? '전날부터' : fmtClock(s.start)}</span>
+                    <span className="font-en text-[11px] font-bold text-ink-900">{s.depLabel ?? (s.cont === 'end' ? '전날부터' : fmtClock(s.start))}</span>
                   </div>
                   <div className="flex items-end justify-between gap-1 min-w-0">
-                    <span className="font-en text-[11px] font-bold text-ink-900">↓ {s.cont === 'start' ? '익일 계속' : fmtClock(s.end)}</span>
+                    <span className="font-en text-[11px] font-bold text-ink-900">↓ {s.arrLabel ?? (s.cont === 'start' ? '익일 계속' : fmtClock(s.end))}</span>
                     {s.trainNr && (
                       <span className="font-en text-[10px] font-bold text-ink-700 px-1.5 py-0.5 bg-bg rounded-xs truncate">{prettyTrain(s.trainNr)}</span>
                     )}
