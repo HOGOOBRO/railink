@@ -300,7 +300,6 @@ export function MonthTimeline({
                     style={{ top: lt, height: lh, background: `color-mix(in oklab, ${p.color} 5%, white)`, borderStyle: 'solid', borderColor: `color-mix(in oklab, ${p.color} 26%, white)`, borderLeftColor: p.color, borderTopWidth: s.connectTop ? 0 : 1, borderRightWidth: 1, borderBottomWidth: s.connectBottom ? 0 : 1, borderLeftWidth: 3, borderTopLeftRadius: s.connectTop ? 0 : 10, borderTopRightRadius: s.connectTop ? 0 : 10, borderBottomLeftRadius: s.connectBottom ? 0 : 10, borderBottomRightRadius: s.connectBottom ? 0 : 10, padding: '6px 8px' }}
                   >
                     <span className="text-[11px] font-bold text-ink-500">{s.dia}</span>
-                    {s.connectBottom && <div className="absolute pointer-events-none" style={{ left: 12, right: 8, bottom: 0, height: 1, background: `color-mix(in oklab, ${p.color} 28%, white)` }} />}
                   </div>
                 )
               }
@@ -358,7 +357,6 @@ export function MonthTimeline({
                       <span className="font-en text-[10px] font-bold text-ink-700 px-1.5 py-0.5 bg-bg rounded-xs truncate">{prettyTrain(s.trainNr)}</span>
                     )}
                   </div>
-                  {s.connectBottom && <div className="absolute pointer-events-none" style={{ left: 12, right: 8, bottom: 0, height: 1, background: `color-mix(in oklab, ${p.color} 28%, white)` }} />}
                 </button>
               )
             })}
