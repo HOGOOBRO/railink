@@ -28,7 +28,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { useDelayedFlag } from '@/lib/use-delayed-flag'
 import type { MonthPerson, MonthShift } from '@/components/calendar/MonthTimeline'
 import { getCurrentSession, logout, getMarketingConsent, setMarketingConsent, getJobCategory, setJobCategory, type Session } from '@/lib/auth'
-import { JOB_OPTIONS } from '@/lib/profile-fields'
+import { JOB_OPTIONS, findAirline } from '@/lib/profile-fields'
 import { track } from '@/lib/analytics'
 import {
   getMonthSchedules,
@@ -791,6 +791,14 @@ export default function CalendarPage() {
   // apptCards 기준(가시성 필터 후)이라 고스트 핀이 생기지 않는다.
   const apptDays = useMemo(() => new Set(apptCards.map(c => c.day)), [apptCards])
 
+  // 활성(active) 항공사만 전용 경험(자동 인식 파서·노선·시차·이미지 우선)을 켠다.
+  // 준비중 항공사로 가입한 사용자는 태그(session.airline)만 저장돼 있고 일반
+  // 근무자처럼 동작하다, 그 항공사가 active로 바뀌고 배포되면 자동 승격된다
+  // (재가입·마이그레이션 불필요). 테마는 globals.css가 air-premia로 한정해 안전.
+  const liveAirline = session && !session.isDemo && findAirline(session.airline)?.active
+    ? session.airline
+    : undefined
+
   // Timeline items for the selected date.
   // People (columns) with their month-long shifts — fed to the continuous
   // timeline so overnight shifts span the midnight divider as one card.
@@ -801,19 +809,19 @@ export default function CalendarPage() {
     const ppl: MonthPerson[] = [{
       uid: session.uid,
       color: BRAND, name: session.name, tag: '나', photo: session.photo,
-      shifts: monthShifts(iso => myByDate.get(iso), year, month, session.airline),
+      shifts: monthShifts(iso => myByDate.get(iso), year, month, liveAirline),
     }]
     for (const c of compares) {
       const pending = !session.isDemo && shareStatus[c.uid] === 'pending'
       ppl.push({
         uid: c.uid,
         color: cssColor(c.color), name: c.name, photo: c.photo,
-        shifts: pending ? [] : monthShifts(iso => compareByDate.get(c.uid)?.get(iso), year, month, session.airline),
+        shifts: pending ? [] : monthShifts(iso => compareByDate.get(c.uid)?.get(iso), year, month, liveAirline),
         pending,
       })
     }
     return ppl
-  }, [session, compares, myByDate, compareByDate, year, month, shareStatus])
+  }, [session, liveAirline, compares, myByDate, compareByDate, year, month, shareStatus])
 
   const closeOverlays = useCallback(() => {
     setDetailOpen(false); setSearchOpen(false); setUploadOpen(false)
@@ -1168,9 +1176,10 @@ export default function CalendarPage() {
   async function handleUploadSave(rows: ParsedScheduleRow[]) {
     if (!session) throw new Error('로그인 상태를 확인한 뒤 다시 저장해 주세요.')
     // 일반 personal 계정은 KTX 다이/열번 개념이 없어 저장 시 그 필드를 지운다(단일
-    // 저장 길목 보장). 단 항공 승무원(personal + airline)은 편명·코드가 유의미하므로
-    // 제외 — 안 그러면 YP 편명이 저장 직전에 날아간다.
-    const normalized = session.profileType === 'personal' && !session.airline
+    // 저장 길목 보장). 단 활성 항공사 승무원(personal + active airline)은 편명·코드가
+    // 유의미하므로 제외 — 안 그러면 YP 편명이 저장 직전에 날아간다. 준비중 항공사는
+    // 파서가 없어 일반과 동일하게 strip(liveAirline 기준).
+    const normalized = session.profileType === 'personal' && !liveAirline
       ? rows.map(row => (row.isOff ? row : { ...row, diaNr: undefined, trainNr: undefined }))
       : rows
     const entries = normalized.map(row => ({ ...row, uid: session.uid }))
@@ -1615,7 +1624,7 @@ export default function CalendarPage() {
             appointments={apptCards}
             apptsLoading={apptsLoading}
             selfUid={session.uid}
-            airline={session.isDemo ? undefined : session.airline}
+            airline={liveAirline}
             onDeleteAppt={handleApptDelete}
             onRespond={handleApptRespond}
             onClose={() => setDetailOpen(false)}
@@ -1796,7 +1805,7 @@ export default function CalendarPage() {
           userName={session.isDemo ? undefined : session.name}
           userId={session.uid}
           isPersonal={session.profileType === 'personal'}
-          airline={session.isDemo ? undefined : session.airline}
+          airline={liveAirline}
           initialRows={mySched.map(e => ({
             date: e.date, isOff: e.isOff,
             diaNr: e.diaNr, trainNr: e.trainNr,

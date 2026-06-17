@@ -13,7 +13,7 @@ import { signup, getCurrentSession, resendConfirmation, signInWithGoogle } from 
 import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
 import type { Visibility } from '@/lib/types/schedule'
 import { savePendingInvite, peekInvite } from '@/lib/store/invites'
-import { BRANCHES, BRANCH_OTHER, JOB_OPTIONS, CATEGORY_OPTIONS, AIRLINES, findAirline, type SignupCategory } from '@/lib/profile-fields'
+import { BRANCHES, BRANCH_OTHER, JOB_OPTIONS, CATEGORY_OPTIONS, findAirline, airlineSelectOptions, koTopicParticle, type SignupCategory } from '@/lib/profile-fields'
 
 const VIS_OPTIONS: RadioOption<Visibility>[] = [
   { value: 'public', title: '공개', desc: '이름·사진이 동료 검색에 떠요. 일정은 따로 수락이 필요해요.' },
@@ -117,6 +117,7 @@ export default function SignupPage() {
   const isAirline = category === 'airline'
   // 저장용 profile_type: KTX는 ktx_attendant, 항공/기타는 personal(+airline 태그).
   const profileType = isKtx ? 'ktx_attendant' : 'personal'
+  const selectedAirline = findAirline(airline)
 
   useEffect(() => {
     let alive = true
@@ -359,17 +360,15 @@ export default function SignupPage() {
               className="flex flex-col gap-2 mt-3"
             />
             {isAirline && (
-              /* 소속 항공사 — CbSelect 재사용. 활성 항공사만 선택 가능, 준비중은
-                 '(준비중)'으로 보이되 선택 시 안내 후 무시. */
+              /* 소속 항공사 — CbSelect 재사용. 활성/준비중을 섹션으로 나눠 보여주고
+                 준비중도 선택 가능(태그만 저장 → 활성화 시 자동 승격). */
               <div className="mt-3 flex flex-col gap-1">
                 <span className="text-caption font-semibold tracking-wide text-ink-900">항공사</span>
                 <CbSelect
                   value={airline}
                   placeholder="항공사를 선택해 주세요"
-                  options={AIRLINES.map(a => ({ v: a.code, label: a.active ? a.label : `${a.label} (준비중)` }))}
+                  options={airlineSelectOptions()}
                   onChange={code => {
-                    const a = findAirline(code)
-                    if (a && !a.active) { showToast(`${a.label}는 아직 준비 중이에요.`, 'default'); return }
                     setAirline(code)
                     setErrors(p => ({ ...p, airline: undefined }))
                   }}
@@ -381,7 +380,11 @@ export default function SignupPage() {
                   </p>
                 )}
                 <p className="text-caption font-normal tracking-normal text-ink-300">
-                  지금은 에어프레미아 근무표 인식만 지원해요. 다른 항공사는 준비 중이에요.
+                  {!selectedAirline
+                    ? '준비 중인 항공사도 미리 고를 수 있어요.'
+                    : selectedAirline.active
+                      ? `${selectedAirline.label} 근무표를 사진으로 올리면 자동으로 읽어서 채워드려요.`
+                      : `${selectedAirline.label}${koTopicParticle(selectedAirline.label)} 7월 중 추가될 예정이에요. 그때까지는 근무를 직접 입력해서 쓰다가, 사진 자동 인식이 준비되면 바로 켜져요.`}
                 </p>
               </div>
             )}

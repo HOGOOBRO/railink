@@ -10,7 +10,7 @@ import { useToast } from '@/components/ui/Toast'
 import { RadioGroup } from '@/components/ui/RadioGroup'
 import { getCurrentSession, completeOnboarding, logout } from '@/lib/auth'
 import {
-  CATEGORY_OPTIONS, AIRLINES, findAirline, JOB_OPTIONS, type SignupCategory,
+  CATEGORY_OPTIONS, findAirline, airlineSelectOptions, koTopicParticle, JOB_OPTIONS, type SignupCategory,
 } from '@/lib/profile-fields'
 
 /** Google 가입자 전용 차단 온보딩. 직업(카테고리)을 고르기 전엔 앱을 쓸 수 없다
@@ -30,6 +30,7 @@ export default function WelcomePage() {
 
   const isAirline = category === 'airline'
   const isOther = category === 'other'
+  const selectedAirline = findAirline(airline)
 
   // 진입 가드: 비로그인 → 로그인, 이미 선택 끝났으면 → 캘린더. 그 외에만 폼을 띄운다.
   useEffect(() => {
@@ -106,10 +107,8 @@ export default function WelcomePage() {
               <CbSelect
                 value={airline}
                 placeholder="항공사를 선택해 주세요"
-                options={AIRLINES.map(a => ({ v: a.code, label: a.active ? a.label : `${a.label} (준비중)` }))}
+                options={airlineSelectOptions()}
                 onChange={code => {
-                  const a = findAirline(code)
-                  if (a && !a.active) { showToast(`${a.label}는 아직 준비 중이에요.`, 'default'); return }
                   setAirline(code)
                   setErrors(p => ({ ...p, airline: undefined }))
                 }}
@@ -120,6 +119,13 @@ export default function WelcomePage() {
                   {errors.airline}
                 </p>
               )}
+              <p className="text-caption font-normal tracking-normal text-ink-300">
+                {!selectedAirline
+                  ? '준비 중인 항공사도 미리 고를 수 있어요.'
+                  : selectedAirline.active
+                    ? `${selectedAirline.label} 근무표를 사진으로 올리면 자동으로 읽어서 채워드려요.`
+                    : `${selectedAirline.label}${koTopicParticle(selectedAirline.label)} 7월 중 추가될 예정이에요. 그때까지는 근무를 직접 입력해서 쓰다가, 사진 자동 인식이 준비되면 바로 켜져요.`}
+              </p>
             </div>
           )}
 

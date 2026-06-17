@@ -52,3 +52,32 @@ export function findAirline(code: string | undefined | null): Airline | undefine
   if (!code) return undefined
   return AIRLINES.find(a => a.code === code)
 }
+
+/** 한글 주격/주제 조사(은/는)를 끝글자 받침에 따라 고른다. 받침 있으면 '은', 없으면
+ *  '는'. 한글이 아닌 끝글자는 '는'으로 둔다. 예: 대한항공+은, 에어프레미아+는. */
+export function koTopicParticle(word: string): '은' | '는' {
+  const last = word.trim().slice(-1)
+  const code = last.charCodeAt(0)
+  if (code < 0xac00 || code > 0xd7a3) return '는'  // 한글 음절이 아니면 기본값
+  return (code - 0xac00) % 28 === 0 ? '는' : '은'  // 받침(종성) 유무
+}
+
+/** 가입·온보딩 항공사 드롭다운 옵션. 활성(자동 인식 지원)과 준비중을 섹션 헤더로
+ *  나눠 보여준다. 준비중도 선택 가능 — 태그만 저장해 두면 그 항공사가 활성화될 때
+ *  재가입·마이그레이션 없이 전용 경험으로 자동 승격된다. CbOption과 구조가 같다. */
+export type AirlineOption = { v: string; label: string; badge?: string; muted?: boolean; header?: boolean }
+
+export function airlineSelectOptions(): AirlineOption[] {
+  const active = AIRLINES.filter(a => a.active)
+  const pending = AIRLINES.filter(a => !a.active)
+  const opts: AirlineOption[] = []
+  if (active.length) {
+    opts.push({ v: '__hdr_active', label: '지금 이용 가능', header: true })
+    for (const a of active) opts.push({ v: a.code, label: a.label })
+  }
+  if (pending.length) {
+    opts.push({ v: '__hdr_pending', label: '7월 중 추가 예정', header: true })
+    for (const a of pending) opts.push({ v: a.code, label: a.label, badge: '준비중', muted: true })
+  }
+  return opts
+}
