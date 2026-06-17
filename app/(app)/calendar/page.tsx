@@ -132,7 +132,10 @@ function placeShift(
     + (fromTz !== KST_TZ ? ` (한국시간 ${kstClk(dk)})` : '')
   const arrLabel = `${toAirport ?? ''} ${pad(eh)}:${pad(em)}`.trim()
     + (toTz !== KST_TZ ? ` (한국시간 ${kstClk(ak)})` : '')
-  return { day: dk.getUTCDate(), start, end: start + (arrUtc - depUtc) / 3_600_000, depLabel, arrLabel }
+  // KST 출발일이 다른 달로 넘어가면(월말 국제선) 그 달 1일에 잘못 그려지므로, 같은 달일
+  // 때만 KST 날짜를 쓰고 아니면 출발 셀 날짜로 둔다.
+  const day = (dk.getUTCFullYear() === year && dk.getUTCMonth() === month - 1) ? dk.getUTCDate() : depDay
+  return { day, start, end: start + (arrUtc - depUtc) / 3_600_000, depLabel, arrLabel }
 }
 
 const HOME_AIRPORTS = new Set(['ICN', 'GMP'])
@@ -163,8 +166,9 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
     if (skip.has(d)) continue
     const e = at(d)
     if (!e || e.isOff || (e.diaNr && e.diaNr.startsWith('~('))) continue
-    // 레이오버(휴식) 마커 — 시각·편명 없는 순수 REST는 카드로 안 띄운다(아래 후처리가 체류 블록으로).
-    if (e.diaNr === 'REST' && !e.startTime && !e.endTime && !e.trainNr) continue
+    // 레이오버(휴식) 마커 — 항공 승무원의 시각·편명 없는 순수 REST만 스킵(체류 블록이 대체).
+    // KTX/일반 계정은 영향 없게 airline일 때만.
+    if (airline && e.diaNr === 'REST' && !e.startTime && !e.endTime && !e.trainNr) continue
     const hasStart = !!e.startTime, hasEnd = !!e.endTime
     if (!hasStart && !hasEnd) {
       out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: 0, end: 0, noTime: true, route: rt(e.trainNr) })
@@ -201,7 +205,9 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
     const a = flights[i], b = flights[i + 1]
     const aAway = !!a.toAirport && !HOME_AIRPORTS.has(a.toAirport)
     const bAway = !!b.fromAirport && !HOME_AIRPORTS.has(b.fromAirport)
-    if (!aAway || !bAway) continue
+    // 같은 트립일 때만 체류로 잇는다: 도착공항 == 다음 비행 출발공항. (서로 다른 외국
+    // 트립을 한 덩어리로 잘못 묶지 않도록.)
+    if (!aAway || !bAway || a.toAirport !== b.fromAirport) continue
     const aEnd = (a.day - 1) * 24 + a.end
     const bStart = (b.day - 1) * 24 + b.start
     if (bStart <= aEnd) continue
