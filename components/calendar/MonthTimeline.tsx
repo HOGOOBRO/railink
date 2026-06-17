@@ -27,6 +27,9 @@ export interface MonthShift {
   start: number      // decimal hour within `day`
   end: number        // decimal hour; > 24 when the shift ends next day (박차)
   noTime?: boolean   // a working day whose 출퇴근 times weren't read (OCR miss)
+  // 밤샘 연속근무로 한쪽 시각만 있는 날. 'end'=전날 시작분이 이 날에서 끝남(시작=0 채움),
+  // 'start'=이 날 시작했고 익일 계속됨(끝=24 채움). 표시에서 0/24 대신 안내 라벨로 바꾼다.
+  cont?: 'start' | 'end'
 }
 
 /** One appointment positioned in the timeline. start/end are decimal hours
@@ -284,6 +287,7 @@ export function MonthTimeline({
                     </div>
                     <div className="flex items-center gap-1 min-w-0">
                       {s.dia && <span className="font-en text-[11px] font-bold text-ink-500 truncate">{s.dia}</span>}
+                      {s.trainNr && <span className="font-en text-[11px] font-bold text-ink-700 truncate">{prettyTrain(s.trainNr)}</span>}
                       <span className="text-[9px] font-bold px-1 rounded-pill text-ink-700 shrink-0 whitespace-nowrap" style={{ background: 'color-mix(in oklab, var(--warn) 38%, white)' }}>시간 미입력</span>
                     </div>
                   </div>
@@ -308,10 +312,10 @@ export function MonthTimeline({
                     {s.dia && (
                       <div className="font-en text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>{s.dia}</div>
                     )}
-                    <span className="font-en text-[11px] font-bold text-ink-900">{fmtClock(s.start)}</span>
+                    <span className="font-en text-[11px] font-bold text-ink-900">{s.cont === 'end' ? '전날부터' : fmtClock(s.start)}</span>
                   </div>
                   <div className="flex items-end justify-between gap-1 min-w-0">
-                    <span className="font-en text-[11px] font-bold text-ink-900">↓ {fmtClock(s.end)}</span>
+                    <span className="font-en text-[11px] font-bold text-ink-900">↓ {s.cont === 'start' ? '익일 계속' : fmtClock(s.end)}</span>
                     {s.trainNr && (
                       <span className="font-en text-[10px] font-bold text-ink-700 px-1.5 py-0.5 bg-bg rounded-xs truncate">{prettyTrain(s.trainNr)}</span>
                     )}

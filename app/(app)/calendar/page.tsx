@@ -91,16 +91,18 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
     // dia가 없는 row(일반 근무 직접입력)도 시간만 있으면 타임라인에 카드 표시.
     // ~(H1048) 같은 연속 표기는 시작 행에서 카드를 그리니까 여기선 스킵.
     if (!e || e.isOff || (e.diaNr && e.diaNr.startsWith('~('))) continue
-    if (!e.startTime || !e.endTime) {
-      // A working day whose times weren't read (OCR miss / blank) — surface it
-      // as "시간 미입력" rather than dropping it silently.
+    if (!e.startTime && !e.endTime) {
+      // 시작·끝 둘 다 없는 진짜 미입력 — "시간 미입력"으로 노출(편명/코드는 카드에 표시).
       out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: 0, end: 0, noTime: true })
       continue
     }
-    const start = hmToDecimal(e.startTime)
-    let end = hmToDecimal(e.endTime)
-    if (end < start) end += 24
-    out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start, end })
+    // 한쪽만 있는 날 = 밤샘 연속근무(YP102 0945~ / ~1620 같은 익일 듀티). 가진 시각으로
+    // 부분 블록을 그리고, 없는 쪽은 0/24로 채운 뒤 cont 라벨로 "전날부터/익일"을 표시.
+    const cont: 'start' | 'end' | undefined = !e.startTime ? 'end' : !e.endTime ? 'start' : undefined
+    const start = e.startTime ? hmToDecimal(e.startTime) : 0
+    let end = e.endTime ? hmToDecimal(e.endTime) : 24
+    if (e.startTime && e.endTime && end < start) end += 24
+    out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start, end, cont })
   }
   return out
 }
