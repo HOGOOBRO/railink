@@ -255,8 +255,13 @@ export function DetailSheet({
         <div className="absolute inset-0 z-[40]">
           <div onClick={() => setShiftDetail(null)} className="absolute inset-0 animate-backdrop-in" style={{ background: 'rgba(13,30,55,0.4)' }} aria-hidden="true" />
           <div className="absolute left-6 right-6 bg-surface rounded-[18px] shadow-sh4 px-5 pt-5 pb-4 animate-fade-in" style={{ top: '38%' }}>
-            <div className="text-[17px] font-extrabold tracking-tight text-ink-900">
-              {shiftDetail.name} <span className="text-ink-500 font-bold">· 근무</span>
+            <div className="flex items-center gap-2">
+              <div className="text-[17px] font-extrabold tracking-tight text-ink-900">
+                {shiftDetail.name} <span className="text-ink-500 font-bold">· 근무</span>
+              </div>
+              {shiftDetail.dir && (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-pill" style={{ background: 'color-mix(in oklab, var(--accent) 16%, white)', color: 'var(--accent)' }}>{shiftDetail.dir}</span>
+              )}
             </div>
             {shiftDetail.noTime ? (
               <div className="text-callout text-ink-700 mt-2">출퇴근 시간이 입력되지 않은 근무예요.</div>

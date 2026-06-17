@@ -31,10 +31,14 @@ export interface MonthShift {
   // 'start'=이 날 시작했고 익일 계속됨(끝=24 채움). 표시에서 0/24 대신 안내 라벨로 바꾼다.
   cont?: 'start' | 'end'
   route?: string     // 편명→노선("ICN→HKG→ICN"). 항공사 노선표에서 유도(lib/airline-routes).
-  // 국제선: 각 공항 현지시각 라벨("ICN 20:25"/"LAX 17:50"). 카드/상세는 이걸 표시하고
-  // 블록 위치·길이는 start/end(KST instant)로 잡는다. 없으면(국내/KTX) start/end를 그대로 표시.
+  // 국제선: 각 공항 현지시각 라벨("ICN 20:25"/"LAX 17:50 · 한국 09:50"). 카드/상세는 이걸
+  // 표시하고 블록 위치·길이는 start/end(KST instant)로. 없으면(국내/KTX) start/end 그대로.
   depLabel?: string
   arrLabel?: string
+  dir?: '아웃바운드' | '인바운드'   // 한국 출발/도착 방향
+  fromAirport?: string
+  toAirport?: string
+  layover?: boolean   // 외국 체류 연속 블록(비행 사이). dia에 "LAX 체류".
 }
 
 /** One appointment positioned in the timeline. start/end are decimal hours
@@ -101,6 +105,7 @@ export interface ShiftDetail {
   noTime?: boolean
   depLabel?: string
   arrLabel?: string
+  dir?: '아웃바운드' | '인바운드'
 }
 
 export function MonthTimeline({
@@ -280,6 +285,20 @@ export function MonthTimeline({
               </div>
             )}
             {p.shifts.map((s, si) => {
+              if (s.layover) {
+                // 외국 체류(레이오버) 연속 블록 — 비행 사이를 메운다. 줄무늬·점선으로 구분.
+                const lt = yOf((s.day - 1) * 24 + s.start)
+                const lh = Math.max(MIN_CARD_H, yOf((s.day - 1) * 24 + s.end) - lt)
+                return (
+                  <div
+                    key={si}
+                    className="absolute left-0 right-0 overflow-hidden leading-tight"
+                    style={{ top: lt, height: lh, background: 'repeating-linear-gradient(135deg, var(--bg), var(--bg) 7px, var(--surface-2) 7px, var(--surface-2) 14px)', boxShadow: 'inset 0 0 0 1px var(--line-2)', borderLeft: `3px dashed ${p.color}`, borderRadius: 10, padding: '6px 8px' }}
+                  >
+                    <span className="text-[11px] font-bold text-ink-500">🧳 {s.dia}</span>
+                  </div>
+                )
+              }
               if (s.noTime) {
                 return (
                   <div
@@ -307,7 +326,7 @@ export function MonthTimeline({
                 <button
                   type="button"
                   key={si}
-                  onClick={() => onTapShift?.({ name: p.name, dia: s.dia, trainNr: s.trainNr, start: s.start, end: s.end, depLabel: s.depLabel, arrLabel: s.arrLabel })}
+                  onClick={() => onTapShift?.({ name: p.name, dia: s.dia, trainNr: s.trainNr, start: s.start, end: s.end, depLabel: s.depLabel, arrLabel: s.arrLabel, dir: s.dir })}
                   className="absolute left-0 right-0 flex flex-col justify-between overflow-hidden leading-tight text-left"
                   style={{ top, height: h, background: `color-mix(in oklab, ${p.color} 12%, white)`, boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${p.color} 30%, white)`, borderLeft: `3px solid ${p.color}`, borderRadius: 10, padding: '5px 6px 6px' }}
                 >
@@ -317,6 +336,9 @@ export function MonthTimeline({
                       <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
                       {p.tag && <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>}
                     </div>
+                    {s.dir && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-pill self-start whitespace-nowrap" style={{ background: 'color-mix(in oklab, var(--accent) 16%, white)', color: 'var(--accent)' }}>{s.dir}</span>
+                    )}
                     {s.dia && (
                       <div className="font-en text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>{s.dia}</div>
                     )}
