@@ -39,6 +39,45 @@ const ROUTES_BY_AIRLINE: Record<string, Record<string, Route>> = {
   'air-premia': YP_ROUTES,
 }
 
+/** 공항(IATA) → IANA 타임존. 로스터 시각은 각 공항 현지시각이라, 인천(KST) 기준으로
+ *  환산하려면 출발/도착 공항의 시간대가 필요하다. 모르는 공항은 KST로 간주. */
+const AIRPORT_TZ: Record<string, string> = {
+  ICN: 'Asia/Seoul', GMP: 'Asia/Seoul',
+  NRT: 'Asia/Tokyo', HND: 'Asia/Tokyo',
+  HKG: 'Asia/Hong_Kong',
+  BKK: 'Asia/Bangkok',
+  SIN: 'Asia/Singapore',
+  DAD: 'Asia/Ho_Chi_Minh', SGN: 'Asia/Ho_Chi_Minh',
+  HNL: 'Pacific/Honolulu',
+  LAX: 'America/Los_Angeles', SFO: 'America/Los_Angeles',
+  EWR: 'America/New_York', IAD: 'America/New_York',
+}
+
+export function airportTz(iata: string | undefined): string {
+  return (iata && AIRPORT_TZ[iata.toUpperCase()]) || 'Asia/Seoul'
+}
+
+/** trainNr의 첫 레그 출발공항·마지막 레그 도착공항(IATA). 출발/도착 시각을
+ *  KST로 환산할 때 어느 공항 시간대인지 정하는 데 쓴다. 매칭 없으면 undefined. */
+export function flightEndpoints(
+  airline: string | undefined,
+  trainNr: string | undefined,
+): { from?: string; to?: string } {
+  if (!airline || !trainNr) return {}
+  const table = ROUTES_BY_AIRLINE[airline]
+  if (!table) return {}
+  const tokens = trainNr.split(/\s*[·,]\s*|\s+/).map(t => t.trim().toUpperCase()).filter(Boolean)
+  let from: string | undefined
+  let to: string | undefined
+  for (const t of tokens) {
+    const r = table[t]
+    if (!r) continue
+    if (!from) from = r.from
+    to = r.to
+  }
+  return { from, to }
+}
+
 /** trainNr("YP801" 또는 "YP801 · YP802")을 노선 경로 문자열로 변환.
  *  예: "YP801·YP802" → "ICN→HKG→ICN", "YP735" → "ICN→NRT". 매칭 없으면 null. */
 export function routeForFlights(airline: string | undefined, trainNr: string | undefined): string | null {
