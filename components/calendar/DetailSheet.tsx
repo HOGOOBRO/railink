@@ -259,9 +259,12 @@ export function DetailSheet({
                     <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.dia}</span>
                   </div>
                 )}
-                <div className="flex items-center gap-2">
-                  <span className="text-caption text-ink-500 w-12 shrink-0">시간</span>
-                  <span className="font-en text-callout font-bold text-ink-900">{fmtClock(shiftDetail.start)} – {fmtClock(shiftDetail.end)}</span>
+                <div className="flex items-start gap-2">
+                  <span className="text-caption text-ink-500 w-12 shrink-0 mt-0.5">시간</span>
+                  <span className="flex flex-col min-w-0">
+                    <span className="font-en text-callout font-bold text-ink-900">{fmtClock(shiftDetail.start)} – {fmtClock(shiftDetail.end)}{airline ? ' (인천 기준)' : ''}</span>
+                    {shiftDetail.localTime && <span className="text-caption text-ink-500 font-en mt-0.5">{shiftDetail.localTime}</span>}
+                  </span>
                 </div>
                 {shiftDetail.trainNr && (
                   <div className="flex items-start gap-2">

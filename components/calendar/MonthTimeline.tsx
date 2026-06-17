@@ -31,6 +31,7 @@ export interface MonthShift {
   // 'start'=이 날 시작했고 익일 계속됨(끝=24 채움). 표시에서 0/24 대신 안내 라벨로 바꾼다.
   cont?: 'start' | 'end'
   route?: string     // 편명→노선("ICN→HKG→ICN"). 항공사 노선표에서 유도(lib/airline-routes).
+  localTime?: string // 국제선: 원래 현지시각 메모("현지 20:25~17:50"). 표시는 KST 기준.
 }
 
 /** One appointment positioned in the timeline. start/end are decimal hours
@@ -95,6 +96,7 @@ export interface ShiftDetail {
   start: number
   end: number
   noTime?: boolean
+  localTime?: string
 }
 
 export function MonthTimeline({
@@ -301,7 +303,7 @@ export function MonthTimeline({
                 <button
                   type="button"
                   key={si}
-                  onClick={() => onTapShift?.({ name: p.name, dia: s.dia, trainNr: s.trainNr, start: s.start, end: s.end })}
+                  onClick={() => onTapShift?.({ name: p.name, dia: s.dia, trainNr: s.trainNr, start: s.start, end: s.end, localTime: s.localTime })}
                   className="absolute left-0 right-0 flex flex-col justify-between overflow-hidden leading-tight text-left"
                   style={{ top, height: h, background: `color-mix(in oklab, ${p.color} 12%, white)`, boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${p.color} 30%, white)`, borderLeft: `3px solid ${p.color}`, borderRadius: 10, padding: '5px 6px 6px' }}
                 >

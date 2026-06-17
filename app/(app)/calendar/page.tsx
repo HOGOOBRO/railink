@@ -66,7 +66,7 @@ import { buildDemoBirthdays, type Colleague } from '@/lib/demo-data'
 import {
   DOW_KR, buildMonthCells, hmToDecimal,
 } from '@/lib/schedule-utils'
-import { routeForFlights } from '@/lib/airline-routes'
+import { routeForFlights, flightEndpoints, airportTz } from '@/lib/airline-routes'
 import { holidayNameFor } from '@/lib/holidays-kr'
 import type { ParsedScheduleRow } from '@/lib/parse/schedule-file'
 import type { ApptCard } from '@/components/calendar/MonthTimeline'
@@ -79,51 +79,90 @@ const cssColor = (c: CompareColor) => `var(--${c})`
 // for accounts that never had compares, so they never see the notice at all.
 const MIGRATION_KEY = 'rl.migrationNotice.dismissed'
 
+const KST_TZ = 'Asia/Seoul'
+
+// 특정 타임존(tz)에서의 벽시계(year/month/day hh:mm)를 UTC epoch(ms)로 환산.
+// 항공편 시각은 각 공항 현지시각이라 인천(KST) 기준으로 맞추려면 이게 필요하다.
+function wallToUtcMs(year: number, month: number, day: number, hh: number, mm: number, tz: string): number {
+  const guess = Date.UTC(year, month - 1, day, hh, mm)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).formatToParts(new Date(guess))
+  const g = (t: string) => Number(parts.find(p => p.type === t)?.value)
+  const localAsUtc = Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'))
+  return guess - (localAsUtc - guess) // guess - offset
+}
+
+// 출발(공항 현지) + 도착(공항 현지)을 인천(KST) 기준 타임라인 위치로 환산.
+// 국내/같은 시간대면 기존 동작 그대로(KTX·일반 근무 안전). 외국 공항이 끼면 KST로 변환하고
+// 원래 현지시각은 메모(localTime)로 남긴다.
+function placeShift(
+  year: number, month: number,
+  depDay: number, depLocal: string, fromTz: string,
+  arrDay: number, arrLocal: string, toTz: string,
+): { day: number; start: number; end: number; localTime?: string } {
+  if (fromTz === KST_TZ && toTz === KST_TZ) {
+    const start = hmToDecimal(depLocal)
+    let end = hmToDecimal(arrLocal)
+    if (arrDay > depDay) end += 24 * (arrDay - depDay)
+    else if (end < start) end += 24
+    return { day: depDay, start, end }
+  }
+  const [sh, sm] = depLocal.split(':').map(Number)
+  const [eh, em] = arrLocal.split(':').map(Number)
+  const depUtc = wallToUtcMs(year, month, depDay, sh, sm, fromTz)
+  let arrUtc = wallToUtcMs(year, month, arrDay, eh, em, toTz)
+  while (arrUtc <= depUtc) arrUtc += 86_400_000
+  const dk = new Date(depUtc + 9 * 3_600_000) // KST = UTC+9
+  const start = dk.getUTCHours() + dk.getUTCMinutes() / 60
+  return {
+    day: dk.getUTCDate(),
+    start,
+    end: start + (arrUtc - depUtc) / 3_600_000,
+    localTime: `현지 ${depLocal}~${arrLocal}`,
+  }
+}
+
 // One person's working shifts across the month, for the continuous timeline.
-// Overnight (박차) is normalized to a 24+ end (end clock earlier than start),
-// and continuation rows ("~(H1048)") are dropped — the start-day card spans the
-// midnight divider instead of being duplicated on the next day.
+// 항공편은 공항 현지시각이라 인천(KST) 기준으로 환산해 위치를 잡는다(placeShift).
+// 레이오버(순수 REST)는 카드로 띄우지 않고, 연속 표기("~(H1048)")는 시작 행에서 그린다.
 function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: number, month: number, airline?: string): MonthShift[] {
   const dim = new Date(year, month, 0).getDate()
   const mm = String(month).padStart(2, '0')
   const out: MonthShift[] = []
   const skip = new Set<number>()
   const at = (d: number) => entryOf(`${year}-${mm}-${String(d).padStart(2, '0')}`)
-  // 편명 → 노선("ICN→HKG→ICN"). 항공사 노선표가 있을 때만 채워짐.
   const rt = (trainNr?: string) => routeForFlights(airline, trainNr) ?? undefined
+  const tzOf = (trainNr?: string) => {
+    const ep = flightEndpoints(airline, trainNr)
+    return { fromTz: airportTz(ep.from), toTz: airportTz(ep.to) }
+  }
   for (let d = 1; d <= dim; d++) {
     if (skip.has(d)) continue
     const e = at(d)
-    // dia가 없는 row(일반 근무 직접입력)도 시간만 있으면 타임라인에 카드 표시.
-    // ~(H1048) 같은 연속 표기는 시작 행에서 카드를 그리니까 여기선 스킵.
     if (!e || e.isOff || (e.diaNr && e.diaNr.startsWith('~('))) continue
+    // 레이오버(휴식) 마커 — 시각·편명 없는 순수 REST는 카드로 안 띄운다(겹침 제거).
+    if (e.diaNr === 'REST' && !e.startTime && !e.endTime && !e.trainNr) continue
     const hasStart = !!e.startTime, hasEnd = !!e.endTime
     if (!hasStart && !hasEnd) {
-      // 시작·끝 둘 다 없는 진짜 미입력 — "시간 미입력"으로 노출(편명/코드는 카드에 표시).
       out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: 0, end: 0, noTime: true, route: rt(e.trainNr) })
       continue
     }
     if (hasStart && hasEnd) {
-      const start = hmToDecimal(e.startTime as string)
-      let end = hmToDecimal(e.endTime as string)
-      if (end < start) end += 24
-      out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start, end, route: rt(e.trainNr) })
+      const { fromTz, toTz } = tzOf(e.trainNr)
+      const p = placeShift(year, month, d, e.startTime as string, fromTz, d, e.endTime as string, toTz)
+      out.push({ day: p.day, dia: e.diaNr, trainNr: e.trainNr, start: p.start, end: p.end, route: rt(e.trainNr), localTime: p.localTime })
       continue
     }
-    // 한쪽 시각만 = 밤샘 연속근무(YP102 0945~ / ~1620). 시작만 있는 날 + 다음날 끝만 있는
-    // 날을 하나로 병합해 자정을 가로지르는 단일 블록으로 그린다(08일 09:45 → 09일 16:20).
+    // 한쪽 시각만 = 밤샘 연속근무. 시작만 있는 날 + 다음날 끝만 있는 날을 하나로 병합.
     if (hasStart) {
       const nx = at(d + 1)
       if (nx && !nx.isOff && nx.endTime && !nx.startTime) {
         const trainNr = e.trainNr || nx.trainNr
-        out.push({
-          day: d,
-          dia: e.diaNr || nx.diaNr,
-          trainNr,
-          start: hmToDecimal(e.startTime as string),
-          end: hmToDecimal(nx.endTime) + 24,   // 다음날 도착 → +24h, 하나의 연속 블록
-          route: rt(trainNr),
-        })
+        const { fromTz, toTz } = tzOf(trainNr)
+        const p = placeShift(year, month, d, e.startTime as string, fromTz, d + 1, nx.endTime, toTz)
+        out.push({ day: p.day, dia: e.diaNr || nx.diaNr, trainNr, start: p.start, end: p.end, route: rt(trainNr), localTime: p.localTime })
         skip.add(d + 1)
         continue
       }
