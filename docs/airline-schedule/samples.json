@@ -1,0 +1,204 @@
+{
+  "_description": "Ground-truth annotations for the 10 provided roster captures. Use as an eval set: image -> expected parse. 'captured' = fields visible in the image; 'missing' = fields a downstream enrichment/derivation step must supply. Times are AS SHOWN (local, (L) where marked). 'to'/'from' null means sector not visible in source and must be enriched from flight_no+date.",
+  "_schema": {
+    "entry": "{ date, type, code?, off, legs?[], report?, station?, notes? }",
+    "leg": "{ flight_no, from?, to?, dep?, arr?, dep_day?, arr_day? }",
+    "type": "FLIGHT | DEADHEAD | OFF | LEAVE | STANDBY | TRAINING | REST | LAYOVER"
+  },
+  "samples": [
+    {
+      "id": "sample_01_air_premia",
+      "system": "air_premia_grid",
+      "airline": "Air Premia (YP)",
+      "format": "calendar_grid",
+      "period": { "start": "2026-06-01", "end": "2026-06-30" },
+      "total_blh": "49:50",
+      "captured": ["date", "flight_no", "dep_local", "arr_local", "activity_code"],
+      "missing": ["sector(from/to) — NOT shown at all", "aircraft_type", "report_time", "layover_station"],
+      "entries": [
+        { "date": "2026-06-01", "type": "FLIGHT", "off": false, "legs": [{ "flight_no": "YP801" }, { "flight_no": "YP802" }], "dep": "07:35(L)", "arr": "18:45(L)" },
+        { "date": "2026-06-02", "type": "OFF", "code": "RDO", "off": true },
+        { "date": "2026-06-03", "type": "OFF", "code": "RDO", "off": true },
+        { "date": "2026-06-04", "type": "FLIGHT", "off": false, "legs": [{ "flight_no": "YP735" }, { "flight_no": "YP736" }], "dep": "12:10(L)", "arr": "20:55(L)" },
+        { "date": "2026-06-05", "type": "OFF", "code": "OFF", "off": true },
+        { "date": "2026-06-06", "type": "FLIGHT", "off": false, "legs": [{ "flight_no": "YP103" }], "dep": "20:25(L)", "arr": "17:50(L)", "notes": "arr<dep => overnight; also REST shown" },
+        { "date": "2026-06-07", "type": "REST", "code": "REST", "off": false },
+        { "date": "2026-06-08", "type": "FLIGHT", "code": "REST", "off": false, "legs": [{ "flight_no": "YP102" }], "dep": "09:45(L)", "notes": "REST + YP102 start; continues next day (~)" },
+        { "date": "2026-06-09", "type": "FLIGHT", "off": false, "legs": [{ "flight_no": "YP102" }], "arr": "16:20(L)", "notes": "continuation end (~1620)" },
+        { "date": "2026-06-10", "type": "OFF", "code": "OFF", "off": true },
+        { "date": "2026-06-11", "type": "OFF", "code": "OFF", "off": true },
+        { "date": "2026-06-12", "type": "STANDBY", "code": "STH", "off": false, "dep": "06:00(L)", "arr": "18:00(L)" },
+        { "date": "2026-06-13", "type": "FLIGHT", "off": false, "legs": [{ "flight_no": "YP731" }, { "flight_no": "YP732" }], "dep": "07:10(L)", "arr": "15:40(L)" },
+        { "date": "2026-06-14", "type": "STANDBY", "code": "STH", "off": false, "dep": "06:00(L)", "arr": "18:00(L)" },
+        { "date": "2026-06-15", "type": "OFF", "code": "OFF", "off": true },
+        { "date": "2026-06-16", "type": "TRAINING", "code": "TCRE", "off": false, "dep": "09:00(L)", "arr": "18:00(L)" },
+        { "date": "2026-06-17", "type": "TRAINING", "code": "TCRE", "off": false, "dep": "09:00(L)", "arr": "18:00(L)" },
+        { "date": "2026-06-18", "type": "TRAINING", "code": "TCRE", "off": false, "dep": "09:00(L)", "arr": "18:00(L)" },
+        { "date": "2026-06-19", "type": "TRAINING", "code": "TCRE", "off": false, "dep": "09:00(L)", "arr": "18:00(L)" },
+        { "date": "2026-06-20", "type": "OFF", "code": "OFF", "off": true },
+        { "date": "2026-06-21", "type": "FLIGHT", "off": false, "legs": [{ "flight_no": "YP801" }, { "flight_no": "YP802" }], "dep": "07:35(L)", "arr": "18:45(L)" },
+        { "date": "2026-06-22", "type": "OFF", "code": "OFF", "off": true },
+        { "date": "2026-06-23", "type": "OFF", "code": "OFF", "off": true },
+        { "date": "2026-06-24", "type": "OFF", "code": "OFF", "off": true },
+        { "date": "2026-06-25", "type": "LEAVE", "code": "ANLV", "off": true },
+        { "date": "2026-06-26", "type": "OFF", "code": "OFF", "off": true },
+        { "date": "2026-06-27", "type": "OFF", "code": "OFF", "off": true },
+        { "date": "2026-06-28", "type": "OFF", "code": "OFF", "off": true },
+        { "date": "2026-06-29", "type": "LEAVE", "code": "OVMRIG", "off": true },
+        { "date": "2026-06-30", "type": "LEAVE", "code": "OVMRIG", "off": true }
+      ]
+    },
+    {
+      "id": "sample_03_asiana",
+      "system": "asiana_table",
+      "airline": "Asiana (OZ)",
+      "format": "table",
+      "period": { "start": "2025-04-01", "end": "2025-04-30", "note": "year not visible in crop; placeholder" },
+      "captured": ["date", "flight_no", "report(SHOWUP)", "sector(from/to)", "dep(STD)", "arr(STA)"],
+      "missing": ["aircraft_type", "layover_hotel"],
+      "derivable": ["layover_station from station-only rows + sector chaining"],
+      "entries": [
+        { "date": "04-01", "type": "STANDBY", "code": "장거리 STBY확인요망", "off": false },
+        { "date": "04-02", "type": "OFF", "code": "DAY OFF", "off": true },
+        { "date": "04-03", "type": "OFF", "code": "DAY OFF", "off": true },
+        { "date": "04-04", "type": "FLIGHT", "off": false, "report": "T2 10:40", "legs": [
+          { "flight_no": "349", "from": "ICN", "to": "NKG", "dep": "12:30", "arr": "13:40" },
+          { "flight_no": "350", "from": "NKG", "to": "ICN", "dep": "14:50", "arr": "18:15" }
+        ] },
+        { "date": "04-05", "type": "STANDBY", "code": "STBY확인요망", "off": false },
+        { "date": "04-06", "type": "OFF", "code": "DAY OFF", "off": true },
+        { "date": "04-07", "type": "FLIGHT", "off": false, "report": "G 11:25", "legs": [
+          { "flight_no": "8949", "from": "GMP", "to": "CJU", "dep": "12:25", "arr": "13:40" },
+          { "flight_no": "8198", "from": "CJU", "to": "RSU", "dep": "14:25", "arr": "15:20" },
+          { "flight_no": "8199", "from": "RSU", "to": "CJU", "dep": "15:55", "arr": "16:50" }
+        ] },
+        { "date": "04-08", "type": "FLIGHT", "off": false, "legs": [
+          { "flight_no": "8956", "from": "CJU", "to": "GMP", "dep": "15:30", "arr": "16:45" },
+          { "flight_no": "8981", "from": "GMP", "to": "CJU", "dep": "17:25", "arr": "18:40" },
+          { "flight_no": "8986", "from": "CJU", "to": "GMP", "dep": "19:20", "arr": "20:35" },
+          { "flight_no": "8995", "from": "GMP", "to": "CJU", "dep": "21:10", "arr": "22:25" }
+        ] },
+        { "date": "04-09", "type": "FLIGHT", "off": false, "legs": [
+          { "flight_no": "8932", "from": "CJU", "to": "GMP", "dep": "13:05", "arr": "14:20" },
+          { "flight_no": "8961", "from": "GMP", "to": "CJU", "dep": "14:50", "arr": "16:05" },
+          { "flight_no": "8962", "from": "CJU", "to": "GMP", "dep": "16:35", "arr": "17:50" }
+        ] },
+        { "date": "04-10", "type": "OFF", "code": "DAY OFF", "off": true },
+        { "date": "04-11", "type": "FLIGHT", "off": false, "report": "T2 09:00", "legs": [
+          { "flight_no": "541", "from": "ICN", "to": "FRA", "dep": "10:50", "arr": "17:40" }
+        ] },
+        { "date": "04-12", "type": "LAYOVER", "station": "FRA", "off": false, "notes": "station-only row = layover at FRA" },
+        { "date": "04-13", "type": "FLIGHT", "off": false, "legs": [
+          { "flight_no": "542", "from": "FRA", "to": "ICN", "dep": "19:40", "arr": "14:35", "arr_day": "+1" }
+        ] },
+        { "date": "04-14", "type": "LAYOVER", "station": "ICN", "off": false, "notes": "arrival/position marker at base" },
+        { "date": "04-15", "type": "OFF", "code": "DAY OFF", "off": true },
+        { "date": "04-16", "type": "OFF", "code": "DAY OFF", "off": true },
+        { "date": "04-17", "type": "FLIGHT", "off": false, "report": "T2 06:00", "legs": [
+          { "flight_no": "701", "from": "ICN", "to": "MNL", "dep": "07:50", "arr": "10:55" },
+          { "flight_no": "702", "from": "MNL", "to": "ICN", "dep": "12:05", "arr": "16:55" }
+        ] },
+        { "date": "04-18", "type": "OFF", "code": "DAY OFF", "off": true },
+        { "date": "04-19", "type": "FLIGHT", "off": false, "report": "T2 11:00", "legs": [
+          { "flight_no": "333", "from": "ICN", "to": "PEK", "dep": "12:50", "arr": "14:00" },
+          { "flight_no": "334", "from": "PEK", "to": "ICN", "dep": "15:30", "arr": "18:30" }
+        ] },
+        { "date": "04-20", "type": "FLIGHT", "off": false, "report": "T2 17:45", "legs": [
+          { "flight_no": "741", "from": "ICN", "to": "BKK", "dep": "19:35", "arr": "23:20" }
+        ] },
+        { "date": "04-21", "type": "LAYOVER", "station": "BKK", "off": false },
+        { "date": "04-22", "type": "FLIGHT", "off": false, "legs": [
+          { "flight_no": "742", "from": "BKK", "to": "ICN", "dep": "01:20", "arr": "08:45" }
+        ] },
+        { "date": "04-23", "type": "OFF", "code": "DAY OFF", "off": true },
+        { "date": "04-24", "type": "FLIGHT", "off": false, "report": "T2 07:05", "legs": [
+          { "flight_no": "327", "from": "ICN", "to": "TSN", "dep": "08:55", "arr": "09:55" },
+          { "flight_no": "328", "from": "TSN", "to": "ICN", "dep": "10:55", "arr": "13:30" }
+        ] },
+        { "date": "04-25", "type": "LEAVE", "code": "연차휴가", "off": true },
+        { "date": "04-26", "type": "LEAVE", "code": "연차휴가", "off": true },
+        { "date": "04-27", "type": "STANDBY", "code": "STBY확인요망", "off": false },
+        { "date": "04-28", "type": "STANDBY", "code": "STBY확인요망", "off": false },
+        { "date": "04-29", "type": "OFF", "code": "DAY OFF", "off": true },
+        { "date": "04-30", "type": "FLIGHT", "off": false, "report": "T2 19:10", "legs": [
+          { "flight_no": "272", "from": "ICN", "to": "SEA", "dep": "21:00", "arr": "14:55", "notes": "transpacific; STA in local, crosses dateline" }
+        ] }
+      ]
+    },
+    {
+      "id": "sample_arms_jinair",
+      "system": "arms",
+      "format": "per_day_list_scrolling",
+      "source_files": ["samples 4-10 (overlapping scroll captures)"],
+      "period": { "start": "2026-05-01", "end": "2026-06-30", "note": "roster spans 2 months; captures cover June + early-June leave" },
+      "captured": ["date", "flight_no", "sector(from-to)", "dep", "arr", "report(BRF)", "off/leave codes", "cumulative_hours(header)"],
+      "missing": ["aircraft_type", "layover_hotel", "many days hidden between scroll captures (gap-detection needed)"],
+      "derivable": ["layover_station via sector chaining (e.g. 25 Jun TPE arr -> 26 Jun TPE dep = TPE overnight)"],
+      "cumulative_header": { "roster": "54:49 / 90:54", "cuml_1month": "57:08 / 120:00", "cuml_1year": "287:43 / 1200:00" },
+      "entries": [
+        { "date": "2026-06-01", "type": "LEAVE", "code": "LEAVE - HV0", "off": true },
+        { "date": "2026-06-02", "type": "LEAVE", "code": "LEAVE - HV0", "off": true },
+        { "date": "2026-06-03", "type": "LEAVE", "code": "LEAVE - HV0", "off": true },
+        { "date": "2026-06-04", "type": "LEAVE", "code": "LEAVE - HV0", "off": true },
+        { "date": "2026-06-05", "type": "LEAVE", "code": "LEAVE - HV0", "off": true },
+        { "date": "2026-06-06", "type": "LEAVE", "code": "LEAVE - ALB", "off": true },
+        { "date": "2026-06-07", "type": "LEAVE", "code": "LEAVE - ALB", "off": true },
+        { "date": "2026-06-08", "type": "LEAVE", "code": "LEAVE - ALB", "off": true },
+        { "date": "2026-06-09", "type": "LEAVE", "code": "LEAVE - ALB", "off": true },
+        { "date": "2026-06-10", "type": "OFF", "code": "DO_RQ", "off": true },
+        { "date": "2026-06-11", "type": "LEAVE", "code": "LEAVE - PVC", "off": true },
+        { "date": "2026-06-12", "type": "FLIGHT", "off": false, "report": "BRF 09:20", "legs": [
+          { "flight_no": "LJ507", "from": "GMP", "to": "CJU", "dep": "10:30", "arr": "11:45", "notes": "DH DH-FLT (deadhead)" },
+          { "flight_no": "LJ428", "from": "CJU", "to": "TAE", "dep": "13:50", "arr": "14:55" },
+          { "flight_no": "LJ427", "from": "TAE", "to": "CJU", "dep": "15:35", "arr": "16:40" }
+        ] },
+        { "date": "2026-06-13", "type": "FLIGHT", "off": false, "report": "BRF 16:30", "legs": [
+          { "flight_no": "LJ566", "from": "CJU", "to": "PUS", "dep": "17:20", "arr": "18:20" },
+          { "flight_no": "LJ569", "from": "PUS", "to": "CJU", "dep": "19:00", "arr": "20:00" }
+        ] },
+        { "date": "2026-06-14", "type": "FLIGHT", "off": false, "report": "BRF 14:05", "legs": [
+          { "flight_no": "LJ454", "from": "CJU", "to": "KWJ", "dep": "14:55", "arr": "15:50" },
+          { "flight_no": "LJ453", "from": "KWJ", "to": "CJU", "dep": "16:30", "arr": "17:25" },
+          { "flight_no": "LJ438", "from": "CJU", "to": "KPO", "dep": "18:05", "arr": "19:10" },
+          { "flight_no": "LJ660", "from": "KPO", "to": "GMP", "dep": "19:50", "arr": "20:50" }
+        ] },
+        { "date": "2026-06-15", "type": "OFF", "code": "DO_I", "off": true },
+        { "date": "2026-06-16", "type": "FLIGHT", "off": false, "report": "BRF 05:45", "legs": [
+          { "flight_no": "LJ201", "from": "ICN", "to": "NRT", "dep": "07:25", "arr": "09:55", "notes": "car icon = ground transport" },
+          { "flight_no": "LJ222", "from": "NRT", "to": "PUS", "dep": "10:55", "arr": "13:00" }
+        ] },
+        { "date": "2026-06-17", "type": "FLIGHT", "off": false, "report": "BRF 07:20", "legs": [
+          { "flight_no": "LJ375", "from": "PUS", "to": "NGO", "dep": "08:30", "arr": "10:00" },
+          { "flight_no": "LJ376", "from": "NGO", "to": "PUS", "dep": "11:00", "arr": "12:30" }
+        ] },
+        { "date": "2026-06-18", "type": "FLIGHT", "off": false, "report": "BRF 06:35", "legs": [
+          { "flight_no": "LJ561", "from": "PUS", "to": "CJU", "dep": "07:25", "arr": "08:25", "notes": "car icon" },
+          { "flight_no": "LJ472", "from": "CJU", "to": "WJU", "dep": "09:05", "arr": "10:20" },
+          { "flight_no": "LJ471", "from": "WJU", "to": "CJU", "dep": "11:15", "arr": "12:30" },
+          { "flight_no": "LJ508", "from": "CJU", "to": "GMP", "dep": "13:15", "arr": "14:30" }
+        ] },
+        { "date": "2026-06-19", "type": "OFF", "code": "DO_I", "off": true },
+        { "date": "2026-06-20", "type": "OFF", "code": "DO_I", "off": true },
+        { "date": "2026-06-21", "type": "FLIGHT", "off": false, "report": "BRF 18:50", "legs": [
+          { "flight_no": "LJ081", "from": "ICN", "to": "DAD", "dep": "20:30", "arr": "23:15" }
+        ] },
+        { "date": "2026-06-22", "type": "DEADHEAD", "off": false, "report": "BRF 16:50", "legs": [
+          { "flight_no": "LJ082", "from": "DAD", "to": "ICN", "dep": "00:15", "arr": "07:10", "notes": "DH DH-FLT (deadhead back); layover at DAD 21->22 derivable" }
+        ] },
+        { "date": "2026-06-23", "type": "OFF", "code": "DO_I", "off": true },
+        { "date": "2026-06-24", "type": "OFF", "code": "DO_I", "off": true },
+        { "date": "2026-06-25", "type": "FLIGHT", "off": false, "report": "BRF 21:00", "legs": [
+          { "flight_no": "LJ733", "from": "ICN", "to": "TPE", "dep": "22:40", "arr": "00:10", "arr_day": "+1" }
+        ] },
+        { "date": "2026-06-26", "type": "FLIGHT", "off": false, "report": "BRF 20:00", "legs": [
+          { "flight_no": "LJ734", "from": "TPE", "to": "ICN", "dep": "01:25", "arr": "05:00", "notes": "TPE layover 25->26 derivable" }
+        ] },
+        { "date": "2026-06-27", "type": "OFF", "code": "DO_I", "off": true },
+        { "date": "2026-06-28", "type": "OFF", "code": "DO_I", "off": true },
+        { "date": "2026-06-29", "type": "FLIGHT", "off": false, "report": "BRF 18:15", "legs": [
+          { "flight_no": "LJ001", "from": "ICN", "to": "BKK", "dep": "19:55", "arr": "23:45" }
+        ] }
+      ]
+    }
+  ]
+}

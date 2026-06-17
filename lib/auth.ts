@@ -14,6 +14,13 @@ export interface Session {
    *  profiles.profile_type (source of truth); falls back to user_metadata, then
    *  'ktx_attendant', so legacy / pre-migration accounts are unaffected. */
   profileType: ProfileType
+  /** 소속 항공사 코드(lib/profile-fields.ts AIRLINES.code). 항공 승무원만 값이 있고,
+   *  KTX·기타는 undefined. 항공사별 브랜드 컬러 테마 + 스케줄 파서 레이아웃 선택에 쓴다.
+   *  profiles.airline (source of truth); user_metadata.airline은 레거시 폴백. */
+  airline?: string
+  /** Google 가입자가 직업(카테고리)을 아직 안 골라 차단 온보딩이 필요한 상태.
+   *  이메일 가입·데모·이미 선택한 계정은 false. OnboardingGate가 이걸 보고 /welcome로 보낸다. */
+  needsOnboarding: boolean
   /** True when this session is the local demo (localStorage), not Supabase. */
   isDemo: boolean
 }
@@ -51,6 +58,7 @@ function demoSession(): Session {
     uid: DEMO_ME.uid, email: DEMO_ME.email, name: DEMO_ME.name,
     employeeId: DEMO_ME.employeeId, part: DEMO_ME.part, photo,
     profileType: 'ktx_attendant',
+    needsOnboarding: false,
     isDemo: true,
   }
 }
@@ -70,7 +78,7 @@ function getDemoSession(): Session | null {
  * makes navigation network-free; uid/email/name/metadata still come live from
  * getSession(). Cached only on a successful fetch; invalidated on photo change
  * + logout. */
-let profileCache: { uid: string; photo: string | undefined; profileType: ProfileType } | null = null
+let profileCache: { uid: string; photo: string | undefined; profileType: ProfileType; airline: string | undefined; jobCategory: string | undefined } | null = null
 
 export async function getCurrentSession(): Promise<Session | null> {
   const { data } = await supabase.auth.getSession()
@@ -87,28 +95,46 @@ export async function getCurrentSession(): Promise<Session | null> {
   // Photo also lives in profiles (see updatePhoto); metadata.photo is the legacy
   // fallback, preferred first to preserve prior behavior. One cached profiles read
   // resolves both photo and profile_type.
+  // 가입 provider — Google 미온보딩 게이트 판정에 쓴다(이메일 가입은 폼에서 이미 선택).
+  const provider = u.app_metadata?.provider
   let photo: string | undefined
   let profileType: ProfileType
+  let airline: string | undefined
+  let jobCategory: string | undefined
+  let cleanFetch = false
   if (profileCache && profileCache.uid === u.id) {
     photo = profileCache.photo
     profileType = profileCache.profileType
+    airline = profileCache.airline
+    jobCategory = profileCache.jobCategory
+    cleanFetch = true
   } else {
     try {
       const { data: prof } = await supabase
-        .from('profiles').select('photo, profile_type').eq('id', u.id).maybeSingle()
+        .from('profiles').select('photo, profile_type, airline, job_category').eq('id', u.id).maybeSingle()
       // No profiles row (shouldn't happen post-trigger) → fall back to metadata.
       profileType = prof
         ? (prof.profile_type === 'personal' ? 'personal' : 'ktx_attendant')
         : metaType
       photo = m.photo || (prof?.photo as string | null | undefined) || undefined
-      profileCache = { uid: u.id, photo, profileType }   // cache only on a clean fetch
+      // 소속 항공사: profiles가 진실의 원천, metadata는 레거시 폴백.
+      airline = (prof?.airline as string | null | undefined) || m.airline || undefined
+      jobCategory = (prof?.job_category as string | null | undefined) || undefined
+      profileCache = { uid: u.id, photo, profileType, airline, jobCategory }   // cache only on a clean fetch
+      cleanFetch = true
     } catch {
       // profiles fetch is best-effort; fall back to metadata and DON'T cache so
       // the next call retries against the source of truth.
       profileType = metaType
       photo = m.photo || undefined
+      airline = m.airline || undefined
     }
   }
+  // Google 가입자가 직업(카테고리)을 아직 안 고른 상태 → 온보딩 필요(차단 게이트).
+  // KTX 선택→profile_type≠personal, 항공→airline, 기타→job_category가 채워져 자동 해제.
+  // 조회 실패(catch) 시엔 게이트를 걸지 않는다(오게이팅 방지).
+  const needsOnboarding =
+    cleanFetch && provider === 'google' && profileType === 'personal' && !airline && !jobCategory
   return {
     uid: u.id,
     email: u.email ?? '',
@@ -117,6 +143,8 @@ export async function getCurrentSession(): Promise<Session | null> {
     part: m.part || undefined,
     photo,
     profileType,
+    airline,
+    needsOnboarding,
     isDemo: false,
   }
 }
@@ -221,6 +249,9 @@ export interface SignupInput {
   jobCategory?: string
   /** jobCategory === 'other'일 때 직접 입력한 직군 텍스트. 그 외엔 보내지 않는다. */
   jobOther?: string
+  /** 소속 항공사 코드(AIRLINES.code). 항공 승무원 가입에서만 보낸다. KTX/기타엔
+   *  undefined. handle_new_user_profile() → profiles.airline (20260617000000). */
+  airline?: string
 }
 
 export type SignupResult =
@@ -261,6 +292,9 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
         // 받는 경우엔 아예 키를 싣지 않는다(미응답 = NULL 유지).
         ...(input.jobCategory ? { job_category: input.jobCategory } : {}),
         ...(input.jobOther ? { job_other: input.jobOther } : {}),
+        // Read by handle_new_user_profile() → profiles.airline (20260617000000).
+        // 항공 승무원 가입에서만 키를 싣는다(없으면 NULL = 항공 크루 아님).
+        ...(input.airline ? { airline: input.airline } : {}),
         // Read by consume_invite_on_signup() → creates the bidirectional accepted
         // share at account creation (20260601000000), independent of the email
         // redirect. The client-side localStorage/URL path stays as a fallback.
@@ -546,6 +580,43 @@ export async function setJobCategory(category: string, other?: string): Promise<
   if (error) {
     return { ok: false, message: '직무 저장 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
   }
+  return { ok: true }
+}
+
+/** Google 가입자 온보딩 완료 — 가입 폼을 안 거친 Google 계정이 직업(카테고리)을 고른다.
+ *  category에 따라 profile_type/airline/job_category를 채워 needsOnboarding 게이트를 해제한다.
+ *  - 'ktx'     → profile_type='ktx_attendant' (사번·지사는 설정에서 추후)
+ *  - 'airline' → profile_type='personal' + airline 태그
+ *  - 'other'   → profile_type='personal' + job_category (게이트 해제 위해 직군 필수)
+ *  성공 시 프로필 캐시를 무효화해 다음 getCurrentSession이 게이트 해제를 반영하게 한다. */
+export async function completeOnboarding(input: {
+  category: 'ktx' | 'airline' | 'other'
+  airline?: string
+  jobCategory?: string
+  jobOther?: string
+}): Promise<{ ok: boolean; message?: string }> {
+  if (typeof window !== 'undefined' && localStorage.getItem(DEMO_SESSION_KEY)) {
+    return { ok: false, message: '데모 계정은 사용할 수 없어요.' }
+  }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, message: '로그인 상태를 확인하지 못했어요. 다시 로그인한 뒤 시도해 주세요.' }
+  const profileType: ProfileType = input.category === 'ktx' ? 'ktx_attendant' : 'personal'
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      profile_type: profileType,
+      airline: input.category === 'airline' ? (input.airline ?? null) : null,
+      job_category: input.category === 'other' ? (input.jobCategory ?? null) : null,
+      job_other:
+        input.category === 'other' && input.jobCategory === 'other'
+          ? (input.jobOther?.trim() || null)
+          : null,
+    })
+    .eq('id', user.id)
+  if (error) {
+    return { ok: false, message: '저장 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
+  }
+  profileCache = null   // 게이트 해제가 즉시 반영되도록 캐시 무효화
   return { ok: true }
 }
 

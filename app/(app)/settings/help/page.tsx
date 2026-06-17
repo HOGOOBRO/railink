@@ -13,7 +13,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: '동료에게 내 일정을 숨길 수 있나요?',
-    a: '내 정보 → 공개 범위에서 "내 일정을 동료에게 공개" 토글을 끄면 비교 추가된 동료가 내 다이·출퇴근을 볼 수 없어요.',
+    a: '내 정보 → 공개 범위에서 "내 일정을 동료에게 공개" 토글을 끄면 비교 추가된 동료가 내 근무 상세를 볼 수 없어요.',
   },
   {
     q: '비교 동료는 몇 명까지 추가할 수 있나요?',
@@ -141,11 +141,11 @@ export default function HelpPage() {
           ))}
         </section>
 
-        {/* Independent-app disclaimer (RaiLink is not an official Korail service) */}
+        {/* Independent-app disclaimer (RaiLink is not affiliated with any carrier/operator) */}
         <section className="mt-4 px-4 py-4 rounded-lg bg-bg border border-line">
           <p className="text-caption text-ink-500 leading-relaxed">
-            RaiLink는 KTX 승무팀이 자율적으로 쓰는 <strong className="text-ink-700 font-semibold">독립 앱</strong>이에요.
-            코레일의 공식 서비스가 아니며, 코레일과 제휴·후원 관계가 없어요.
+            RaiLink는 교대근무자가 자율적으로 쓰는 <strong className="text-ink-700 font-semibold">독립 앱</strong>이에요.
+            특정 항공사·기관의 공식 서비스가 아니며, 어떤 회사와도 제휴·후원 관계가 없어요.
           </p>
         </section>
       </div>

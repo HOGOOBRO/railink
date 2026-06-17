@@ -11,6 +11,7 @@ import { recognizeScheduleImage, type OcrProgress } from '@/lib/parse/schedule-i
 import { fmtClock, hmToDecimal, canonicalEnd, isOvernight, normalizeTimeInput } from '@/lib/schedule-utils'
 import { getCodebook, type CodebookEntry } from '@/lib/store/codebook'
 import { AnalyzeTableSkeleton } from '@/components/calendar/AnalyzeTableSkeleton'
+import { RosterExampleCard } from '@/components/calendar/RosterExampleCard'
 import Link from 'next/link'
 
 // Show overnight ends as a real next-day clock ("11:49") in the editable preview
@@ -60,6 +61,9 @@ interface UploadModalProps {
   /** Personal (비-KTX) 계정: 등록 화면에서 직접입력을 hero로 올리고, 직접입력
    *  기본 카테고리를 '일반 근무'로 전환한다 (KTX 다이 입력은 부차적). */
   isPersonal?: boolean
+  /** 소속 항공사 코드(AIRLINES.code). AI 이미지 인식에 전달해 항공사 로스터
+   *  레이아웃(예: 에어프레미아 그리드)을 적용한다. 항공 승무원만 값이 있다. */
+  airline?: string
   onPreview: () => void
   onManual: () => void
   onBack: () => void
@@ -208,7 +212,7 @@ function nextPreviewDate(rows: ParsedScheduleRow[], year: number, month: number)
 }
 
 export function UploadModal({
-  step, defaultYear, defaultMonth, initialRows = [], userName, userId, isPersonal = false,
+  step, defaultYear, defaultMonth, initialRows = [], userName, userId, isPersonal = false, airline,
   onPreview, onManual, onBack, onClose, onSave,
 }: UploadModalProps) {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -222,6 +226,12 @@ export function UploadModal({
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // 항공 승무원(airline)·KTX는 올릴 로스터 캡쳐가 있으니 '이미지 등록'을 hero로,
+  // 일반 personal만 '직접 입력'을 hero로 둔다.
+  const imageFirst = !isPersonal || !!airline
+  // 항공 승무원: 사진 선택 전 "어떤 화면을 올리나" 안내 화면을 거친다.
+  const [imageGuide, setImageGuide] = useState(false)
 
   // Manual-entry state — independent of file/image preview rows.
   const [manualRows, setManualRows] = useState<ManualRow[]>(
@@ -306,7 +316,8 @@ export function UploadModal({
 
     try {
       const parsed = await parseScheduleFile(file, defaultYear)
-      const display = isPersonal
+      // 항공 승무원은 편명(열번)·활동코드가 유의미하므로 strip 대상에서 제외.
+      const display = isPersonal && !airline
         ? stripKtxFieldsForPersonal(parsed)
         : { rows: parsed, stripped: false }
       setRows(displayPreviewRows(display.rows))
@@ -339,8 +350,12 @@ export function UploadModal({
     setSourceLabel('이미지')
 
     try {
-      const result = await recognizeScheduleImage(files, defaultYear, defaultMonth, setOcr, userName)
-      const display = isPersonal
+      // 항공 승무원이면 항공사 레이아웃을 쓰고 팀-표(userName) 경로는 끈다.
+      const result = await recognizeScheduleImage(
+        files, defaultYear, defaultMonth, setOcr, airline ? undefined : userName, airline,
+      )
+      // 항공 승무원은 편명(열번)·활동코드가 유의미하므로 strip 대상에서 제외.
+      const display = isPersonal && !airline
         ? stripKtxFieldsForPersonal(result.rows)
         : { rows: result.rows, stripped: false }
       setRows(displayPreviewRows(display.rows))
@@ -370,7 +385,11 @@ export function UploadModal({
     setError(null)
     setNotice(null)
     if (key === 'file') { fileRef.current?.click(); return }
-    if (key === 'image') { imageRef.current?.click(); return }
+    if (key === 'image') {
+      // 항공 승무원: 바로 앨범을 열지 않고 먼저 "어떤 화면을 올리나" 안내를 보여준다.
+      if (airline) { setImageGuide(true); return }
+      imageRef.current?.click(); return
+    }
     onManual()
   }
 
@@ -463,18 +482,57 @@ export function UploadModal({
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-6">
-        {step === 'pick' && (
+        {/* 항공 승무원 전용: 사진 선택 전 "어떤 화면을 올리나" 안내(AI 스캔 예시 카드) */}
+        {step === 'pick' && imageGuide && (
           <>
+            <button
+              type="button"
+              onClick={() => setImageGuide(false)}
+              className="inline-flex items-center gap-1 text-caption font-semibold text-ink-500 mb-2 -ml-1"
+            >
+              <ChevronLeftIcon size={16} /> 등록 방법
+            </button>
             <h4 className="text-[22px] font-bold tracking-tight text-ink-900 leading-tight mb-1.5">
-              {isPersonal ? '근무 일정을 등록해 주세요' : '근무표 사진을 올려 주세요'}
+              월 근무표를 올려주세요
             </h4>
             <p className="text-[13.5px] text-ink-500 leading-relaxed mb-4">
-              {isPersonal
-                ? '직접 입력으로 빠르게 추가하거나, 사진·파일로도 등록할 수 있어요.'
-                : 'AI가 날짜·다이·출퇴근 시각을 읽어서 자동으로 채워 드려요.'}
+              근무표 <strong className="text-ink-700">달력 화면 전체</strong>가 한 장에 나오게 캡쳐해 주세요.
+              AI가 날짜·편명·시각을 자동으로 읽어요.
             </p>
 
-            {isPersonal ? (
+            <RosterExampleCard />
+
+            <ul className="mt-4 flex flex-col gap-2">
+              {[
+                '한 달 전체가 한 화면에 보이게',
+                '글자가 또렷하게 (흐리면 인식이 떨어져요)',
+                '하단 코드 설명까지 같이 나와도 좋아요',
+              ].map(tip => (
+                <li key={tip} className="flex items-start gap-2 text-caption text-ink-700 leading-relaxed">
+                  <span className="shrink-0 mt-0.5 text-brand"><CheckIcon size={15} /></span>
+                  {tip}
+                </li>
+              ))}
+            </ul>
+
+            <Button block className="mt-5" onClick={() => imageRef.current?.click()}>
+              사진 선택
+            </Button>
+          </>
+        )}
+
+        {step === 'pick' && !imageGuide && (
+          <>
+            <h4 className="text-[22px] font-bold tracking-tight text-ink-900 leading-tight mb-1.5">
+              {imageFirst ? '근무표 사진을 올려 주세요' : '근무 일정을 등록해 주세요'}
+            </h4>
+            <p className="text-[13.5px] text-ink-500 leading-relaxed mb-4">
+              {imageFirst
+                ? `AI가 날짜·${airline ? '편명' : '다이'}·출퇴근 시각을 읽어서 자동으로 채워 드려요.`
+                : '직접 입력으로 빠르게 추가하거나, 사진·파일로도 등록할 수 있어요.'}
+            </p>
+
+            {!imageFirst ? (
               /* Primary hero — 직접 입력. 일반계정은 KTX 다이 인식이 무의미하므로
                  직접입력을 hero로 올리고 사진은 부차 메서드로 강등. */
               <button
@@ -537,9 +595,9 @@ export function UploadModal({
               <span className="flex-1 h-px bg-line" />
             </div>
 
-            {/* Secondary methods — 일반계정은 직접입력이 hero라 사진/파일을 부차로 */}
+            {/* Secondary methods — 직접입력 hero(일반 personal)일 때만 사진을 부차로 */}
             <div className="grid gap-2">
-              {isPersonal ? (
+              {!imageFirst ? (
                 <>
                   <SecondaryMethod
                     icon={<ImageIcon size={18} />}
@@ -568,7 +626,7 @@ export function UploadModal({
                   <SecondaryMethod
                     icon={<EditIcon size={18} />}
                     label="직접 입력"
-                    sub="KTX 승무 · 일반 근무 모두 가능"
+                    sub={airline ? '근무 시간을 직접 입력해요' : 'KTX 승무 · 일반 근무 모두 가능'}
                     onClick={() => handleOption('manual')}
                     disabled={!!busy}
                   />
@@ -603,8 +661,12 @@ export function UploadModal({
                     </p>
                   )}
                 </div>
-                {/* ③ 채워질 미리보기 표 모양 스켈레톤 — 진행률 표시는 위에 유지. */}
-                <AnalyzeTableSkeleton />
+                {/* ③ 채워질 미리보기 표 모양 스켈레톤 — 진행률 표시는 위에 유지.
+                    항공/KTX는 코드 컬럼 표시(라벨만 다름), 일반 personal은 컬럼 생략. */}
+                <AnalyzeTableSkeleton
+                  ktx={!isPersonal || !!airline}
+                  codeLabel={airline ? '근무코드/편명' : '다이/열번'}
+                />
               </>
             )}
             {error && (
@@ -648,6 +710,7 @@ export function UploadModal({
               onChange={setPreviewRow}
               onRemove={removePreviewRow}
               onAppend={appendPreviewRow}
+              airline={airline}
             />
             {saving && (
               <StatusBox tone="info">
@@ -797,9 +860,11 @@ interface PreviewBodyProps {
   onChange: (i: number, patch: Partial<ParsedScheduleRow>) => void
   onRemove: (i: number) => void
   onAppend: () => void
+  /** 항공 승무원이면 KTX 용어(다이/열번) 대신 근무코드/편명으로 라벨링. */
+  airline?: string
 }
 
-function PreviewBody({ rows, onChange, onRemove, onAppend }: PreviewBodyProps) {
+function PreviewBody({ rows, onChange, onRemove, onAppend, airline }: PreviewBodyProps) {
   return (
     <div className="mt-3">
       <div className="flex items-center justify-between px-1 mb-2">
@@ -858,13 +923,13 @@ function PreviewBody({ rows, onChange, onRemove, onAppend }: PreviewBodyProps) {
             <div className="mt-2 grid grid-cols-[1fr_1fr_62px_62px] gap-1.5">
               <input
                 value={row.diaNr ?? ''}
-                placeholder={row.isOff ? 'S' : '다이'}
+                placeholder={row.isOff ? 'S' : (airline ? '근무코드' : '다이')}
                 onChange={e => onChange(i, { diaNr: e.target.value })}
                 className="min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg"
               />
               <input
                 value={row.trainNr ?? ''}
-                placeholder="열번"
+                placeholder={airline ? '편명' : '열번'}
                 disabled={row.isOff}
                 onChange={e => onChange(i, { trainNr: e.target.value })}
                 className="min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
