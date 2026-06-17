@@ -376,15 +376,23 @@ async function getAuthenticatedSupabase(token: string): Promise<{
   return { supabase, userId: data.user.id, email: data.user.email ?? '' }
 }
 
+/** 운영자(관리자) 계정 — 항상 이미지 인식 무제한. handle_new_user_profile()의
+ *  is_admin 화이트리스트와 동일. (서버 코드라 클라이언트에 노출되지 않음) */
+const ADMIN_UNLIMITED_EMAILS = new Set([
+  'wlsgus23@nate.com', 'wlsgus23@naver.com', 'wlsgus11117@gmail.com',
+])
+
 /** Test/admin accounts that bypass the monthly AI image limit.
- * Set AI_IMAGE_UNLIMITED_EMAILS to a comma-separated list of account emails
- * (server-side env, never exposed to the client). */
+ * 관리자 이메일은 항상 무제한이고, 추가로 AI_IMAGE_UNLIMITED_EMAILS(콤마 구분)에
+ * 적힌 이메일도 무제한. (서버 env, 클라이언트 비노출) */
 function isUnlimitedEmail(email: string): boolean {
   if (!email) return false
+  const lower = email.toLowerCase()
+  if (ADMIN_UNLIMITED_EMAILS.has(lower)) return true
   const raw = process.env.AI_IMAGE_UNLIMITED_EMAILS
   if (!raw) return false
   const allow = raw.split(',').map(entry => entry.trim().toLowerCase()).filter(Boolean)
-  return allow.includes(email.toLowerCase())
+  return allow.includes(lower)
 }
 
 function getBearerToken(req: NextRequest): string {
