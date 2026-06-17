@@ -205,7 +205,10 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
     const aEnd = (a.day - 1) * 24 + a.end
     const bStart = (b.day - 1) * 24 + b.start
     if (bStart <= aEnd) continue
-    out.push({ day: a.day, start: a.end, end: a.end + (bStart - aEnd), layover: true, dia: `${a.toAirport} 체류` })
+    // 같은 트립: 아웃바운드 비행·체류·인바운드 비행이 맞닿는 모서리를 붙여 한 근무처럼.
+    a.connectBottom = true
+    b.connectTop = true
+    out.push({ day: a.day, start: a.end, end: a.end + (bStart - aEnd), layover: true, dia: `${a.toAirport} 체류`, connectTop: true, connectBottom: true })
   }
   return out
 }
