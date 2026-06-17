@@ -336,6 +336,8 @@ export function UploadModal({
   async function handleImageChange(e: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
     if (!files.length) return
+    // 안내 화면(항공 가이드)을 닫아 인식 중 로딩/진행 표시가 보이게 한다.
+    setImageGuide(false)
 
     setBusy('image')
     setOcr({

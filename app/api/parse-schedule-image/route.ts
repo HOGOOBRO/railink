@@ -462,6 +462,40 @@ function formatUsageStoreError(message: string): string {
 }
 
 function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: number, userName: string, airline: string): string {
+  // 에어프레미아: KTX(A)/팀표(B) 프롬프트를 아예 거치지 않고 전용 프롬프트만 쓴다.
+  // (그리드가 KTX 캘린더와 비슷해 A로 오인 → 편명·코드를 비우는 문제 방지)
+  if (airline === 'air-premia') {
+    const ap: string[] = [
+      "You are extracting ONE Air Premia (에어프레미아) cabin-crew member's MONTHLY schedule from a screenshot.",
+      'Layout: a 7-column calendar grid, columns Sun..Sat (일 월 화 수 목 금 토). Each day cell shows, top to bottom:',
+      "  - the DAY NUMBER in the cell's top corner (01, 02, ...),",
+      '  - an optional activity CODE (ANLV, OFF, OVMRIG, RDO, REST, STH, TCRE),',
+      '  - zero to two flight numbers (YP### — e.g. YP801, YP102),',
+      '  - ONE clock-time range like "0735(L)~1845(L)".',
+      imageCount > 1
+        ? `There are ${imageCount} screenshots of the same month; merge by date and keep the clearest cell.`
+        : 'There is one screenshot.',
+      'Read EVERY non-empty cell, left to right and top to bottom. Return JSON only per the schema.',
+      '',
+      '## Date — use the printed day number',
+      'The period is printed near the top as "Period: 01Jun26 to 30Jun26" (DDMmmYY). Read the YEAR (26 -> 2026) and MONTH (Jun -> 06); set periodSource "image".',
+      "For EACH cell, take the day number printed in that cell's corner and combine with the period year/month to make the date (YYYY-MM-DD). ALWAYS use the printed number — never infer the date from grid position (cells can look offset).",
+      `If no period label is visible, fall back to ${defaultYear}-${String(defaultMonth).padStart(2, '0')} and set periodSource "fallback".`,
+      '',
+      '## Per-cell mapping (one row per non-empty cell)',
+      '- trainNr: the flight number(s) shown, e.g. "YP801 · YP802". Join multiple with " · ". Keep the YP prefix exactly. REQUIRED whenever flight numbers are visible — never leave empty on a flight day.',
+      '- diaNr: the activity code if the cell shows one (ANLV / OFF / OVMRIG / RDO / REST / STH / TCRE). If the cell has only flights+times, leave diaNr empty. A cell may have BOTH a code AND a flight (e.g. "REST" + "YP102") — put the code in diaNr and the flight in trainNr.',
+      '- startTime / endTime: from the time range. startTime = FIRST time, endTime = LAST time. Drop the "(L)" suffix. Format HH:MM.',
+      '- OVERNIGHT: if endTime is earlier than startTime, leave the printed clock value as-is (server adds +24h). A trailing "~" with no second time = continues next day (endTime empty). A leading "~HHMM" = continuation end on this date (startTime empty).',
+      '- isOff = true ONLY for ANLV, OFF, OVMRIG, RDO (no times). isOff = false for REST, STH, TCRE and any cell that has flight numbers or times.',
+      '',
+      '## Rules',
+      'Never return a date as only a day number — always full YYYY-MM-DD.',
+      'Do NOT hallucinate codes/flights/times that are not visible; leave unclear fields as empty strings, but DO capture everything that IS printed (especially flight numbers and codes).',
+      'Ignore the "Sum / Total BLH" box and the "Activity Code Descriptions" legend at the bottom — those are not daily cells.',
+    ]
+    return ap.join('\n')
+  }
   const lines: string[] = [
     'You are extracting a monthly work schedule from a screenshot.',
     'The image may be one of two layouts — recognize which and proceed accordingly:',
@@ -500,23 +534,6 @@ function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: numb
     '  · 휴일여부 = Y ⇒ isOff:true (that row\'s diaNr is usually "S" and its train/time cells are "-"). 휴일여부 = N ⇒ a working day, so train numbers MUST be filled from 대표열번1/2.',
     '- A "-" in any cell means empty. NEVER leave trainNr empty on a working (N) row when 대표열번1/2 show numbers.',
   ]
-  if (airline === 'air-premia') {
-    lines.push(
-      '',
-      '## Layout (C) — Air Premia (에어프레미아) cabin-crew month grid  ← USE THIS LAYOUT; it OVERRIDES (A) and (B).',
-      'This screenshot is ONE crew member\'s monthly schedule as a 7-column calendar grid (Sun..Sat).',
-      'Period: a header reads like "Period: 01Jun26 to 30Jun26" (DDMmmYY). Read the YEAR (26 → 2026) and MONTH (Jun → 06) from it and set periodSource "image".',
-      'Each day cell stacks, top to bottom: the day number (corner), an optional activity CODE, 0-2 flight numbers (YP###), and ONE clock-time range like "0735(L)~1845(L)".',
-      'Map each non-empty cell to one row for that date:',
-      '- diaNr: the activity code when the cell shows one — ANLV, OFF, OVMRIG, RDO, REST, STH, TCRE. Empty when the cell only has flight numbers + times.',
-      '- trainNr: the flight number(s), e.g. "YP801 · YP802". Join multiple with " · ". Keep the YP prefix; these are NOT clock times.',
-      '- startTime = the FIRST time, endTime = the LAST time. Drop the "(L)" suffix. Format HH:MM.',
-      '- OVERNIGHT: if endTime < startTime the duty ends the next day — that is fine, leave the clock value as printed (the server adds +24h). A trailing "~" with no second time = continues next day (leave endTime empty). A leading "~HHMM" = the continuation END on this date (leave startTime empty).',
-      '- isOff = true ONLY for ANLV, OFF, OVMRIG, RDO (these cells have no times). isOff = false for REST, STH, TCRE and for any cell that has flight numbers or times.',
-      '- A cell may show BOTH a code AND a flight (e.g. "REST" then "YP102" "0945(L)~"): it is a WORKING day — put the code in diaNr, the flight in trainNr, and isOff = false.',
-      'Ignore the "Sum / Total BLH" box and the "Activity Code Descriptions" legend box at the bottom.',
-    )
-  }
   if (userName) {
     lines.push(
       '',
