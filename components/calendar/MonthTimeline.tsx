@@ -293,9 +293,9 @@ export function MonthTimeline({
                   <div
                     key={si}
                     className="absolute left-0 right-0 overflow-hidden leading-tight"
-                    style={{ top: lt, height: lh, background: 'repeating-linear-gradient(135deg, var(--bg), var(--bg) 7px, var(--surface-2) 7px, var(--surface-2) 14px)', boxShadow: 'inset 0 0 0 1px var(--line-2)', borderLeft: `3px dashed ${p.color}`, borderRadius: 10, padding: '6px 8px' }}
+                    style={{ top: lt, height: lh, background: `color-mix(in oklab, ${p.color} 5%, white)`, boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${p.color} 18%, white)`, borderLeft: `3px solid ${p.color}`, borderRadius: 10, padding: '6px 8px' }}
                   >
-                    <span className="text-[11px] font-bold text-ink-500">🧳 {s.dia}</span>
+                    <span className="text-[11px] font-bold text-ink-500">{s.dia}</span>
                   </div>
                 )
               }
@@ -337,7 +337,7 @@ export function MonthTimeline({
                       {p.tag && <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>}
                     </div>
                     {s.dir && (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-pill self-start whitespace-nowrap" style={{ background: 'color-mix(in oklab, var(--accent) 16%, white)', color: 'var(--accent)' }}>{s.dir}</span>
+                      <div className="text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>{s.dir}</div>
                     )}
                     {s.dia && (
                       <div className="font-en text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>{s.dia}</div>

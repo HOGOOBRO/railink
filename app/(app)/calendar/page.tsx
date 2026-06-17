@@ -129,9 +129,9 @@ function placeShift(
   const pad = (n: number) => String(n).padStart(2, '0')
   const kstClk = (x: Date) => `${pad(x.getUTCHours())}:${pad(x.getUTCMinutes())}`
   const depLabel = `${fromAirport ?? ''} ${pad(sh)}:${pad(sm)}`.trim()
-    + (fromTz !== KST_TZ ? ` · 한국 ${kstClk(dk)}` : '')
+    + (fromTz !== KST_TZ ? ` (한국시간 ${kstClk(dk)})` : '')
   const arrLabel = `${toAirport ?? ''} ${pad(eh)}:${pad(em)}`.trim()
-    + (toTz !== KST_TZ ? ` · 한국 ${kstClk(ak)}` : '')
+    + (toTz !== KST_TZ ? ` (한국시간 ${kstClk(ak)})` : '')
   return { day: dk.getUTCDate(), start, end: start + (arrUtc - depUtc) / 3_600_000, depLabel, arrLabel }
 }
 
