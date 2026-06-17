@@ -339,13 +339,13 @@ export function MonthTimeline({
                   className={`absolute left-0 right-0 flex flex-col overflow-hidden leading-tight text-left ${compact ? 'justify-center gap-1.5' : 'justify-between'}`}
                   style={{ top, height: h, background: `color-mix(in oklab, ${p.color} 12%, white)`, borderStyle: 'solid', borderColor: `color-mix(in oklab, ${p.color} 26%, white)`, borderLeftColor: p.color, borderTopWidth: s.connectTop ? 0 : 1, borderRightWidth: 1, borderBottomWidth: s.connectBottom ? 0 : 1, borderLeftWidth: 3, borderTopLeftRadius: s.connectTop ? 0 : 10, borderTopRightRadius: s.connectTop ? 0 : 10, borderBottomLeftRadius: s.connectBottom ? 0 : 10, borderBottomRightRadius: s.connectBottom ? 0 : 10, padding: '5px 6px 6px' }}
                 >
-                  <div className="flex items-center gap-1 min-w-0">
-                    <Initial name={p.name} photo={p.photo} color={p.color} />
-                    <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
-                    {p.tag && <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>}
-                  </div>
                   {compact ? (
                     <>
+                      <div className="flex items-center gap-1 min-w-0">
+                        <Initial name={p.name} photo={p.photo} color={p.color} />
+                        <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
+                        {p.tag && <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>}
+                      </div>
                       {(s.dir || s.dia) && (
                         <div className="flex items-center gap-1 min-w-0">
                           {s.dir && <span className="text-[10px] font-bold bg-white px-1 rounded-xs whitespace-nowrap shrink-0" style={{ color: p.color }}>{s.dir}</span>}
@@ -356,7 +356,14 @@ export function MonthTimeline({
                     </>
                   ) : (
                     <>
+                      {/* 윗묶음: 이름·근무코드·출발이 카드 상단에 붙어야 한다(자식 2개라
+                          justify-between이 위/아래로 가른다 — 이름을 따로 빼면 3등분돼 가운데로 밀림). */}
                       <div className="flex flex-col gap-1 min-w-0">
+                        <div className="flex items-center gap-1 min-w-0">
+                          <Initial name={p.name} photo={p.photo} color={p.color} />
+                          <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
+                          {p.tag && <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>}
+                        </div>
                         {s.dir && (
                           <div className="text-[12px] font-bold bg-white px-1.5 py-0.5 rounded-xs self-start whitespace-nowrap" style={{ color: p.color }}>{s.dir}</div>
                         )}
