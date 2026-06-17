@@ -122,18 +122,34 @@ function placeShift(
   let arrUtc = wallToUtcMs(year, month, arrDay, eh, em, toTz)
   while (arrUtc <= depUtc) arrUtc += 86_400_000
   const dk = new Date(depUtc + 9 * 3_600_000) // KST = UTC+9
+  const ak = new Date(arrUtc + 9 * 3_600_000)
   const start = dk.getUTCHours() + dk.getUTCMinutes() / 60
-  // 항공권식 라벨: 각 공항을 그 공항 현지시각으로(인천은 인천, LA는 LA). 0-23 벽시계.
-  // 화면엔 이 라벨을 쓰고, 블록 위치/길이는 위의 KST instant(start/end)로 잡는다.
+  // 라벨: 각 공항을 그 공항 현지시각으로(인천은 인천, LA는 LA) + 외국 공항이면 한국시각도
+  // 함께(예: "LAX 17:50 · 한국 09:50"). 블록 위치/길이는 KST instant(start/end)로 잡는다.
   const pad = (n: number) => String(n).padStart(2, '0')
+  const kstClk = (x: Date) => `${pad(x.getUTCHours())}:${pad(x.getUTCMinutes())}`
   const depLabel = `${fromAirport ?? ''} ${pad(sh)}:${pad(sm)}`.trim()
+    + (fromTz !== KST_TZ ? ` · 한국 ${kstClk(dk)}` : '')
   const arrLabel = `${toAirport ?? ''} ${pad(eh)}:${pad(em)}`.trim()
+    + (toTz !== KST_TZ ? ` · 한국 ${kstClk(ak)}` : '')
   return { day: dk.getUTCDate(), start, end: start + (arrUtc - depUtc) / 3_600_000, depLabel, arrLabel }
+}
+
+const HOME_AIRPORTS = new Set(['ICN', 'GMP'])
+
+// 노선으로 아웃바운드(한국 출발)/인바운드(한국 도착) 판별. 둘 다 한국이거나(왕복)
+// 둘 다 외국이면 방향 없음(undefined).
+function flightDir(from?: string, to?: string): '아웃바운드' | '인바운드' | undefined {
+  if (!from || !to) return undefined
+  const fromHome = HOME_AIRPORTS.has(from), toHome = HOME_AIRPORTS.has(to)
+  if (fromHome && !toHome) return '아웃바운드'
+  if (toHome && !fromHome) return '인바운드'
+  return undefined
 }
 
 // One person's working shifts across the month, for the continuous timeline.
 // 항공편은 공항 현지시각이라 인천(KST) 기준으로 환산해 위치를 잡는다(placeShift).
-// 레이오버(순수 REST)는 카드로 띄우지 않고, 연속 표기("~(H1048)")는 시작 행에서 그린다.
+// 비행 사이 외국 체류는 '레이오버' 연속 블록으로 채운다. 순수 REST는 카드로 안 띄운다.
 function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: number, month: number, airline?: string): MonthShift[] {
   const dim = new Date(year, month, 0).getDate()
   const mm = String(month).padStart(2, '0')
@@ -141,11 +157,13 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
   const skip = new Set<number>()
   const at = (d: number) => entryOf(`${year}-${mm}-${String(d).padStart(2, '0')}`)
   const rt = (trainNr?: string) => routeForFlights(airline, trainNr) ?? undefined
+  // 비행에는 REST(레이오버 마커)를 코드로 붙이지 않는다(인바운드 비행이 쉬는 것처럼 보임).
+  const flightDia = (raw?: string) => (raw === 'REST' ? undefined : raw)
   for (let d = 1; d <= dim; d++) {
     if (skip.has(d)) continue
     const e = at(d)
     if (!e || e.isOff || (e.diaNr && e.diaNr.startsWith('~('))) continue
-    // 레이오버(휴식) 마커 — 시각·편명 없는 순수 REST는 카드로 안 띄운다(겹침 제거).
+    // 레이오버(휴식) 마커 — 시각·편명 없는 순수 REST는 카드로 안 띄운다(아래 후처리가 체류 블록으로).
     if (e.diaNr === 'REST' && !e.startTime && !e.endTime && !e.trainNr) continue
     const hasStart = !!e.startTime, hasEnd = !!e.endTime
     if (!hasStart && !hasEnd) {
@@ -155,7 +173,7 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
     if (hasStart && hasEnd) {
       const ep = flightEndpoints(airline, e.trainNr)
       const p = placeShift(year, month, d, e.startTime as string, ep.from, d, e.endTime as string, ep.to)
-      out.push({ day: p.day, dia: e.diaNr, trainNr: e.trainNr, start: p.start, end: p.end, route: rt(e.trainNr), depLabel: p.depLabel, arrLabel: p.arrLabel })
+      out.push({ day: p.day, dia: flightDia(e.diaNr), trainNr: e.trainNr, start: p.start, end: p.end, route: rt(e.trainNr), depLabel: p.depLabel, arrLabel: p.arrLabel, dir: flightDir(ep.from, ep.to), fromAirport: ep.from, toAirport: ep.to })
       continue
     }
     // 한쪽 시각만 = 밤샘 연속근무. 시작만 있는 날 + 다음날 끝만 있는 날을 하나로 병합.
@@ -165,16 +183,29 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
         const trainNr = e.trainNr || nx.trainNr
         const ep = flightEndpoints(airline, trainNr)
         const p = placeShift(year, month, d, e.startTime as string, ep.from, d + 1, nx.endTime, ep.to)
-        out.push({ day: p.day, dia: e.diaNr || nx.diaNr, trainNr, start: p.start, end: p.end, route: rt(trainNr), depLabel: p.depLabel, arrLabel: p.arrLabel })
+        out.push({ day: p.day, dia: flightDia(e.diaNr || nx.diaNr), trainNr, start: p.start, end: p.end, route: rt(trainNr), depLabel: p.depLabel, arrLabel: p.arrLabel, dir: flightDir(ep.from, ep.to), fromAirport: ep.from, toAirport: ep.to })
         skip.add(d + 1)
         continue
       }
-      // 짝을 못 찾은 시작-only(예외) — 당일 끝까지 + '익일 계속' 라벨.
       out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: hmToDecimal(e.startTime as string), end: 24, cont: 'start', route: rt(e.trainNr) })
       continue
     }
-    // 짝을 못 찾은 끝-only(예외) — '전날부터' 라벨.
     out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: 0, end: hmToDecimal(e.endTime as string), cont: 'end', route: rt(e.trainNr) })
+  }
+
+  // 레이오버 후처리: 외국에 도착한 비행 → 다음 외국발 비행 사이를 연속 '체류' 블록으로.
+  const flights = out
+    .filter(s => s.fromAirport || s.toAirport)
+    .sort((a, b) => ((a.day - 1) * 24 + a.start) - ((b.day - 1) * 24 + b.start))
+  for (let i = 0; i < flights.length - 1; i++) {
+    const a = flights[i], b = flights[i + 1]
+    const aAway = !!a.toAirport && !HOME_AIRPORTS.has(a.toAirport)
+    const bAway = !!b.fromAirport && !HOME_AIRPORTS.has(b.fromAirport)
+    if (!aAway || !bAway) continue
+    const aEnd = (a.day - 1) * 24 + a.end
+    const bStart = (b.day - 1) * 24 + b.start
+    if (bStart <= aEnd) continue
+    out.push({ day: a.day, start: a.end, end: a.end + (bStart - aEnd), layover: true, dia: `${a.toAirport} 체류` })
   }
   return out
 }
