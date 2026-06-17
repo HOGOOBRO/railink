@@ -297,7 +297,7 @@ export function MonthTimeline({
                   <div
                     key={si}
                     className="absolute left-0 right-0 overflow-hidden leading-tight"
-                    style={{ top: lt, height: lh, background: `color-mix(in oklab, ${p.color} 5%, white)`, boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${p.color} 18%, white)`, borderLeft: `3px solid ${p.color}`, borderTopLeftRadius: s.connectTop ? 0 : 10, borderTopRightRadius: s.connectTop ? 0 : 10, borderBottomLeftRadius: s.connectBottom ? 0 : 10, borderBottomRightRadius: s.connectBottom ? 0 : 10, padding: '6px 8px' }}
+                    style={{ top: lt, height: lh, background: `color-mix(in oklab, ${p.color} 5%, white)`, borderStyle: 'solid', borderColor: `color-mix(in oklab, ${p.color} 26%, white)`, borderLeftColor: p.color, borderTopWidth: s.connectTop ? 0 : 1, borderRightWidth: 1, borderBottomWidth: 1, borderLeftWidth: 3, borderTopLeftRadius: s.connectTop ? 0 : 10, borderTopRightRadius: s.connectTop ? 0 : 10, borderBottomLeftRadius: s.connectBottom ? 0 : 10, borderBottomRightRadius: s.connectBottom ? 0 : 10, padding: '6px 8px' }}
                   >
                     <span className="text-[11px] font-bold text-ink-500">{s.dia}</span>
                   </div>
@@ -332,7 +332,7 @@ export function MonthTimeline({
                   key={si}
                   onClick={() => onTapShift?.({ name: p.name, dia: s.dia, trainNr: s.trainNr, start: s.start, end: s.end, depLabel: s.depLabel, arrLabel: s.arrLabel, dir: s.dir })}
                   className="absolute left-0 right-0 flex flex-col justify-between overflow-hidden leading-tight text-left"
-                  style={{ top, height: h, background: `color-mix(in oklab, ${p.color} 12%, white)`, boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${p.color} 30%, white)`, borderLeft: `3px solid ${p.color}`, borderTopLeftRadius: s.connectTop ? 0 : 10, borderTopRightRadius: s.connectTop ? 0 : 10, borderBottomLeftRadius: s.connectBottom ? 0 : 10, borderBottomRightRadius: s.connectBottom ? 0 : 10, padding: '5px 6px 6px' }}
+                  style={{ top, height: h, background: `color-mix(in oklab, ${p.color} 12%, white)`, borderStyle: 'solid', borderColor: `color-mix(in oklab, ${p.color} 26%, white)`, borderLeftColor: p.color, borderTopWidth: s.connectTop ? 0 : 1, borderRightWidth: 1, borderBottomWidth: 1, borderLeftWidth: 3, borderTopLeftRadius: s.connectTop ? 0 : 10, borderTopRightRadius: s.connectTop ? 0 : 10, borderBottomLeftRadius: s.connectBottom ? 0 : 10, borderBottomRightRadius: s.connectBottom ? 0 : 10, padding: '5px 6px 6px' }}
                 >
                   <div className="flex flex-col gap-1 min-w-0">
                     <div className="flex items-center gap-1 min-w-0">
