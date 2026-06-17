@@ -111,16 +111,21 @@ function placeShift(
     else if (end < start) end += 24
     return { day: depDay, start, end }
   }
-  const [sh, sm] = depLocal.split(':').map(Number)
-  const [eh, em] = arrLocal.split(':').map(Number)
+  // 파서는 익일 종료를 24+로 저장(예: 17:50 → "41:50")하지만, 국제선은 출·도착
+  // 타임존이 달라 그 +24를 신뢰하면 안 된다(이중계산 → 37시간짜리 블록). 실제 벽시계
+  // (0-23)로 환산한 뒤, 실제 instant 비교(while)로 날짜 넘김을 판단한다.
+  const sh = Number(depLocal.split(':')[0]) % 24
+  const sm = Number(depLocal.split(':')[1])
+  const eh = Number(arrLocal.split(':')[0]) % 24
+  const em = Number(arrLocal.split(':')[1])
   const depUtc = wallToUtcMs(year, month, depDay, sh, sm, fromTz)
   let arrUtc = wallToUtcMs(year, month, arrDay, eh, em, toTz)
   while (arrUtc <= depUtc) arrUtc += 86_400_000
   const dk = new Date(depUtc + 9 * 3_600_000) // KST = UTC+9
   const start = dk.getUTCHours() + dk.getUTCMinutes() / 60
-  // 현지시각 메모: 출발/도착 공항을 함께 적어 서로 다른 시간대임을 명확히 한다.
-  // (그냥 "09:45~16:20"이면 6시간 비행처럼 오해됨 → "LAX 09:45 → ICN 16:20")
-  const localTime = `현지 ${fromAirport ?? '출발'} ${depLocal} → ${toAirport ?? '도착'} ${arrLocal}`
+  // 현지시각 메모: 공항 + 0-23 벽시계로 표기(41:50 같은 표기·6시간 비행 오해 방지).
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const localTime = `현지 ${fromAirport ?? '출발'} ${pad(sh)}:${pad(sm)} → ${toAirport ?? '도착'} ${pad(eh)}:${pad(em)}`
   return { day: dk.getUTCDate(), start, end: start + (arrUtc - depUtc) / 3_600_000, localTime }
 }
 

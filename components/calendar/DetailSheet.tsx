@@ -10,6 +10,15 @@ import { routeForFlights } from '@/lib/airline-routes'
 import { holidayNameFor } from '@/lib/holidays-kr'
 import type { CompareColor } from '@/lib/types/schedule'
 
+/** 소요/비행 시간(시작~끝 decimal hour 차)을 "N시간 M분"으로. 인천 기준 출·도착의
+ *  차이 = 실제 비행시간이라, 이걸 명시하면 시차 혼동이 사라진다. */
+function fmtDuration(hours: number): string {
+  const total = Math.max(0, Math.round(hours * 60))
+  const h = Math.floor(total / 60)
+  const m = total % 60
+  return m ? `${h}시간 ${m}분` : `${h}시간`
+}
+
 interface DetailSheetProps {
   date: Date            // day to open scrolled to
   year: number
@@ -263,6 +272,7 @@ export function DetailSheet({
                   <span className="text-caption text-ink-500 w-12 shrink-0 mt-0.5">시간</span>
                   <span className="flex flex-col min-w-0">
                     <span className="font-en text-callout font-bold text-ink-900">{fmtClock(shiftDetail.start)} – {fmtClock(shiftDetail.end)}{airline ? ' (인천 기준)' : ''}</span>
+                    <span className="text-caption text-ink-500 mt-0.5">{fmtDuration(shiftDetail.end - shiftDetail.start)}{airline ? ' 소요' : ''}</span>
                     {shiftDetail.localTime && <span className="text-caption text-ink-500 font-en mt-0.5">{shiftDetail.localTime}</span>}
                   </span>
                 </div>
