@@ -260,7 +260,7 @@ export function DetailSheet({
                 {shiftDetail.name} <span className="text-ink-500 font-bold">· 근무</span>
               </div>
               {shiftDetail.dir && (
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-pill" style={{ background: 'color-mix(in oklab, var(--accent) 16%, white)', color: 'var(--accent)' }}>{shiftDetail.dir}</span>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-pill bg-brand-050 text-brand">{shiftDetail.dir}</span>
               )}
             </div>
             {shiftDetail.noTime ? (
