@@ -42,6 +42,15 @@
   --danger:      #DC2626;
   --danger-soft: #FEEAEA;
 
+  /* Toast — 전 서비스 공통(테마 무관). 강하게 띄우지 않고 '연한 배경 + 보더 + 진한 텍스트'
+     의 부드러운 카드. 오류만 연한 빨강 틴트로 구분. */
+  --toast-bg:        #F4F6F8;
+  --toast-border:    #DDE1E8;
+  --toast-text:      #0E1320;
+  --toast-err-bg:     #FDEDED;
+  --toast-err-border: #F1C9C9;
+  --toast-err-text:   #B42318;
+
   /* Layout */
   --spacing-app-frame: 480px;
 
