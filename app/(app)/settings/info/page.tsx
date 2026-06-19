@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/Toast'
 import {
   ChevronLeftIcon, ChevronRightIcon, EditIcon, KeyIcon, UploadIcon,
 } from '@/components/ui/icons'
-import { getCurrentSession, logout, updateProfile, setVisibility as saveVisibility, setMarketingConsent, type Session } from '@/lib/auth'
+import { getCurrentSession, getCachedSession, logout, updateProfile, setVisibility as saveVisibility, setMarketingConsent, type Session } from '@/lib/auth'
 import { track } from '@/lib/analytics'
 import { supabase } from '@/lib/supabase'
 import { getMonthSchedules, getRemoteMonthSchedules } from '@/lib/store/schedules'
@@ -45,7 +45,32 @@ export default function SettingsInfoPage() {
   const router = useRouter()
   const { showToast } = useToast()
 
-  const [session, setSession] = useState<Session | null>(null)
+  // 이스터에그: 버전 표기를 1.5초 내 7번 탭하면 이 기기를 GA에서 제외/복귀 토글.
+  // PWA(특히 iOS)는 주소창이 없어 `?noga=1`을 입력할 수 없으므로 인앱 진입점으로 둠.
+  // localStorage `ga_optout`은 components/Analytics.tsx가 마운트 시 읽음(새로고침/재실행 후 적용).
+  const gaTapCountRef = useRef(0)
+  const gaLastTapRef = useRef(0)
+  function handleVersionTap() {
+    const now = Date.now()
+    if (now - gaLastTapRef.current > 1500) gaTapCountRef.current = 0
+    gaLastTapRef.current = now
+    gaTapCountRef.current += 1
+    if (gaTapCountRef.current < 7) return
+    gaTapCountRef.current = 0
+    try {
+      if (localStorage.getItem('ga_optout') === '1') {
+        localStorage.removeItem('ga_optout')
+        showToast('이 기기 통계 수집을 다시 켰어요. 새로고침하면 적용돼요.', 'default')
+      } else {
+        localStorage.setItem('ga_optout', '1')
+        showToast('이 기기를 통계에서 제외했어요. 새로고침하면 적용돼요.', 'success')
+      }
+    } catch {}
+  }
+
+  // Seed from the SPA-lifetime session cache so navigating into 내정보 doesn't
+  // flash the blank gate while the session re-resolves (starts null otherwise).
+  const [session, setSession] = useState<Session | null>(() => getCachedSession())
   const [compareCount, setCompareCount] = useState(0)
   const [workDays, setWorkDays] = useState(0)
   const [offDays, setOffDays] = useState(0)
@@ -545,7 +570,10 @@ export default function SettingsInfoPage() {
           </button>
         </Section>
 
-        <p className="mt-4 text-center font-en text-[11px] text-ink-300">
+        <p
+          onClick={handleVersionTap}
+          className="mt-4 text-center font-en text-[11px] text-ink-300 select-none"
+        >
           RAILINK · V1.0 · BUILD 2026.05
         </p>
       </div>
