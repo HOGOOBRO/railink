@@ -85,6 +85,20 @@
   --accent-soft: #FBE3DE;
 }
 
+/* Asiana: 아시아나 레드 #D6003C(primary) + 인디고 #2E2E82(point).
+   보조 팔레트 — 웜그레이 #AFA499, 잉크 #202621, 라인 #E4E6E7.
+   토스트는 --toast-* 고정 토큰이라 이 테마에 안 바뀐다(전 서비스 공통). */
+[data-airline="asiana"] {
+  --brand:     #D6003C;
+  --brand-700: #AE0031;
+  --brand-500: #E23B5C;
+  --brand-300: #EC8499;
+  --brand-100: #F7CAD5;
+  --brand-050: #FCEBEF;
+  --accent:      #2E2E82;
+  --accent-soft: #E5E5F1;
+}
+
 @layer base {
   *, *::before, *::after { box-sizing: border-box; }
 
