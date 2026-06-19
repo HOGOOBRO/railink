@@ -51,7 +51,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               }}
             >
               {toast.type === 'success' && (
-                <span className="shrink-0" style={{ color: '#16A34A' }}><CheckIcon size={16} /></span>
+                <span className="shrink-0" style={{ color: 'var(--brand)' }}><CheckIcon size={16} /></span>
               )}
               {isErr && (
                 <span className="shrink-0 w-[17px] h-[17px] grid place-items-center rounded-full text-[11px] font-bold leading-none text-white" style={{ background: 'var(--toast-err-text)' }}>!</span>

@@ -42,11 +42,11 @@
   --danger:      #DC2626;
   --danger-soft: #FEEAEA;
 
-  /* Toast — 전 서비스 공통(테마 무관). 강하게 띄우지 않고 '연한 배경 + 보더 + 진한 텍스트'
-     의 부드러운 카드. 오류만 연한 빨강 틴트로 구분. */
-  --toast-bg:        #F4F6F8;
-  --toast-border:    #DDE1E8;
-  --toast-text:      #0E1320;
+  /* Toast — 부드러운 카드(연한 배경 + 보더 + 진한 텍스트). 톤은 그대로 두되 항공사
+     테마를 따라간다(brand 틴트 참조 → data-airline에서 자동 전환). 오류만 의미색 빨강 고정. */
+  --toast-bg:        var(--brand-050);
+  --toast-border:    var(--brand-100);
+  --toast-text:      var(--ink-900);
   --toast-err-bg:     #FDEDED;
   --toast-err-border: #F1C9C9;
   --toast-err-text:   #B42318;
@@ -85,18 +85,32 @@
   --accent-soft: #FBE3DE;
 }
 
-/* Asiana: 아시아나 레드 #D6003C(primary) + 인디고 #2E2E82(point).
-   보조 팔레트 — 웜그레이 #AFA499, 잉크 #202621, 라인 #E4E6E7.
-   토스트는 --toast-* 고정 토큰이라 이 테마에 안 바뀐다(전 서비스 공통). */
+/* Asiana: 공식 브랜드 컬러 = Zen Gray #747373(기본) + Lust Red #E51820(색동 포인트).
+   그레이를 지배색으로(스케일 다크엔드는 버튼 흰글씨 대비용), 강조는 레드 accent.
+   동료색(c1~10)도 뉴트럴 그레이+레드 톤에 맞춰 차분하게 보정. 토스트는 brand 틴트를
+   참조해 이 테마를 따라간다(소프트 톤 유지). */
 [data-airline="asiana"] {
-  --brand:     #D6003C;
-  --brand-700: #AE0031;
-  --brand-500: #E23B5C;
-  --brand-300: #EC8499;
-  --brand-100: #F7CAD5;
-  --brand-050: #FCEBEF;
-  --accent:      #2E2E82;
-  --accent-soft: #E5E5F1;
+  --brand:     #333333;
+  --brand-700: #1F1F1F;
+  --brand-500: #747373;
+  --brand-300: #A3A2A2;
+  --brand-100: #D8D7D7;
+  --brand-050: #F1F0F0;
+  --accent:      #E51820;
+  --accent-soft: #FCE0E1;
+
+  /* 동료 비교 색 — 색동(오방+오간색) 볼드 팔레트. 브랜드가 차분한 그레이라 동료색은
+     선명해도 앱이 시끄럽지 않고 오히려 사람 구분이 잘 된다. 적(레드)은 브랜드 accent라 제외. */
+  --c1:  #2E2E82; --c1-soft:  #DCDCEC;  /* 남  indigo (오방-청) */
+  --c2:  #E8A81C; --c2-soft:  #FBEECB;  /* 황  gold */
+  --c3:  #2E9B5E; --c3-soft:  #D6EEE0;  /* 녹  green */
+  --c4:  #C8447A; --c4-soft:  #F6D9E5;  /* 홍  peony */
+  --c5:  #6B3FA0; --c5-soft:  #E2D9F0;  /* 자  violet */
+  --c6:  #1E93AD; --c6-soft:  #D1EAF0;  /* 벽  turquoise */
+  --c7:  #E2692E; --c7-soft:  #F8DFD0;  /* 주  orange */
+  --c8:  #7B9A2E; --c8-soft:  #E6ECCC;  /* 유록 olive */
+  --c9:  #3D6BB5; --c9-soft:  #DBE5F3;  /* 청  cobalt */
+  --c10: #B23A5E; --c10-soft: #F4D7DF;  /* 자주 wine */
 }
 
 @layer base {
