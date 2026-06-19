@@ -234,6 +234,10 @@ export function UploadModal({
   // 코드 사전: 항공 승무원 미리보기에서 '모르는 코드'를 분류받아 다음부턴 자동 인식.
   const [codeCatalog, setCodeCatalog] = useState<Map<string, RosterCodeEntry>>(new Map())
   const [classified, setClassified] = useState<Record<string, { category: RosterCategory; label: string }>>({})
+  const [skippedCodes, setSkippedCodes] = useState<Set<string>>(new Set())   // '건너뛰기' 한 코드(원문 그대로 저장)
+  const [renamingCodes, setRenamingCodes] = useState<Set<string>>(new Set()) // '다르게 부르기' 입력칸 연 코드
+  const toggleInSet = (setter: typeof setSkippedCodes, key: string) =>
+    setter(prev => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n })
   useEffect(() => {
     if (step !== 'preview' || !airline) return
     let alive = true
@@ -430,8 +434,9 @@ export function UploadModal({
     // 분류한 코드를 행에 반영: 휴무면 isOff, 표준 라벨로 치환. (분류 안 한 건 원문 그대로)
     const applyClassified = (rs: ParsedScheduleRow[]) => !airline ? rs : rs.map(r => {
       if (r.isOff || r.flights?.length || !r.diaNr) return r
-      const c = classified[canonCode(r.diaNr)]
-      if (!c) return r
+      const key = canonCode(r.diaNr)
+      const c = classified[key]
+      if (!c || skippedCodes.has(key)) return r   // 건너뛴 코드는 원문 그대로
       return { ...r, diaNr: c.label || r.diaNr, isOff: categoryEffect(c.category).isOff }
     })
 
@@ -456,6 +461,7 @@ export function UploadModal({
       // 분류를 공용 사전에 기록 — 다음부턴 모든 같은 항공사 크루가 자동 인식. 실패해도 저장엔 영향 없음.
       if (airline) {
         for (const [code, c] of Object.entries(classified)) {
+          if (skippedCodes.has(code)) continue   // 건너뛴 코드는 사전에 기록 안 함
           void recordRosterCode(airline, code, { category: c.category, label: c.label, isOff: categoryEffect(c.category).isOff })
         }
       }
@@ -756,7 +762,14 @@ export function UploadModal({
               <CodeClassifier
                 codes={pendingCodes}
                 classified={classified}
-                onPick={(key, category, label) => setClassified(prev => ({ ...prev, [key]: { category, label } }))}
+                skipped={skippedCodes}
+                renaming={renamingCodes}
+                onPick={(key, category, label) => {
+                  setClassified(prev => ({ ...prev, [key]: { category, label } }))
+                  setSkippedCodes(prev => { if (!prev.has(key)) return prev; const n = new Set(prev); n.delete(key); return n })
+                }}
+                onSkip={key => toggleInSet(setSkippedCodes, key)}
+                onToggleRename={key => toggleInSet(setRenamingCodes, key)}
               />
             )}
 
@@ -910,51 +923,85 @@ interface ManualBodyProps {
   canUndoFill: boolean
 }
 
-/** 처음 보는 코드 분류 패널. 칩으로 종류를 고르고, 원하면 표준 이름을 적는다(저장 시
- *  공용 사전에 기록 → 다음부턴 자동 인식). 분류 안 해도 원문 그대로 저장되어 손실 없음. */
-function CodeClassifier({ codes, classified, onPick }: {
+/** 처음 보는 코드 분류 패널. 칩으로 종류를 고르면 저장 시 공용 사전에 기록돼 다음부턴
+ *  자동 인식. 건너뛰거나 분류 안 해도 원문 그대로 저장되어 손실 없음. */
+function CodeClassifier({ codes, classified, skipped, renaming, onPick, onSkip, onToggleRename }: {
   codes: string[]
   classified: Record<string, { category: RosterCategory; label: string }>
+  skipped: Set<string>
+  renaming: Set<string>
   onPick: (key: string, category: RosterCategory, label: string) => void
+  onSkip: (key: string) => void
+  onToggleRename: (key: string) => void
 }) {
+  const remaining = codes.filter(c => {
+    const k = canonCode(c)
+    return !classified[k] && !skipped.has(k)
+  }).length
   return (
-    <div className="rounded-md border-2 border-brand-100 bg-brand-050 p-3 flex flex-col gap-3.5">
-      <p className="text-caption font-bold text-ink-900 leading-relaxed">
-        처음 보는 코드가 있어요. 무엇인지 골라주시면 다음부턴 자동으로 알아봐요.
-      </p>
+    <div className="rounded-md border-2 border-brand-100 bg-brand-050 p-3 flex flex-col gap-3">
+      <div>
+        <p className="text-callout font-bold text-ink-900">처음 보는 코드 {codes.length}개</p>
+        <p className="text-caption text-ink-500 mt-0.5">
+          {remaining > 0 ? `${remaining}개를 분류하면 다음부터 자동으로 알아봐요` : '다 분류했어요. 다음부터 자동 인식돼요'}
+        </p>
+      </div>
       {codes.map(code => {
         const key = canonCode(code)
         const sel = classified[key]
+        const isSkip = skipped.has(key)
+        const isRenaming = renaming.has(key)
         return (
-          <div key={key} className="flex flex-col gap-1.5">
-            <span className="font-bold text-callout text-ink-900 font-en">{code}</span>
-            <div className="flex flex-wrap gap-1.5">
-              {CATEGORY_ORDER.map(cat => {
-                const on = sel?.category === cat
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => onPick(key, cat, CATEGORY_META[cat].label)}
-                    className={`px-2.5 py-1 rounded-pill border-2 text-caption font-bold transition-colors ${on ? 'border-brand bg-surface text-brand' : 'border-line bg-surface text-ink-700'}`}
-                  >
-                    {CATEGORY_META[cat].label}
-                  </button>
-                )
-              })}
+          <div key={key} className={`flex flex-col gap-1.5 pt-2.5 border-t border-brand-100 first:border-t-0 first:pt-0 ${isSkip ? 'opacity-55' : ''}`}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-bold text-callout text-ink-900 font-en truncate">
+                {code}
+                {!isSkip && sel && <span className="ml-2 font-sans text-caption font-bold text-brand">✓ {sel.label}</span>}
+                {isSkip && <span className="ml-2 font-sans text-caption font-semibold text-ink-500">건너뜀</span>}
+              </span>
+              <button type="button" onClick={() => onSkip(key)} className="shrink-0 text-caption font-semibold text-ink-500 hover:text-ink-700">
+                {isSkip ? '되돌리기' : '건너뛰기'}
+              </button>
             </div>
-            {sel && (
-              <input
-                value={sel.label}
-                placeholder="다르게 부르면 입력 (예: 관숙비행)"
-                onChange={e => onPick(key, sel.category, e.target.value)}
-                onBlur={e => onPick(key, sel.category, normalizeAnswerLabel(e.target.value) || CATEGORY_META[sel.category].label)}
-                className="h-9 px-2.5 rounded-sm border border-line bg-surface text-caption"
-              />
+            {!isSkip && (
+              <>
+                <div className="flex flex-wrap gap-1.5">
+                  {CATEGORY_ORDER.map(cat => {
+                    const on = sel?.category === cat
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => onPick(key, cat, CATEGORY_META[cat].label)}
+                        className={`px-2.5 py-1 rounded-pill border-2 text-caption font-bold transition-colors ${on ? 'border-brand bg-surface text-brand' : 'border-line bg-surface text-ink-700'}`}
+                      >
+                        {CATEGORY_META[cat].label}
+                      </button>
+                    )
+                  })}
+                </div>
+                {sel && (
+                  isRenaming ? (
+                    <input
+                      autoFocus
+                      value={sel.label}
+                      placeholder="이름 입력 (예: 관숙비행)"
+                      onChange={e => onPick(key, sel.category, e.target.value)}
+                      onBlur={e => onPick(key, sel.category, normalizeAnswerLabel(e.target.value) || CATEGORY_META[sel.category].label)}
+                      className="h-9 px-2.5 rounded-sm border border-line bg-surface text-caption self-start min-w-[180px]"
+                    />
+                  ) : (
+                    <button type="button" onClick={() => onToggleRename(key)} className="self-start text-caption font-semibold text-brand">
+                      다르게 부르기
+                    </button>
+                  )
+                )}
+              </>
             )}
           </div>
         )
       })}
+      <p className="text-caption text-ink-300">안 골라도 원문 그대로 저장돼요.</p>
     </div>
   )
 }
