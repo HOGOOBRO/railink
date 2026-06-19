@@ -10,6 +10,8 @@ import { parseScheduleFile, type ParsedScheduleRow } from '@/lib/parse/schedule-
 import { recognizeScheduleImage, type OcrProgress } from '@/lib/parse/schedule-image'
 import { fmtClock, hmToDecimal, canonicalEnd, isOvernight, normalizeTimeInput } from '@/lib/schedule-utils'
 import { getCodebook, type CodebookEntry } from '@/lib/store/codebook'
+import { canonCode, builtinCode, normalizeAnswerLabel, categoryEffect, CATEGORY_ORDER, CATEGORY_META, type RosterCategory } from '@/lib/roster-codes'
+import { fetchRosterCodes, recordRosterCode, type RosterCodeEntry } from '@/lib/store/roster-codes'
 import { AnalyzeTableSkeleton } from '@/components/calendar/AnalyzeTableSkeleton'
 import { RosterExampleCard } from '@/components/calendar/RosterExampleCard'
 import Link from 'next/link'
@@ -173,6 +175,8 @@ function normalizePreviewRows(rows: ParsedScheduleRow[]): ParsedScheduleRow[] {
           // Re-derive 24+ notation for overnight ends from the wrapped clock the
           // user edited, so storage stays canonical even though the input showed "11:49".
           endTime: canonicalEnd(row.startTime?.trim() || undefined, row.endTime?.trim() || undefined),
+          // 항공 다중 레그(아시아나): 미리보기에서 편집하지 않는 노선 레그를 보존한다.
+          flights: row.flights && row.flights.length ? row.flights : undefined,
         }
 
     const filled = next.isOff || next.diaNr || next.trainNr || next.startTime || next.endTime
@@ -226,6 +230,33 @@ export function UploadModal({
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // 코드 사전: 항공 승무원 미리보기에서 '모르는 코드'를 분류받아 다음부턴 자동 인식.
+  const [codeCatalog, setCodeCatalog] = useState<Map<string, RosterCodeEntry>>(new Map())
+  const [classified, setClassified] = useState<Record<string, { category: RosterCategory; label: string }>>({})
+  useEffect(() => {
+    if (step !== 'preview' || !airline) return
+    let alive = true
+    fetchRosterCodes(airline).then(c => { if (alive) setCodeCatalog(c) })
+    return () => { alive = false }
+  }, [step, airline])
+  // 분류가 필요한 '처음 보는 코드'(비행 아님 + 내장/사전에 없음). 원문(표시용) 유지.
+  const pendingCodes = useMemo(() => {
+    if (!airline) return [] as string[]
+    const seen = new Set<string>()
+    const list: string[] = []
+    for (const r of rows) {
+      if (r.isOff || r.flights?.length) continue
+      const dia = (r.diaNr ?? '').trim()
+      if (!dia) continue
+      const key = canonCode(dia)
+      if (!key || seen.has(key)) continue
+      if (builtinCode(dia) || codeCatalog.get(key)?.category) continue
+      seen.add(key)
+      list.push(dia)
+    }
+    return list
+  }, [rows, airline, codeCatalog])
 
   // 항공 승무원(airline)·KTX는 올릴 로스터 캡쳐가 있으니 '이미지 등록'을 hero로,
   // 일반 personal만 '직접 입력'을 hero로 둔다.
@@ -396,11 +427,19 @@ export function UploadModal({
   }
 
   async function handleSave() {
+    // 분류한 코드를 행에 반영: 휴무면 isOff, 표준 라벨로 치환. (분류 안 한 건 원문 그대로)
+    const applyClassified = (rs: ParsedScheduleRow[]) => !airline ? rs : rs.map(r => {
+      if (r.isOff || r.flights?.length || !r.diaNr) return r
+      const c = classified[canonCode(r.diaNr)]
+      if (!c) return r
+      return { ...r, diaNr: c.label || r.diaNr, isOff: categoryEffect(c.category).isOff }
+    })
+
     let parsed: ParsedScheduleRow[]
     try {
       parsed = step === 'manual'
         ? manualRowsToParsed(manualRows, defaultYear, defaultMonth)
-        : normalizePreviewRows(rows)
+        : normalizePreviewRows(applyClassified(rows))
       if (parsed.length === 0) {
         setError(step === 'manual' ? '하루 이상 입력한 뒤 저장해 주세요.' : '저장할 근무 행이 없어요.')
         return
@@ -414,6 +453,12 @@ export function UploadModal({
     setError(null)
     try {
       await onSave(parsed)
+      // 분류를 공용 사전에 기록 — 다음부턴 모든 같은 항공사 크루가 자동 인식. 실패해도 저장엔 영향 없음.
+      if (airline) {
+        for (const [code, c] of Object.entries(classified)) {
+          void recordRosterCode(airline, code, { category: c.category, label: c.label, isOff: categoryEffect(c.category).isOff })
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '근무표 저장 중 문제가 생겼어요.')
     } finally {
@@ -707,6 +752,14 @@ export function UploadModal({
               </div>
             </div>
 
+            {pendingCodes.length > 0 && (
+              <CodeClassifier
+                codes={pendingCodes}
+                classified={classified}
+                onPick={(key, category, label) => setClassified(prev => ({ ...prev, [key]: { category, label } }))}
+              />
+            )}
+
             <PreviewBody
               rows={previewRows}
               onChange={setPreviewRow}
@@ -855,6 +908,55 @@ interface ManualBodyProps {
   onUndoFill: () => void
   /** 되돌릴 일괄 채우기 스냅샷이 있는지. */
   canUndoFill: boolean
+}
+
+/** 처음 보는 코드 분류 패널. 칩으로 종류를 고르고, 원하면 표준 이름을 적는다(저장 시
+ *  공용 사전에 기록 → 다음부턴 자동 인식). 분류 안 해도 원문 그대로 저장되어 손실 없음. */
+function CodeClassifier({ codes, classified, onPick }: {
+  codes: string[]
+  classified: Record<string, { category: RosterCategory; label: string }>
+  onPick: (key: string, category: RosterCategory, label: string) => void
+}) {
+  return (
+    <div className="rounded-md border-2 border-brand-100 bg-brand-050 p-3 flex flex-col gap-3.5">
+      <p className="text-caption font-bold text-ink-900 leading-relaxed">
+        처음 보는 코드가 있어요. 무엇인지 골라주시면 다음부턴 자동으로 알아봐요.
+      </p>
+      {codes.map(code => {
+        const key = canonCode(code)
+        const sel = classified[key]
+        return (
+          <div key={key} className="flex flex-col gap-1.5">
+            <span className="font-bold text-callout text-ink-900 font-en">{code}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {CATEGORY_ORDER.map(cat => {
+                const on = sel?.category === cat
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => onPick(key, cat, CATEGORY_META[cat].label)}
+                    className={`px-2.5 py-1 rounded-pill border-2 text-caption font-bold transition-colors ${on ? 'border-brand bg-surface text-brand' : 'border-line bg-surface text-ink-700'}`}
+                  >
+                    {CATEGORY_META[cat].label}
+                  </button>
+                )
+              })}
+            </div>
+            {sel && (
+              <input
+                value={sel.label}
+                placeholder="다르게 부르면 입력 (예: 관숙비행)"
+                onChange={e => onPick(key, sel.category, e.target.value)}
+                onBlur={e => onPick(key, sel.category, normalizeAnswerLabel(e.target.value) || CATEGORY_META[sel.category].label)}
+                className="h-9 px-2.5 rounded-sm border border-line bg-surface text-caption"
+              />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 interface PreviewBodyProps {

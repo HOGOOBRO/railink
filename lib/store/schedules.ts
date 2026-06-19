@@ -1,7 +1,16 @@
-import type { ScheduleEntry } from '@/lib/types/schedule'
+import type { ScheduleEntry, Flight } from '@/lib/types/schedule'
 import { supabase } from '@/lib/supabase'
 
 const KEY = 'railink_schedules_v3'
+
+// flights(jsonb)는 마이그레이션 20260619* 이후 추가된 컬럼. 미적용 환경에서도 캘린더가
+// 깨지지 않도록, 컬럼 없으면 flights 빼고 다시 조회한다(아래 isMissingFlightsColumn).
+const SCHEDULE_COLS = 'user_id,work_date,dia_nr,train_nr,start_time,end_time,is_off,flights'
+const SCHEDULE_COLS_LEGACY = 'user_id,work_date,dia_nr,train_nr,start_time,end_time,is_off'
+
+function isMissingFlightsColumn(message: string): boolean {
+  return /flights/i.test(message) && /column|does not exist|schema cache|could not find/i.test(message)
+}
 
 interface RemoteScheduleRow {
   user_id: unknown
@@ -11,6 +20,7 @@ interface RemoteScheduleRow {
   start_time: unknown
   end_time: unknown
   is_off: unknown
+  flights?: unknown
 }
 
 export function getSchedules(): ScheduleEntry[] {
@@ -60,19 +70,22 @@ export function replaceUsersMonthCache(
 
 export async function getRemoteMonthSchedules(uid: string, year: number, month: number): Promise<ScheduleEntry[]> {
   const { start, end } = monthRange(year, month)
-  const { data, error } = await supabase
+  const run = (cols: string) => supabase
     .from('schedules')
-    .select('user_id,work_date,dia_nr,train_nr,start_time,end_time,is_off')
+    .select(cols)
     .eq('user_id', uid)
     .gte('work_date', start)
     .lt('work_date', end)
     .order('work_date', { ascending: true })
 
+  let { data, error } = await run(SCHEDULE_COLS)
+  if (error && isMissingFlightsColumn(error.message)) ({ data, error } = await run(SCHEDULE_COLS_LEGACY))
+
   if (error) throw new Error(formatScheduleStoreError(error.message))
   if (!Array.isArray(data)) return []
 
   return data
-    .map(row => mapRemoteSchedule(row as RemoteScheduleRow))
+    .map(row => mapRemoteSchedule(row as unknown as RemoteScheduleRow))
     .filter((row): row is ScheduleEntry => Boolean(row))
 }
 
@@ -83,20 +96,23 @@ export async function getRemoteMonthSchedulesForUsers(
   if (!uniqueUids.length) return {}
 
   const { start, end } = monthRange(year, month)
-  const { data, error } = await supabase
+  const run = (cols: string) => supabase
     .from('schedules')
-    .select('user_id,work_date,dia_nr,train_nr,start_time,end_time,is_off')
+    .select(cols)
     .in('user_id', uniqueUids)
     .gte('work_date', start)
     .lt('work_date', end)
     .order('work_date', { ascending: true })
+
+  let { data, error } = await run(SCHEDULE_COLS)
+  if (error && isMissingFlightsColumn(error.message)) ({ data, error } = await run(SCHEDULE_COLS_LEGACY))
 
   if (error) throw new Error(formatScheduleStoreError(error.message))
   if (!Array.isArray(data)) return {}
 
   const grouped: Record<string, ScheduleEntry[]> = {}
   for (const row of data) {
-    const entry = mapRemoteSchedule(row as RemoteScheduleRow)
+    const entry = mapRemoteSchedule(row as unknown as RemoteScheduleRow)
     if (!entry) continue
     grouped[entry.uid] = [...(grouped[entry.uid] ?? []), entry]
   }
@@ -118,6 +134,8 @@ export async function replaceRemoteUserScheduleMonths(uid: string, entries: Sche
     start_time: entry.startTime ?? null,
     end_time: entry.endTime ?? null,
     is_off: entry.isOff,
+    // flights는 RPC가 미적용(컬럼/레코드셋 없음)이면 jsonb_to_recordset이 무시 — 안전.
+    flights: entry.flights && entry.flights.length ? entry.flights : null,
   }))
 
   const { data, error } = await supabase.rpc('replace_schedule_months', { entries: payload })
@@ -141,7 +159,22 @@ function mapRemoteSchedule(row: RemoteScheduleRow): ScheduleEntry | null {
     startTime: typeof row.start_time === 'string' && row.start_time.trim() ? row.start_time.trim() : undefined,
     endTime: typeof row.end_time === 'string' && row.end_time.trim() ? row.end_time.trim() : undefined,
     isOff,
+    flights: parseFlights(row.flights),
   }
+}
+
+/** DB jsonb → Flight[]. 비정상 값은 버린다. 빈 배열이면 undefined. */
+function parseFlights(value: unknown): Flight[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
+  const out: Flight[] = []
+  for (const item of value) {
+    if (typeof item !== 'object' || item === null) continue
+    const o = item as Record<string, unknown>
+    const leg: Flight = { flight: str(o.flight), from: str(o.from), to: str(o.to), std: str(o.std), sta: str(o.sta) }
+    if (leg.flight || leg.from || leg.to || leg.std || leg.sta) out.push(leg)
+  }
+  return out.length ? out : undefined
 }
 
 function monthRange(year: number, month: number): { start: string; end: string } {

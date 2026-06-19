@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ParsedScheduleRow } from '@/lib/parse/schedule-file'
+import type { Flight } from '@/lib/types/schedule'
 
 export const runtime = 'nodejs'
 
@@ -13,6 +14,16 @@ const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 const MONTHLY_AI_LIMIT = 5
 const MODEL = process.env.OPENAI_VISION_MODEL || 'gpt-4.1'
 
+interface AiFlightLeg {
+  flight: string
+  from: string
+  to: string
+  std: string
+  sta: string
+  showup?: string
+  terminal?: string
+}
+
 interface AiScheduleRow {
   date: string
   diaNr: string
@@ -20,6 +31,7 @@ interface AiScheduleRow {
   startTime: string
   endTime: string
   isOff: boolean
+  flights?: AiFlightLeg[]   // 아시아나 등 노선 명시 항공사에서만 채워진다
 }
 
 interface AiScheduleResult {
@@ -79,64 +91,58 @@ interface AiUsageDatabase {
 
 type AiUsageSupabase = SupabaseClient<AiUsageDatabase>
 
-const scheduleSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['scheduleYear', 'scheduleMonth', 'periodSource', 'rows', 'warnings'],
-  properties: {
-    scheduleYear: {
-      type: 'integer',
-      description: 'Four-digit schedule year. Read a visible year first; otherwise use the provided fallback year.',
-    },
-    scheduleMonth: {
-      type: 'integer',
-      description: 'Schedule month from 1 to 12. Read a visible month header first; otherwise use the provided fallback month.',
-    },
-    periodSource: {
-      type: 'string',
-      enum: ['image', 'fallback'],
-      description: 'Use image when the month was read from a visible screenshot label or calendar header.',
-    },
-    rows: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['date', 'diaNr', 'trainNr', 'startTime', 'endTime', 'isOff'],
-        properties: {
-          date: {
-            type: 'string',
-            description: 'Business date in YYYY-MM-DD format.',
-          },
-          diaNr: {
-            type: 'string',
-            description: 'Duty code such as H1055, ~(H1055), S, S(주휴), 휴무, or empty string if unknown.',
-          },
-          trainNr: {
-            type: 'string',
-            description: 'Representative train numbers joined with " · ", or empty string.',
-          },
-          startTime: {
-            type: 'string',
-            description: 'Start time as HH:MM. Use 24+ hour format for next-day end only when needed. Empty for off days.',
-          },
-          endTime: {
-            type: 'string',
-            description: 'End time as HH:MM. Use 24+ hour format for next-day end only when needed. Empty for off days.',
-          },
-          isOff: {
-            type: 'boolean',
-            description: 'True for off/holiday/rest days.',
-          },
-        },
-      },
-    },
-    warnings: {
-      type: 'array',
-      items: { type: 'string' },
+// 항공사별로 출력 양식을 분리한다. flights(노선 레그)는 노선이 캡쳐에 명시된 항공사
+// (아시아나)에서만 필요하므로, 그 경우에만 스키마에 넣는다. KTX·팀·에어프레미아는
+// 기존 양식 그대로 — 잘 되던 인식의 출력 계약을 건드리지 않는다.
+const FLIGHTS_SCHEMA = {
+  type: 'array',
+  description: 'Flight legs for this date, from the SECTOR + STD/STA columns. One object per leg, in order. Empty array for non-flight days (off / standby / layover-only).',
+  items: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['flight', 'from', 'to', 'std', 'sta', 'showup', 'terminal'],
+    properties: {
+      flight: { type: 'string', description: 'Flight number, e.g. "OZ349" or "349". Empty string if none.' },
+      from: { type: 'string', description: 'Departure airport IATA (3 letters) from the SECTOR column, e.g. "ICN".' },
+      to: { type: 'string', description: 'Arrival airport IATA (3 letters) from the SECTOR column, e.g. "NKG".' },
+      std: { type: 'string', description: 'Scheduled departure local time HH:MM (drop any day-number prefix). Empty if unknown.' },
+      sta: { type: 'string', description: 'Scheduled arrival local time HH:MM (drop any day-number prefix). Empty if unknown.' },
+      showup: { type: 'string', description: 'SHOWUP report time HH:MM if shown for this leg (drop terminal token and day-number, e.g. "T2 04 10:40" -> "10:40"). Empty if blank.' },
+      terminal: { type: 'string', description: 'SHOWUP location/terminal token if shown, e.g. "T2", "G". Empty if blank.' },
     },
   },
 } as const
+
+function buildScheduleSchema(includeFlights: boolean) {
+  const rowRequired = ['date', 'diaNr', 'trainNr', 'startTime', 'endTime', 'isOff']
+  const rowProps: Record<string, unknown> = {
+    date: { type: 'string', description: 'Business date in YYYY-MM-DD format.' },
+    diaNr: { type: 'string', description: 'Duty code such as H1055, ~(H1055), S, S(주휴), 휴무, or empty string if unknown.' },
+    trainNr: { type: 'string', description: 'Representative train numbers joined with " · ", or empty string.' },
+    startTime: { type: 'string', description: 'Start time as HH:MM. Use 24+ hour format for next-day end only when needed. Empty for off days.' },
+    endTime: { type: 'string', description: 'End time as HH:MM. Use 24+ hour format for next-day end only when needed. Empty for off days.' },
+    isOff: { type: 'boolean', description: 'True for off/holiday/rest days.' },
+  }
+  if (includeFlights) {
+    rowRequired.push('flights')
+    rowProps.flights = FLIGHTS_SCHEMA
+  }
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['scheduleYear', 'scheduleMonth', 'periodSource', 'rows', 'warnings'],
+    properties: {
+      scheduleYear: { type: 'integer', description: 'Four-digit schedule year. Read a visible year first; otherwise use the provided fallback year.' },
+      scheduleMonth: { type: 'integer', description: 'Schedule month from 1 to 12. Read a visible month header first; otherwise use the provided fallback month.' },
+      periodSource: { type: 'string', enum: ['image', 'fallback'], description: 'Use image when the month was read from a visible screenshot label or calendar header.' },
+      rows: {
+        type: 'array',
+        items: { type: 'object', additionalProperties: false, required: rowRequired, properties: rowProps },
+      },
+      warnings: { type: 'array', items: { type: 'string' } },
+    },
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -246,7 +252,8 @@ export async function POST(req: NextRequest) {
             type: 'json_schema',
             name: 'railink_schedule_image_parse',
             strict: true,
-            schema: scheduleSchema,
+            // 아시아나만 flights(노선 레그) 포함 양식. 나머지는 기존 양식 그대로.
+            schema: buildScheduleSchema(airline === 'asiana'),
           },
         },
       }),
@@ -504,6 +511,44 @@ function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: numb
     ]
     return ap.join('\n')
   }
+
+  if (airline === 'asiana') {
+    const oz: string[] = [
+      "You are extracting ONE Asiana Airlines (아시아나항공) cabin-crew member's MONTHLY roster from a screenshot.",
+      'Layout: a TABLE with one row per FLIGHT LEG. Columns (left to right):',
+      '  DATE (날짜, e.g. "04/01(수)") | FLIGHT (편명, digits like 349, 8949, 541) | SHOWUP (쇼업, e.g. "T2 04 10:40" or "G 07 11:25") | SECTOR (구간, e.g. "ICN/NKG") | STD (출발, "DD HH:MM" e.g. "04 12:30") | STA (도착, "DD HH:MM") | ETD.',
+      'CRITICAL — group legs by DATE: the DATE cell is printed only on the FIRST leg of each day; following legs that day have a BLANK date and belong to the SAME date. Carry the last seen date down. Output ONE row per DATE, with that date\'s legs collected into the "flights" array (in order).',
+      imageCount > 1
+        ? `There are ${imageCount} screenshots of the same roster; merge by date and keep the clearest.`
+        : 'There is one screenshot.',
+      'Return JSON only per the schema.',
+      '',
+      '## Date',
+      'Read the month from the rows (the DATE column is MM/DD). Use the year from any visible period label, else fall back to ' + `${defaultYear}`,
+      `. Fallback month/year: ${defaultYear}-${String(defaultMonth).padStart(2, '0')} (periodSource "fallback"); otherwise "image". Each output row\'s "date" is the full YYYY-MM-DD of that DATE cell.`,
+      '',
+      '## Flight rows (one or more legs in a day)',
+      'For each leg on that date, push an object into "flights":',
+      '  - flight: the FLIGHT number exactly as printed (digits; keep as-is, e.g. "349", "8949"). ',
+      '  - from / to: split the SECTOR "AAA/BBB" into from=AAA, to=BBB (3-letter IATA, e.g. ICN, NKG, GMP, CJU, FRA, MNL, PEK, BKK, TSN, SEA).',
+      '  - std: the STD time as HH:MM (DROP the leading day-number — "04 12:30" → "12:30").',
+      '  - sta: the STA time as HH:MM (DROP the leading day-number — "14 14:35" → "14:35").',
+      '  - showup / terminal: SHOWUP is shown ONLY on the first leg of a trip, like "T2 04 10:40" or "G 07 11:25". Put terminal="T2"/"G" and showup="10:40" (drop the day-number). Leave both "" on legs with no SHOWUP.',
+      'Also set, for the whole day row: trainNr = the flight numbers joined with " · " (e.g. "349 · 350"); startTime = first leg std; endTime = last leg sta; diaNr = "" ; isOff = false.',
+      '',
+      '## Non-flight rows (no FLIGHT number / no SECTOR)',
+      '- "DAY OFF" → isOff true, diaNr "OFF", flights [].',
+      '- "연차휴가" (annual leave) → isOff true, diaNr "연차", flights [].',
+      '- "STBY확인요망" / "장거리 STBY확인요망" / standby → isOff false, diaNr "대기", no times, flights [].',
+      '- A row that shows ONLY an airport code with no flight number (e.g. "FRA", "BKK", "ICN" on a layover/rest day) → isOff false, diaNr "REST", no times, flights []. (It marks a stay; do not invent a flight.)',
+      '- ANY OTHER text you do not recognize (training, ground duty, codes you have not seen) → put the text VERBATIM into diaNr, isOff false, no times, flights []. NEVER drop a cell\'s text or guess — preserve exactly what is printed so it can be classified later.',
+      '',
+      '## Rules',
+      'Always emit full YYYY-MM-DD dates. Do NOT hallucinate sectors or times — leave a field empty if not printed, but capture everything that IS printed.',
+      'Ignore the column header row, page tabs, and any totals.',
+    ]
+    return oz.join('\n')
+  }
   const lines: string[] = [
     'You are extracting a monthly work schedule from a screenshot.',
     'The image may be one of two layouts — recognize which and proceed accordingly:',
@@ -649,6 +694,7 @@ function isAiScheduleRow(value: unknown): value is AiScheduleRow {
     && typeof value.startTime === 'string'
     && typeof value.endTime === 'string'
     && typeof value.isOff === 'boolean'
+    && (value.flights === undefined || Array.isArray(value.flights))
 }
 
 async function fileToDataUrl(file: File): Promise<string> {
@@ -715,6 +761,32 @@ function normalizeRows(
           endTime = `${String(eh + 24).padStart(2, '0')}:${String(em).padStart(2, '0')}`
         }
       }
+      // 노선 명시 항공사(아시아나): 하루치 레그를 정제해 보관하고, 그날 출도착·편명을
+      // 첫/마지막 레그에서 끌어온다. flights는 저장되어 노선·시차·레그별 상세에 쓰인다.
+      const flights = isOff ? [] : sanitizeFlights(row.flights)
+      if (flights.length) {
+        const first = flights[0]
+        const last = flights[flights.length - 1]
+        const legTrain = flights.map(f => f.flight).filter(Boolean).join(' · ')
+        let fStart = first.std || ''
+        let fEnd = last.sta || ''
+        // 같은 시간대 야간(예: 국내선 박차)만 +24 보정 — 국제선 날짜 넘김은 placeShift가
+        // instant로 처리하므로 여기선 단순 비교만(보수적).
+        if (fStart && fEnd) {
+          const [sh, sm] = fStart.split(':').map(Number)
+          const [eh, em] = fEnd.split(':').map(Number)
+          if (eh < sh || (eh === sh && em <= sm)) fEnd = `${String(eh + 24).padStart(2, '0')}:${String(em).padStart(2, '0')}`
+        }
+        return {
+          date,
+          diaNr: diaNr || undefined,
+          trainNr: (legTrain || normalizeTrainNr(row.trainNr)) || undefined,
+          startTime: fStart || startTime || undefined,
+          endTime: fEnd || endTime || undefined,
+          isOff: false,
+          flights,
+        }
+      }
       const normalizedRow: ParsedScheduleRow = {
         date,
         diaNr: diaNr || undefined,
@@ -731,10 +803,50 @@ function normalizeRows(
   const byDate = new Map<string, ParsedScheduleRow>()
   for (const row of normalized) {
     const existing = byDate.get(row.date)
-    if (!existing || rowScore(row) >= rowScore(existing)) byDate.set(row.date, row)
+    if (!existing) { byDate.set(row.date, row); continue }
+    // 같은 날짜에 비행 레그가 흩어져 들어오면(모델이 날짜별로 안 묶고 레그별 행을 낸 경우)
+    // 레그를 합친다 — 안 그러면 dedup이 날짜당 1행만 남겨 나머지 레그가 사라진다.
+    if (row.flights?.length || existing.flights?.length) {
+      byDate.set(row.date, mergeFlightRows(existing, row))
+    } else if (rowScore(row) >= rowScore(existing)) {
+      byDate.set(row.date, row)
+    }
   }
 
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/** 같은 날짜의 두 행을 비행 레그 기준으로 병합. 레그를 합쳐 std순 정렬·중복 제거하고
+ *  그날 편명·출도착을 첫/마지막 레그에서 다시 끌어온다. */
+function mergeFlightRows(a: ParsedScheduleRow, b: ParsedScheduleRow): ParsedScheduleRow {
+  const seen = new Set<string>()
+  const legs: Flight[] = []
+  for (const f of [...(a.flights ?? []), ...(b.flights ?? [])]) {
+    const key = `${f.flight ?? ''}|${f.std ?? ''}|${f.from ?? ''}|${f.to ?? ''}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    legs.push(f)
+  }
+  if (!legs.length) return rowScore(b) >= rowScore(a) ? b : a
+  legs.sort((x, y) => (x.std ?? '').localeCompare(y.std ?? ''))
+  const first = legs[0], last = legs[legs.length - 1]
+  const legTrain = legs.map(f => f.flight).filter(Boolean).join(' · ')
+  let end = last.sta || ''
+  const start = first.std || ''
+  if (start && end) {
+    const [sh, sm] = start.split(':').map(Number)
+    const [eh, em] = end.split(':').map(Number)
+    if (eh < sh || (eh === sh && em <= sm)) end = `${String(eh + 24).padStart(2, '0')}:${String(em).padStart(2, '0')}`
+  }
+  return {
+    date: a.date,
+    isOff: false,
+    diaNr: a.diaNr ?? b.diaNr,
+    trainNr: legTrain || a.trainNr || b.trainNr || undefined,
+    startTime: start || a.startTime || undefined,
+    endTime: end || a.endTime || undefined,
+    flights: legs,
+  }
 }
 
 function normalizeDate(value: string, defaultYear: number, defaultMonth: number): string | null {
@@ -790,13 +902,46 @@ function detectOff(diaNr: string): boolean {
   return /^(S(?:\([^)]*\))?|휴무|휴일|오프|OFF)$/iu.test(diaNr)
 }
 
+/** AI가 준 비행 레그를 정제: IATA 3자리·HH:MM·편명만 남기고 빈 레그는 버린다. */
+function sanitizeFlights(legs: AiFlightLeg[] | undefined): Flight[] {
+  if (!Array.isArray(legs)) return []
+  const out: Flight[] = []
+  for (const leg of legs) {
+    if (!isRecord(leg)) continue
+    const flight = typeof leg.flight === 'string' ? normalizeDigits(leg.flight).replace(/\s+/g, '').trim() : ''
+    const from = sanitizeIata(leg.from)
+    const to = sanitizeIata(leg.to)
+    const std = typeof leg.std === 'string' ? normalizeTime(leg.std) : ''
+    const sta = typeof leg.sta === 'string' ? normalizeTime(leg.sta) : ''
+    const showup = typeof leg.showup === 'string' ? normalizeTime(leg.showup) : ''
+    const terminal = typeof leg.terminal === 'string' ? leg.terminal.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4) : ''
+    if (!flight && !from && !to && !std && !sta) continue
+    out.push({
+      flight: flight || undefined,
+      from: from || undefined,
+      to: to || undefined,
+      std: std || undefined,
+      sta: sta || undefined,
+      showup: showup || undefined,
+      terminal: terminal || undefined,
+    })
+  }
+  return out
+}
+
+function sanitizeIata(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  const code = value.toUpperCase().replace(/[^A-Z]/g, '')
+  return code.length === 3 ? code : ''
+}
+
 function rowScore(row: ParsedScheduleRow): number {
   return [
     row.diaNr,
     row.trainNr,
     row.startTime,
     row.endTime,
-  ].filter(Boolean).length + (row.isOff ? 1 : 0)
+  ].filter(Boolean).length + (row.isOff ? 1 : 0) + (row.flights?.length ?? 0)
 }
 
 function normalizeTime(value: string): string {

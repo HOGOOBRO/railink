@@ -1,3 +1,19 @@
+/** 하루치 비행 레그(구간) 하나. 노선이 캡쳐에 명시된 항공사(아시아나 등)에서, 편명→
+ *  노선 룩업표 대신 캡쳐의 SECTOR/STD/STA를 그대로 저장한다. std/sta는 각 공항 현지
+ *  시각("HH:MM") — 날짜 넘김(익일 도착)은 placeShift가 instant 비교로 자동 처리하므로
+ *  여기엔 시·분만 둔다. */
+export interface Flight {
+  flight?: string   // 편명 예: "OZ349" 또는 "349"
+  from?: string     // 출발 공항 IATA 예: "ICN"
+  to?: string       // 도착 공항 IATA 예: "NKG"
+  std?: string      // 출발 현지시각 "HH:MM"
+  sta?: string      // 도착 현지시각 "HH:MM"
+  /** 쇼업(공항 출근) 시각 "HH:MM" — 보통 트립 첫 레그에만. 실제 근무 시작이라 블록
+   *  시작에 쓴다. terminal은 출근 터미널/장소(T2=인천제2, G=김포 등). */
+  showup?: string
+  terminal?: string
+}
+
 export interface ScheduleEntry {
   uid: string
   date: string       // "YYYY-MM-DD"
@@ -6,6 +22,9 @@ export interface ScheduleEntry {
   startTime?: string // "HH:MM"
   endTime?: string   // "HH:MM" (24:00+ allowed for 익일 종료)
   isOff: boolean
+  /** 하루 여러 구간(다중 레그). 노선 명시 항공사에서만 채워진다. 첫 레그 출발/마지막
+   *  레그 도착이 그날 근무의 출도착이 되고, 노선 문자열·레그별 상세에 쓰인다. */
+  flights?: Flight[]
 }
 
 export type CompareColor =

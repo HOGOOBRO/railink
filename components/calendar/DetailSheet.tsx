@@ -264,7 +264,15 @@ export function DetailSheet({
               )}
             </div>
             {shiftDetail.noTime ? (
-              <div className="text-callout text-ink-700 mt-2">출퇴근 시간이 입력되지 않은 근무예요.</div>
+              shiftDetail.codeOnly ? (
+                /* 대기·훈련 등 원래 시간이 없는 코드 — 코드만 깔끔히. */
+                <div className="mt-2.5 flex items-center gap-2">
+                  <span className="text-caption text-ink-500 w-12 shrink-0">{airline ? '근무코드' : '구분'}</span>
+                  <span className="font-bold text-callout text-ink-900">{shiftDetail.dia}</span>
+                </div>
+              ) : (
+                <div className="text-callout text-ink-700 mt-2">출퇴근 시간이 입력되지 않은 근무예요.</div>
+              )
             ) : (
               <div className="mt-2.5 flex flex-col gap-1.5">
                 {shiftDetail.dia && (
@@ -273,7 +281,20 @@ export function DetailSheet({
                     <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.dia}</span>
                   </div>
                 )}
-                {shiftDetail.depLabel && shiftDetail.arrLabel ? (
+                {shiftDetail.legs && shiftDetail.legs.length ? (
+                  /* 다중 레그(아시아나 등): 구간별 편명·노선·출도착(현지+한국시간). */
+                  <div className="flex flex-col">
+                    {shiftDetail.legs.map((lg, i) => (
+                      <div key={i} className="flex items-start gap-2 py-1.5 border-t border-line first:border-t-0 first:pt-0">
+                        <span className="font-en text-caption font-bold shrink-0 mt-0.5 px-1.5 py-0.5 rounded-xs bg-brand-050 text-brand whitespace-nowrap">{lg.flight || lg.route || '구간'}</span>
+                        <span className="flex flex-col min-w-0 gap-0.5">
+                          {lg.depLabel && <span className="font-en text-callout font-bold text-ink-900">{lg.depLabel}</span>}
+                          {lg.arrLabel && <span className="font-en text-caption font-bold text-ink-700">↓ {lg.arrLabel}</span>}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : shiftDetail.depLabel && shiftDetail.arrLabel ? (
                   /* 국제선: 각 공항을 그 공항 현지시각으로(항공권식) + 비행시간 별도. */
                   <>
                     <div className="flex items-center gap-2">
@@ -298,16 +319,16 @@ export function DetailSheet({
                     </span>
                   </div>
                 )}
-                {shiftDetail.trainNr && (
+                {!shiftDetail.legs?.length && shiftDetail.trainNr && (
                   <div className="flex items-start gap-2">
                     <span className="text-caption text-ink-500 w-12 shrink-0 mt-0.5">{airline ? '편명' : '열번'}</span>
                     <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.trainNr.split(/\s*[·,]\s*|\s+/).filter(Boolean).join(' · ')}</span>
                   </div>
                 )}
-                {routeForFlights(airline, shiftDetail.trainNr) && (
+                {(shiftDetail.route ?? routeForFlights(airline, shiftDetail.trainNr)) && (
                   <div className="flex items-center gap-2">
                     <span className="text-caption text-ink-500 w-12 shrink-0">노선</span>
-                    <span className="font-en text-callout font-bold text-ink-900">{routeForFlights(airline, shiftDetail.trainNr)}</span>
+                    <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.route ?? routeForFlights(airline, shiftDetail.trainNr)}</span>
                   </div>
                 )}
               </div>

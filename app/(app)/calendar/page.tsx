@@ -66,7 +66,7 @@ import { buildDemoBirthdays, type Colleague } from '@/lib/demo-data'
 import {
   DOW_KR, buildMonthCells, hmToDecimal,
 } from '@/lib/schedule-utils'
-import { routeForFlights, flightEndpoints, airportTz } from '@/lib/airline-routes'
+import { routeForFlights, flightEndpoints, airportTz, endpointsFromLegs, routeFromLegs } from '@/lib/airline-routes'
 import { holidayNameFor } from '@/lib/holidays-kr'
 import type { ParsedScheduleRow } from '@/lib/parse/schedule-file'
 import type { ApptCard } from '@/components/calendar/MonthTimeline'
@@ -138,7 +138,9 @@ function placeShift(
   return { day, start, end: start + (arrUtc - depUtc) / 3_600_000, depLabel, arrLabel }
 }
 
-const HOME_AIRPORTS = new Set(['ICN', 'GMP'])
+// 한국(국내) 공항 — 아웃/인바운드 방향과 '외국 체류' 레이오버 판별의 기준. 국내선
+// 구간(예: GMP→CJU)은 방향 배지·레이오버 없이 그대로 그린다.
+const HOME_AIRPORTS = new Set(['ICN', 'GMP', 'CJU', 'PUS', 'RSU', 'TAE', 'KWJ', 'USN', 'KUV', 'WJU', 'HIN', 'KPO', 'MWX', 'CJJ'])
 
 // 노선으로 아웃바운드(한국 출발)/인바운드(한국 도착) 판별. 둘 다 한국이거나(왕복)
 // 둘 다 외국이면 방향 없음(undefined).
@@ -169,9 +171,42 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
     // 레이오버(휴식) 마커 — 항공 승무원의 시각·편명 없는 순수 REST만 스킵(체류 블록이 대체).
     // KTX/일반 계정은 영향 없게 airline일 때만.
     if (airline && e.diaNr === 'REST' && !e.startTime && !e.endTime && !e.trainNr) continue
+    // 노선 명시 항공사(아시아나 등): 저장된 레그로 노선·시차·레그별 상세를 만든다.
+    // 편명 룩업표 대신 SECTOR를 그대로 쓰므로 노선 수에 제약이 없다.
+    if (airline && e.flights?.length) {
+      const legs = e.flights
+      const first = legs[0], last = legs[legs.length - 1]
+      const { from, to } = endpointsFromLegs(legs)
+      if (first.std && last.sta) {
+        // 근무 시작 = 쇼업(있으면). 쇼업은 실제 출근 시각이라 첫 비행 출발보다 빠르다.
+        // 없으면 첫 비행 출발로. 쇼업은 보통 한국공항(KST)이라 시차 병기 없이 '쇼업 HH:MM'.
+        const showupLeg = legs.find(l => l.showup)
+        const startLocal = showupLeg?.showup ?? (first.std as string)
+        const p = placeShift(year, month, d, startLocal, from, d, last.sta, to)
+        const legViews = legs.map(lg => {
+          const lp = placeShift(year, month, d, lg.std ?? '', lg.from, d, lg.sta ?? '', lg.to)
+          return {
+            flight: lg.flight,
+            route: [lg.from, lg.to].filter(Boolean).join('→') || undefined,
+            depLabel: lp.depLabel ?? ((lg.from || lg.std) ? `${lg.from ?? ''} ${lg.std ?? ''}`.trim() : undefined),
+            arrLabel: lp.arrLabel ?? ((lg.to || lg.sta) ? `${lg.to ?? ''} ${lg.sta ?? ''}`.trim() : undefined),
+            dir: flightDir(lg.from, lg.to),
+          }
+        })
+        const depLabel = showupLeg?.showup
+          ? `쇼업 ${showupLeg.terminal ? `${showupLeg.terminal} ` : ''}${showupLeg.showup}`
+          : (p.depLabel ?? ((from || first.std) ? `${from ?? ''} ${first.std ?? ''}`.trim() : undefined))
+        const arrLabel = p.arrLabel ?? ((to || last.sta) ? `${to ?? ''} ${last.sta ?? ''}`.trim() : undefined)
+        out.push({ day: p.day, dia: flightDia(e.diaNr), trainNr: e.trainNr, start: p.start, end: p.end, route: routeFromLegs(legs) ?? undefined, depLabel, arrLabel, dir: flightDir(from, to), fromAirport: from, toAirport: to, legs: legViews })
+        continue
+      }
+    }
     const hasStart = !!e.startTime, hasEnd = !!e.endTime
     if (!hasStart && !hasEnd) {
-      out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: 0, end: 0, noTime: true, route: rt(e.trainNr) })
+      // 시간 없는 코드: 편명/노선도 없으면 '의도된 코드'(대기·훈련 등) — 시간이 원래
+      // 없는 근무다. 편명은 있는데 시간만 없으면 인식 누락(경고 대상). 이 둘을 구분한다.
+      const codeOnly = !e.trainNr && !e.flights?.length
+      out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: 0, end: 0, noTime: true, codeOnly, route: rt(e.trainNr) })
       continue
     }
     if (hasStart && hasEnd) {
