@@ -27,7 +27,7 @@ import { BootSplash } from '@/components/loading/BootSplash'
 import { Spinner } from '@/components/ui/Spinner'
 import { useDelayedFlag } from '@/lib/use-delayed-flag'
 import type { MonthPerson, MonthShift } from '@/components/calendar/MonthTimeline'
-import { getCurrentSession, logout, getMarketingConsent, setMarketingConsent, getJobCategory, setJobCategory, type Session } from '@/lib/auth'
+import { getCurrentSession, getCachedSession, logout, getMarketingConsent, setMarketingConsent, getJobCategory, setJobCategory, type Session } from '@/lib/auth'
 import { JOB_OPTIONS, findAirline } from '@/lib/profile-fields'
 import { track } from '@/lib/analytics'
 import {
@@ -227,7 +227,9 @@ export default function CalendarPage() {
   const [year, setYear]   = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth() + 1)
 
-  const [session, setSession] = useState<Session | null>(null)
+  // Seed from the SPA-lifetime session cache so client-side navigation back to
+  // calendar doesn't flash the boot gate (session would otherwise start null).
+  const [session, setSession] = useState<Session | null>(() => getCachedSession())
   const [groupsState, setGroupsState] = useState<GroupsState>({ groups: [], activeGroupId: null })
   const [mySched, setMySched] = useState<ScheduleEntry[]>([])
   const [colSched, setColSched] = useState<Record<string, ScheduleEntry[]>>({})

@@ -68,9 +68,12 @@ export const viewport = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Inline background on html/body so a cold PWA launch paints the neutral
+  // surface immediately — before globals.css loads. Without it the system can
+  // flash a black screen (standalone dark mode) until the stylesheet applies.
   return (
-    <html lang="ko" className={jetbrainsMono.variable}>
-      <body>
+    <html lang="ko" className={jetbrainsMono.variable} style={{ backgroundColor: '#F5F6F8' }}>
+      <body style={{ backgroundColor: '#F5F6F8' }}>
         {/* gtag 동기 스텁: gtag.js(afterInteractive + opt-out 체크 뒤 지연 마운트)가
             로드되기 전에 발생한 이벤트(빠른 가입/데모 로그인)가 유실되지 않도록
             dataLayer에 큐잉한다. opt-out이면 gtag.js가 영영 안 실리므로 큐는

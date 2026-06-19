@@ -80,10 +80,20 @@ function getDemoSession(): Session | null {
  * + logout. */
 let profileCache: { uid: string; photo: string | undefined; profileType: ProfileType; airline: string | undefined; jobCategory: string | undefined } | null = null
 
+/* Last resolved session, kept for the SPA lifetime. getCurrentSession is async,
+ * so every page starts at session=null and flashes a loading gate on each route
+ * change even when the session is already known. Pages seed their initial state
+ * from getCachedSession() so client-side navigation no longer flashes. Reset on
+ * logout / onboarding change so a stale identity is never reused. A true cold
+ * boot (PWA relaunch, full reload) has an empty module → null → normal first
+ * load. */
+let lastSession: Session | null = null
+export function getCachedSession(): Session | null { return lastSession }
+
 export async function getCurrentSession(): Promise<Session | null> {
   const { data } = await supabase.auth.getSession()
   const u = data.session?.user
-  if (!u) return getDemoSession()
+  if (!u) { const demo = getDemoSession(); lastSession = demo; return demo }
   if (typeof window !== 'undefined') localStorage.removeItem(DEMO_SESSION_KEY)
   const m = (u.user_metadata ?? {}) as Record<string, string>
   // profile_type: user_metadata is a LEGACY FALLBACK only. The source of truth is
@@ -135,7 +145,7 @@ export async function getCurrentSession(): Promise<Session | null> {
   // 조회 실패(catch) 시엔 게이트를 걸지 않는다(오게이팅 방지).
   const needsOnboarding =
     cleanFetch && provider === 'google' && profileType === 'personal' && !airline && !jobCategory
-  return {
+  const session: Session = {
     uid: u.id,
     email: u.email ?? '',
     name: m.name ?? '',
@@ -147,6 +157,8 @@ export async function getCurrentSession(): Promise<Session | null> {
     needsOnboarding,
     isDemo: false,
   }
+  lastSession = session
+  return session
 }
 
 /* ── Login ─────────────────────────────────────────────────────────────────── */
@@ -384,6 +396,7 @@ export async function updatePhoto(photo: string | null): Promise<{ ok: boolean; 
 
 export async function logout(): Promise<void> {
   profileCache = null
+  lastSession = null
   // 푸시 구독 정리 — 안 하면 공용 브라우저에서 다음 로그인 계정이 이전 계정의
   // 알림을 받는다(구독은 endpoint로 서버에 남고, getPushStatus는 'enabled'라
   // 재구독도 안 일어남). signOut 전에 토큰이 살아있을 때 RPC가 통하도록 먼저.
@@ -617,6 +630,7 @@ export async function completeOnboarding(input: {
     return { ok: false, message: '저장 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
   }
   profileCache = null   // 게이트 해제가 즉시 반영되도록 캐시 무효화
+  lastSession = null     // 다음 조회에서 needsOnboarding 등 최신 상태로 재resolve
   return { ok: true }
 }
 
