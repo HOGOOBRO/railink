@@ -20,6 +20,9 @@
   /* Accent(포인트) 토큰. 기본은 brand와 동일(중립). 항공사 테마가 덮어쓴다. */
   --accent:      var(--brand);
   --accent-soft: var(--brand-050);
+  /* AI 스캔 라인 색. 기본은 accent. 항공사 테마가 필요하면 따로 덮어쓴다(예: 아시아나=골드,
+     그레이 accent가 빨강이라 경고처럼 보이는 걸 피함). */
+  --scan-color:  var(--accent);
 
   /* Surface / Line */
   --bg:        #F5F6F8;
@@ -98,6 +101,7 @@
   --brand-050: #F1F0F0;
   --accent:      #E51820;
   --accent-soft: #FCE0E1;
+  --scan-color:  #E8A81C;   /* AI 스캔선 = 색동 골드(레드 대신 — 그레이 테마에 경고처럼 안 보이게) */
 
   /* 동료 비교 색 — 색동(오방+오간색) 볼드 팔레트. 브랜드가 차분한 그레이라 동료색은
      선명해도 앱이 시끄럽지 않고 오히려 사람 구분이 잘 된다. 적(레드)은 브랜드 accent라 제외. */
@@ -246,7 +250,7 @@
   background: linear-gradient(
     to bottom,
     transparent,
-    color-mix(in oklab, var(--accent) 50%, transparent),
+    color-mix(in oklab, var(--scan-color) 50%, transparent),
     transparent
   );
   filter: blur(1px);

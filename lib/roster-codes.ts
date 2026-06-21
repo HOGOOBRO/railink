@@ -8,7 +8,7 @@ export type RosterCategory = 'work' | 'off' | 'standby' | 'training' | 'move' | 
 export const CATEGORY_META: Record<RosterCategory, { label: string; isOff: boolean }> = {
   work:     { label: '근무', isOff: false },
   off:      { label: '휴무', isOff: true },
-  standby:  { label: '대기', isOff: false },
+  standby:  { label: 'STBY', isOff: false },
   training: { label: '훈련', isOff: false },
   move:     { label: '이동근무', isOff: false },
   other:    { label: '기타', isOff: false },
@@ -35,10 +35,10 @@ const BUILTIN: Record<string, { category: RosterCategory; label: string }> = {
   연차휴가:           { category: 'off', label: '연차' },
   연차:              { category: 'off', label: '연차' },
   휴무:              { category: 'off', label: '휴무' },
-  STBY확인요망:       { category: 'standby', label: '대기' },
-  장거리STBY확인요망:  { category: 'standby', label: '대기' },
-  STBY:              { category: 'standby', label: '대기' },
-  대기:              { category: 'standby', label: '대기' },
+  STBY확인요망:       { category: 'standby', label: 'STBY' },
+  장거리STBY확인요망:  { category: 'standby', label: 'STBY' },
+  STBY:              { category: 'standby', label: 'STBY' },
+  대기:              { category: 'standby', label: 'STBY' },
   REST:              { category: 'other', label: '체류' },
 }
 
@@ -48,7 +48,7 @@ export function builtinCode(raw: string | undefined | null): { category: RosterC
 
 // 사용자가 답(코드 뜻)으로 적는 단어 → 표준 단어 치환. 키는 canonCode 형태.
 const ANSWER_SYNONYMS: Record<string, string> = {
-  스탠바이: '대기', STANDBY: '대기', 대기중: '대기', 스탠바이대기: '대기',
+  스탠바이: 'STBY', STANDBY: 'STBY', 대기중: 'STBY', 스탠바이대기: 'STBY', 대기: 'STBY',
   트레이닝: '훈련', TRAINING: '훈련', 교육: '훈련', 정기훈련: '훈련', 안전훈련: '훈련',
   데드헤드: '이동근무', DH: '이동근무', DEADHEAD: '이동근무', 포지셔닝: '이동근무',
   관숙비행: '관숙비행', OE: '관숙비행',

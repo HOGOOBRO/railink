@@ -37,7 +37,8 @@ export interface MonthShift {
   start: number      // decimal hour within `day`
   end: number        // decimal hour; > 24 when the shift ends next day (박차)
   noTime?: boolean   // a working day with no 출퇴근 times
-  codeOnly?: boolean // noTime이지만 편명/노선 없는 '의도된 코드'(대기·훈련 등) — 경고 대신 코드만
+  codeOnly?: boolean // noTime이지만 편명/노선 없는 '의도된 코드'(훈련 등) — 경고 대신 코드만
+  standby?: boolean  // STBY(대기) — 시각 미상이라 하루종일 밴드로 그린다(start 0, end 24)
   // 밤샘 연속근무로 한쪽 시각만 있는 날. 'end'=전날 시작분이 이 날에서 끝남(시작=0 채움),
   // 'start'=이 날 시작했고 익일 계속됨(끝=24 채움). 표시에서 0/24 대신 안내 라벨로 바꾼다.
   cont?: 'start' | 'end'
@@ -124,7 +125,8 @@ export interface ShiftDetail {
   dir?: '아웃바운드' | '인바운드'
   route?: string       // 저장된 노선(아시아나) — routeForFlights 표가 없을 때 사용
   legs?: LegView[]     // 다중 레그 상세
-  codeOnly?: boolean   // 시간 없는 의도된 코드(대기·훈련) — 상세도 경고 대신 코드만
+  codeOnly?: boolean   // 시간 없는 의도된 코드(훈련 등) — 상세도 경고 대신 코드만
+  standby?: boolean    // STBY — 상세에 '하루 종일 대기'로
 }
 
 export function MonthTimeline({
@@ -317,6 +319,28 @@ export function MonthTimeline({
                   >
                     <span className="text-[11px] font-bold text-ink-500">{s.dia}</span>
                   </div>
+                )
+              }
+              if (s.standby) {
+                // STBY — 하루종일 밴드(시각 미상). 줄무늬로 확정 비행과 구분.
+                const st = yOf((s.day - 1) * 24)
+                const h = yOf((s.day - 1) * 24 + 24) - st
+                return (
+                  <button
+                    type="button"
+                    key={si}
+                    onClick={() => onTapShift?.({ name: p.name, dia: s.dia, start: 0, end: 24, standby: true })}
+                    className="absolute left-0 right-0 flex flex-col gap-1 overflow-hidden leading-tight text-left"
+                    style={{ top: st, height: h, background: `repeating-linear-gradient(45deg, color-mix(in oklab, ${p.color} 6%, white), color-mix(in oklab, ${p.color} 6%, white) 9px, color-mix(in oklab, ${p.color} 12%, white) 9px, color-mix(in oklab, ${p.color} 12%, white) 18px)`, borderStyle: 'solid', borderColor: `color-mix(in oklab, ${p.color} 26%, white)`, borderLeftColor: p.color, borderWidth: 1, borderLeftWidth: 3, borderRadius: 10, padding: '5px 6px' }}
+                  >
+                    <div className="flex items-center gap-1 min-w-0">
+                      <Initial name={p.name} photo={p.photo} color={p.color} />
+                      <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
+                      {p.tag && <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>}
+                    </div>
+                    <span className="font-en text-[12px] font-bold text-ink-900">{s.dia}</span>
+                    <span className="text-[10px] font-semibold text-ink-500">종일 대기</span>
+                  </button>
                 )
               }
               if (s.noTime) {

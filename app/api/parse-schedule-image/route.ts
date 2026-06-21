@@ -539,7 +539,7 @@ function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: numb
       '## Non-flight rows (no FLIGHT number / no SECTOR)',
       '- "DAY OFF" → isOff true, diaNr "OFF", flights [].',
       '- "연차휴가" (annual leave) → isOff true, diaNr "연차", flights [].',
-      '- "STBY확인요망" / "장거리 STBY확인요망" / standby → isOff false, diaNr "대기", no times, flights [].',
+      '- "STBY확인요망" / "장거리 STBY확인요망" / standby → isOff false, diaNr "STBY", no times, flights [].',
       '- A row that shows ONLY an airport code with no flight number (e.g. "FRA", "BKK", "ICN" on a layover/rest day) → isOff false, diaNr "REST", no times, flights []. (It marks a stay; do not invent a flight.)',
       '- ANY OTHER text you do not recognize (training, ground duty, codes you have not seen) → put the text VERBATIM into diaNr, isOff false, no times, flights []. NEVER drop a cell\'s text or guess — preserve exactly what is printed so it can be classified later.',
       '',

@@ -263,7 +263,14 @@ export function DetailSheet({
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-pill bg-brand-050 text-brand">{shiftDetail.dir}</span>
               )}
             </div>
-            {shiftDetail.noTime ? (
+            {shiftDetail.standby ? (
+              /* STBY — 시각 미상, 하루 종일 대기. */
+              <div className="mt-2.5 flex items-center gap-2">
+                <span className="text-caption text-ink-500 w-12 shrink-0">{airline ? '근무코드' : '구분'}</span>
+                <span className="font-bold text-callout text-ink-900 font-en">{shiftDetail.dia}</span>
+                <span className="text-caption text-ink-500">· 하루 종일 대기</span>
+              </div>
+            ) : shiftDetail.noTime ? (
               shiftDetail.codeOnly ? (
                 /* 대기·훈련 등 원래 시간이 없는 코드 — 코드만 깔끔히. */
                 <div className="mt-2.5 flex items-center gap-2">
