@@ -494,6 +494,22 @@ export function UploadModal({
     }))
   }
 
+  // 다중레그 항공편의 개별 레그 시각(std/sta)을 고친다. flights는 유지한 채(노선·시차
+  // 정보 보존) 해당 레그만 갈고, 하루 시작/종료(startTime/endTime)는 첫·마지막 레그에서
+  // 다시 끌어온다. setPreviewRow와 달리 flights를 비우지 않아 레그 수정이 그대로 반영된다.
+  function setPreviewLeg(i: number, legIdx: number, patch: { std?: string; sta?: string }) {
+    setRows(current => current.map((row, idx) => {
+      if (idx !== i || !row.flights?.length) return row
+      const flights = row.flights.map((lg, k) => (k === legIdx ? { ...lg, ...patch } : lg))
+      return {
+        ...row,
+        flights,
+        startTime: flights[0]?.std || row.startTime,
+        endTime: flights[flights.length - 1]?.sta || row.endTime,
+      }
+    }))
+  }
+
   function removePreviewRow(i: number) {
     setRows(current => current.filter((_, idx) => idx !== i))
   }
@@ -796,6 +812,7 @@ export function UploadModal({
             <PreviewBody
               rows={previewRows}
               onChange={setPreviewRow}
+              onChangeLeg={setPreviewLeg}
               onRemove={removePreviewRow}
               onAppend={appendPreviewRow}
               airline={airline}
@@ -1056,13 +1073,14 @@ function legTimeIssue(flights: ParsedScheduleRow['flights']): string | null {
 interface PreviewBodyProps {
   rows: ParsedScheduleRow[]
   onChange: (i: number, patch: Partial<ParsedScheduleRow>) => void
+  onChangeLeg: (i: number, legIdx: number, patch: { std?: string; sta?: string }) => void
   onRemove: (i: number) => void
   onAppend: () => void
   /** 항공 승무원이면 KTX 용어(다이/열번) 대신 근무코드/편명으로 라벨링. */
   airline?: string
 }
 
-function PreviewBody({ rows, onChange, onRemove, onAppend, airline }: PreviewBodyProps) {
+function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline }: PreviewBodyProps) {
   return (
     <div className="mt-3">
       <div className="flex items-center justify-between px-1 mb-2">
@@ -1118,39 +1136,71 @@ function PreviewBody({ rows, onChange, onRemove, onAppend, airline }: PreviewBod
               </button>
             </div>
 
-            <div className="mt-2 grid grid-cols-[1fr_1fr_62px_62px] gap-1.5">
-              <input
-                value={row.diaNr ?? ''}
-                placeholder={row.isOff ? 'S' : (airline ? '근무코드' : '다이')}
-                onChange={e => onChange(i, { diaNr: e.target.value })}
-                className="min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg"
-              />
-              <input
-                value={row.trainNr ?? ''}
-                placeholder={airline ? '편명' : '열번'}
-                disabled={row.isOff}
-                onChange={e => onChange(i, { trainNr: e.target.value })}
-                className="min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
-              />
-              <input
-                value={row.startTime ?? ''}
-                placeholder="시작"
-                disabled={row.isOff}
-                inputMode="numeric"
-                maxLength={5}
-                onChange={e => onChange(i, { startTime: normalizeTimeInput(e.target.value) })}
-                className="font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
-              />
-              <input
-                value={row.endTime ?? ''}
-                placeholder="종료"
-                disabled={row.isOff}
-                inputMode="numeric"
-                maxLength={5}
-                onChange={e => onChange(i, { endTime: normalizeTimeInput(e.target.value) })}
-                className="font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
-              />
-            </div>
+            {row.flights?.length && !row.isOff ? (
+              // 다중레그 항공편: 레그별 출발·도착을 직접 고칠 수 있게 한 줄씩 편다(하루
+              // 시작/종료 한 칸으론 개별 레그 오독을 못 고침). 편명·구간은 표시, 시각만 수정.
+              <div className="mt-2 flex flex-col gap-1.5">
+                {row.flights.map((lg, li) => (
+                  <div key={li} className="flex items-center gap-1.5">
+                    <span className="font-en text-caption font-bold text-ink-900 w-11 shrink-0 truncate" title={lg.flight}>{lg.flight || '—'}</span>
+                    <span className="font-en text-[11px] text-ink-500 w-[64px] shrink-0 truncate">{[lg.from, lg.to].filter(Boolean).join('→') || '—'}</span>
+                    <input
+                      value={lg.std ?? ''}
+                      placeholder="출발"
+                      inputMode="numeric"
+                      maxLength={5}
+                      aria-label={`${lg.flight || ''} 출발 시각`}
+                      onChange={e => onChangeLeg(i, li, { std: normalizeTimeInput(e.target.value) })}
+                      className="flex-1 min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg"
+                    />
+                    <span className="text-ink-300 text-caption shrink-0">→</span>
+                    <input
+                      value={lg.sta ?? ''}
+                      placeholder="도착"
+                      inputMode="numeric"
+                      maxLength={5}
+                      aria-label={`${lg.flight || ''} 도착 시각`}
+                      onChange={e => onChangeLeg(i, li, { sta: normalizeTimeInput(e.target.value) })}
+                      className="flex-1 min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-2 grid grid-cols-[1fr_1fr_62px_62px] gap-1.5">
+                <input
+                  value={row.diaNr ?? ''}
+                  placeholder={row.isOff ? 'S' : (airline ? '근무코드' : '다이')}
+                  onChange={e => onChange(i, { diaNr: e.target.value })}
+                  className="min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg"
+                />
+                <input
+                  value={row.trainNr ?? ''}
+                  placeholder={airline ? '편명' : '열번'}
+                  disabled={row.isOff}
+                  onChange={e => onChange(i, { trainNr: e.target.value })}
+                  className="min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
+                />
+                <input
+                  value={row.startTime ?? ''}
+                  placeholder="시작"
+                  disabled={row.isOff}
+                  inputMode="numeric"
+                  maxLength={5}
+                  onChange={e => onChange(i, { startTime: normalizeTimeInput(e.target.value) })}
+                  className="font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
+                />
+                <input
+                  value={row.endTime ?? ''}
+                  placeholder="종료"
+                  disabled={row.isOff}
+                  inputMode="numeric"
+                  maxLength={5}
+                  onChange={e => onChange(i, { endTime: normalizeTimeInput(e.target.value) })}
+                  className="font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
+                />
+              </div>
+            )}
 
             {!row.isOff && isOvernight(row.startTime, row.endTime) && (
               <span className="mt-1.5 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-pill bg-brand-050 text-brand">
