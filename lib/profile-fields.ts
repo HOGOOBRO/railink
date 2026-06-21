@@ -39,7 +39,7 @@ export type Airline = { code: string; label: string; active: boolean }
 
 export const AIRLINES: Airline[] = [
   { code: 'air-premia',  label: '에어프레미아', active: true },
-  { code: 'asiana',      label: '아시아나',     active: false },
+  { code: 'asiana',      label: '아시아나',     active: true },
   { code: 'korean-air',  label: '대한항공',     active: false },
   { code: 'jin-air',     label: '진에어',       active: false },
   { code: 'jeju-air',    label: '제주항공',     active: false },

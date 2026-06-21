@@ -29,6 +29,7 @@ import { useDelayedFlag } from '@/lib/use-delayed-flag'
 import type { MonthPerson, MonthShift } from '@/components/calendar/MonthTimeline'
 import { getCurrentSession, getCachedSession, logout, getMarketingConsent, setMarketingConsent, getJobCategory, setJobCategory, type Session } from '@/lib/auth'
 import { JOB_OPTIONS, findAirline } from '@/lib/profile-fields'
+import { builtinCode } from '@/lib/roster-codes'
 import { track } from '@/lib/analytics'
 import {
   getMonthSchedules,
@@ -66,7 +67,7 @@ import { buildDemoBirthdays, type Colleague } from '@/lib/demo-data'
 import {
   DOW_KR, buildMonthCells, hmToDecimal,
 } from '@/lib/schedule-utils'
-import { routeForFlights, flightEndpoints, airportTz } from '@/lib/airline-routes'
+import { routeForFlights, flightEndpoints, airportTz, endpointsFromLegs, routeFromLegs } from '@/lib/airline-routes'
 import { holidayNameFor } from '@/lib/holidays-kr'
 import type { ParsedScheduleRow } from '@/lib/parse/schedule-file'
 import type { ApptCard } from '@/components/calendar/MonthTimeline'
@@ -138,7 +139,13 @@ function placeShift(
   return { day, start, end: start + (arrUtc - depUtc) / 3_600_000, depLabel, arrLabel }
 }
 
-const HOME_AIRPORTS = new Set(['ICN', 'GMP'])
+// 한국(국내) 공항 — 아웃/인바운드 방향과 '외국 체류' 레이오버 판별의 기준. 국내선
+// 구간(예: GMP→CJU)은 방향 배지·레이오버 없이 그대로 그린다.
+const HOME_AIRPORTS = new Set(['ICN', 'GMP', 'CJU', 'PUS', 'RSU', 'TAE', 'KWJ', 'USN', 'KUV', 'WJU', 'HIN', 'KPO', 'MWX', 'CJJ'])
+// 베이스(집) — 서울베이스 기준 ICN·GMP만. 그 외 스테이션(국내 CJU·RSU 포함, 해외 전부)에서
+// 자면 전부 '체류'다. 방향 배지(flightDir)는 '한국 vs 외국'이라 HOME_AIRPORTS(전 한국공항)를
+// 그대로 쓰고, 체류 판정만 이 BASE로 좁힌다.
+const BASE_AIRPORTS = new Set(['ICN', 'GMP'])
 
 // 노선으로 아웃바운드(한국 출발)/인바운드(한국 도착) 판별. 둘 다 한국이거나(왕복)
 // 둘 다 외국이면 방향 없음(undefined).
@@ -169,9 +176,52 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
     // 레이오버(휴식) 마커 — 항공 승무원의 시각·편명 없는 순수 REST만 스킵(체류 블록이 대체).
     // KTX/일반 계정은 영향 없게 airline일 때만.
     if (airline && e.diaNr === 'REST' && !e.startTime && !e.endTime && !e.trainNr) continue
+    // 노선 명시 항공사(아시아나 등): 저장된 레그로 노선·시차·레그별 상세를 만든다.
+    // 편명 룩업표 대신 SECTOR를 그대로 쓰므로 노선 수에 제약이 없다.
+    if (airline && e.flights?.length) {
+      const legs = e.flights
+      const first = legs[0], last = legs[legs.length - 1]
+      const { from, to } = endpointsFromLegs(legs)
+      if (first.std && last.sta) {
+        // 근무 시작 = 쇼업(있으면). 쇼업은 실제 출근 시각이라 첫 비행 출발보다 빠르다.
+        // 없으면 첫 비행 출발로. 쇼업은 보통 한국공항(KST)이라 시차 병기 없이 '쇼업 HH:MM'.
+        const showupLeg = legs.find(l => l.showup)
+        const startLocal = showupLeg?.showup ?? (first.std as string)
+        const p = placeShift(year, month, d, startLocal, from, d, last.sta, to)
+        const legViews = legs.map(lg => {
+          // 두 공항이 다 있을 때만 시차 환산(placeShift). 한쪽이 미상이면 KST 기본값 때문에
+          // 엉뚱한 '한국시간'이 붙으므로, 그냥 원문 라벨(공항+시각)만 쓴다.
+          const lp = lg.from && lg.to
+            ? placeShift(year, month, d, lg.std ?? '', lg.from, d, lg.sta ?? '', lg.to)
+            : { depLabel: undefined, arrLabel: undefined }
+          return {
+            flight: lg.flight,
+            route: [lg.from, lg.to].filter(Boolean).join('→') || undefined,
+            depLabel: lp.depLabel ?? ((lg.from || lg.std) ? `${lg.from ?? ''} ${lg.std ?? ''}`.trim() : undefined),
+            arrLabel: lp.arrLabel ?? ((lg.to || lg.sta) ? `${lg.to ?? ''} ${lg.sta ?? ''}`.trim() : undefined),
+            dir: flightDir(lg.from, lg.to),
+          }
+        })
+        const depLabel = showupLeg?.showup
+          ? `쇼업 ${showupLeg.terminal ? `${showupLeg.terminal} ` : ''}${showupLeg.showup}`
+          : (p.depLabel ?? ((from || first.std) ? `${from ?? ''} ${first.std ?? ''}`.trim() : undefined))
+        const arrLabel = p.arrLabel ?? ((to || last.sta) ? `${to ?? ''} ${last.sta ?? ''}`.trim() : undefined)
+        out.push({ day: p.day, dia: flightDia(e.diaNr), trainNr: e.trainNr, start: p.start, end: p.end, route: routeFromLegs(legs) ?? undefined, depLabel, arrLabel, dir: flightDir(from, to), fromAirport: from, toAirport: to, legs: legViews })
+        continue
+      }
+    }
     const hasStart = !!e.startTime, hasEnd = !!e.endTime
     if (!hasStart && !hasEnd) {
-      out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: 0, end: 0, noTime: true, route: rt(e.trainNr) })
+      // STBY(대기): 로스터에 시각이 없고('확인요망') 종일 대기 성격 → 하루종일 밴드로
+      // 그려 "이 날 비어있지 않음"이 한눈에 보이게 한다.
+      if (airline && builtinCode(e.diaNr)?.category === 'standby') {
+        out.push({ day: d, dia: e.diaNr || 'STBY', start: 0, end: 24, standby: true })
+        continue
+      }
+      // 그 외 시간 없는 코드: 편명/노선도 없으면 '의도된 코드'(훈련 등) — 원래 시간이 없는
+      // 근무다. 편명은 있는데 시간만 없으면 인식 누락(경고 대상). 이 둘을 구분한다.
+      const codeOnly = !e.trainNr && !e.flights?.length
+      out.push({ day: d, dia: e.diaNr, trainNr: e.trainNr, start: 0, end: 0, noTime: true, codeOnly, route: rt(e.trainNr) })
       continue
     }
     if (hasStart && hasEnd) {
@@ -203,10 +253,12 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
     .sort((a, b) => ((a.day - 1) * 24 + a.start) - ((b.day - 1) * 24 + b.start))
   for (let i = 0; i < flights.length - 1; i++) {
     const a = flights[i], b = flights[i + 1]
-    const aAway = !!a.toAirport && !HOME_AIRPORTS.has(a.toAirport)
-    const bAway = !!b.fromAirport && !HOME_AIRPORTS.has(b.fromAirport)
+    const aAway = !!a.toAirport && !BASE_AIRPORTS.has(a.toAirport)
+    const bAway = !!b.fromAirport && !BASE_AIRPORTS.has(b.fromAirport)
     // 같은 트립일 때만 체류로 잇는다: 도착공항 == 다음 비행 출발공항. (서로 다른 외국
     // 트립을 한 덩어리로 잘못 묶지 않도록.)
+    // 바로 인접한 두 비행만 본다(i, i+1). 그래서 사이에 귀국편(→ICN/GMP)이 끼면 둘이
+    // 더 이상 인접하지 않아 자연히 안 이어진다 = "집에 가면 끊김"이 이미 보장됨. 시간 가드 불필요.
     if (!aAway || !bAway || a.toAirport !== b.fromAirport) continue
     const aEnd = (a.day - 1) * 24 + a.end
     const bStart = (b.day - 1) * 24 + b.start

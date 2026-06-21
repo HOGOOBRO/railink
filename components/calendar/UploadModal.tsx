@@ -10,8 +10,11 @@ import { parseScheduleFile, type ParsedScheduleRow } from '@/lib/parse/schedule-
 import { recognizeScheduleImage, type OcrProgress } from '@/lib/parse/schedule-image'
 import { fmtClock, hmToDecimal, canonicalEnd, isOvernight, normalizeTimeInput } from '@/lib/schedule-utils'
 import { getCodebook, type CodebookEntry } from '@/lib/store/codebook'
+import { canonCode, builtinCode, normalizeAnswerLabel, categoryEffect, CATEGORY_ORDER, CATEGORY_META, type RosterCategory } from '@/lib/roster-codes'
+import { fetchRosterCodes, recordRosterCode, type RosterCodeEntry } from '@/lib/store/roster-codes'
 import { AnalyzeTableSkeleton } from '@/components/calendar/AnalyzeTableSkeleton'
 import { RosterExampleCard } from '@/components/calendar/RosterExampleCard'
+import { RosterExampleTable } from '@/components/calendar/RosterExampleTable'
 import Link from 'next/link'
 
 // Show overnight ends as a real next-day clock ("11:49") in the editable preview
@@ -173,6 +176,8 @@ function normalizePreviewRows(rows: ParsedScheduleRow[]): ParsedScheduleRow[] {
           // Re-derive 24+ notation for overnight ends from the wrapped clock the
           // user edited, so storage stays canonical even though the input showed "11:49".
           endTime: canonicalEnd(row.startTime?.trim() || undefined, row.endTime?.trim() || undefined),
+          // 항공 다중 레그(아시아나): 미리보기에서 편집하지 않는 노선 레그를 보존한다.
+          flights: row.flights && row.flights.length ? row.flights : undefined,
         }
 
     const filled = next.isOff || next.diaNr || next.trainNr || next.startTime || next.endTime
@@ -226,6 +231,37 @@ export function UploadModal({
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // 코드 사전: 항공 승무원 미리보기에서 '모르는 코드'를 분류받아 다음부턴 자동 인식.
+  const [codeCatalog, setCodeCatalog] = useState<Map<string, RosterCodeEntry>>(new Map())
+  const [classified, setClassified] = useState<Record<string, { category: RosterCategory; label: string }>>({})
+  const [skippedCodes, setSkippedCodes] = useState<Set<string>>(new Set())   // '건너뛰기' 한 코드(원문 그대로 저장)
+  const [renamingCodes, setRenamingCodes] = useState<Set<string>>(new Set()) // '다르게 부르기' 입력칸 연 코드
+  const toggleInSet = (setter: typeof setSkippedCodes, key: string) =>
+    setter(prev => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n })
+  useEffect(() => {
+    if (step !== 'preview' || !airline) return
+    let alive = true
+    fetchRosterCodes(airline).then(c => { if (alive) setCodeCatalog(c) })
+    return () => { alive = false }
+  }, [step, airline])
+  // 분류가 필요한 '처음 보는 코드'(비행 아님 + 내장/사전에 없음). 원문(표시용) 유지.
+  const pendingCodes = useMemo(() => {
+    if (!airline) return [] as string[]
+    const seen = new Set<string>()
+    const list: string[] = []
+    for (const r of rows) {
+      if (r.isOff || r.flights?.length) continue
+      const dia = (r.diaNr ?? '').trim()
+      if (!dia) continue
+      const key = canonCode(dia)
+      if (!key || seen.has(key)) continue
+      if (builtinCode(dia) || codeCatalog.get(key)?.category) continue
+      seen.add(key)
+      list.push(dia)
+    }
+    return list
+  }, [rows, airline, codeCatalog])
 
   // 항공 승무원(airline)·KTX는 올릴 로스터 캡쳐가 있으니 '이미지 등록'을 hero로,
   // 일반 personal만 '직접 입력'을 hero로 둔다.
@@ -396,11 +432,25 @@ export function UploadModal({
   }
 
   async function handleSave() {
+    // 분류한 코드를 행에 반영: 휴무면 isOff, 표준 라벨로 치환. 이번 세션 분류뿐 아니라
+    // 공용 사전(codeCatalog)에 이미 분류된 코드도 자동 적용 — 그래야 "다음부턴 자동 인식"이
+    // 실제로 동작한다. (분류 안 했거나 건너뛴 코드는 원문 그대로)
+    const applyClassified = (rs: ParsedScheduleRow[]) => !airline ? rs : rs.map(r => {
+      if (r.isOff || r.flights?.length || !r.diaNr) return r
+      const key = canonCode(r.diaNr)
+      if (skippedCodes.has(key)) return r
+      const known = codeCatalog.get(key)
+      const category = classified[key]?.category ?? known?.category ?? undefined
+      if (!category) return r
+      const label = classified[key]?.label ?? known?.label ?? r.diaNr
+      return { ...r, diaNr: label || r.diaNr, isOff: categoryEffect(category).isOff }
+    })
+
     let parsed: ParsedScheduleRow[]
     try {
       parsed = step === 'manual'
         ? manualRowsToParsed(manualRows, defaultYear, defaultMonth)
-        : normalizePreviewRows(rows)
+        : normalizePreviewRows(applyClassified(rows))
       if (parsed.length === 0) {
         setError(step === 'manual' ? '하루 이상 입력한 뒤 저장해 주세요.' : '저장할 근무 행이 없어요.')
         return
@@ -414,6 +464,13 @@ export function UploadModal({
     setError(null)
     try {
       await onSave(parsed)
+      // 분류를 공용 사전에 기록 — 다음부턴 모든 같은 항공사 크루가 자동 인식. 실패해도 저장엔 영향 없음.
+      if (airline) {
+        for (const [code, c] of Object.entries(classified)) {
+          if (skippedCodes.has(code)) continue   // 건너뛴 코드는 사전에 기록 안 함
+          void recordRosterCode(airline, code, { category: c.category, label: c.label, isOff: categoryEffect(c.category).isOff })
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '근무표 저장 중 문제가 생겼어요.')
     } finally {
@@ -422,7 +479,16 @@ export function UploadModal({
   }
 
   function setPreviewRow(i: number, patch: Partial<ParsedScheduleRow>) {
-    setRows(current => current.map((row, idx) => idx === i ? { ...row, ...patch } : row))
+    setRows(current => current.map((row, idx) => {
+      if (idx !== i) return row
+      const next = { ...row, ...patch }
+      // 항공편 행(레그 보유)의 편명·시각·코드를 직접 고치면, 캘린더는 레그(flights)를
+      // 우선 렌더해 그 수정이 무시된다. 편집 시 레그를 비워 수정이 실제 반영되게 한다.
+      if (row.flights?.length && ('diaNr' in patch || 'trainNr' in patch || 'startTime' in patch || 'endTime' in patch)) {
+        next.flights = undefined
+      }
+      return next
+    }))
   }
 
   function removePreviewRow(i: number) {
@@ -498,18 +564,20 @@ export function UploadModal({
               월 근무표를 올려주세요
             </h4>
             <p className="text-[13.5px] text-ink-500 leading-relaxed mb-4">
-              근무표 <strong className="text-ink-700">달력 화면 전체</strong>가 한 장에 나오게 캡쳐해 주세요.
-              AI가 날짜·편명·시각을 자동으로 읽어요.
+              {airline === 'asiana' ? (
+                <>근무표 <strong className="text-ink-700">스케줄 표 전체</strong>가 한 장에 나오게 캡쳐해 주세요. AI가 날짜·편명·구간·시각을 자동으로 읽어요.</>
+              ) : (
+                <>근무표 <strong className="text-ink-700">달력 화면 전체</strong>가 한 장에 나오게 캡쳐해 주세요. AI가 날짜·편명·시각을 자동으로 읽어요.</>
+              )}
             </p>
 
-            <RosterExampleCard />
+            {airline === 'asiana' ? <RosterExampleTable /> : <RosterExampleCard />}
 
             <ul className="mt-4 flex flex-col gap-2">
-              {[
-                '한 달 전체가 한 화면에 보이게',
-                '글자가 또렷하게 (흐리면 인식이 떨어져요)',
-                '하단 코드 설명까지 같이 나와도 좋아요',
-              ].map(tip => (
+              {(airline === 'asiana'
+                ? ['한 달 전체가 한 화면에 보이게', '글자가 또렷하게 (흐리면 인식이 떨어져요)', '편명·구간·시각이 잘리지 않게']
+                : ['한 달 전체가 한 화면에 보이게', '글자가 또렷하게 (흐리면 인식이 떨어져요)', '하단 코드 설명까지 같이 나와도 좋아요']
+              ).map(tip => (
                 <li key={tip} className="flex items-start gap-2 text-caption text-ink-700 leading-relaxed">
                   <span className="shrink-0 mt-0.5 text-brand"><CheckIcon size={15} /></span>
                   {tip}
@@ -707,6 +775,21 @@ export function UploadModal({
               </div>
             </div>
 
+            {pendingCodes.length > 0 && (
+              <CodeClassifier
+                codes={pendingCodes}
+                classified={classified}
+                skipped={skippedCodes}
+                renaming={renamingCodes}
+                onPick={(key, category, label) => {
+                  setClassified(prev => ({ ...prev, [key]: { category, label } }))
+                  setSkippedCodes(prev => { if (!prev.has(key)) return prev; const n = new Set(prev); n.delete(key); return n })
+                }}
+                onSkip={key => toggleInSet(setSkippedCodes, key)}
+                onToggleRename={key => toggleInSet(setRenamingCodes, key)}
+              />
+            )}
+
             <PreviewBody
               rows={previewRows}
               onChange={setPreviewRow}
@@ -855,6 +938,89 @@ interface ManualBodyProps {
   onUndoFill: () => void
   /** 되돌릴 일괄 채우기 스냅샷이 있는지. */
   canUndoFill: boolean
+}
+
+/** 처음 보는 코드 분류 패널. 칩으로 종류를 고르면 저장 시 공용 사전에 기록돼 다음부턴
+ *  자동 인식. 건너뛰거나 분류 안 해도 원문 그대로 저장되어 손실 없음. */
+function CodeClassifier({ codes, classified, skipped, renaming, onPick, onSkip, onToggleRename }: {
+  codes: string[]
+  classified: Record<string, { category: RosterCategory; label: string }>
+  skipped: Set<string>
+  renaming: Set<string>
+  onPick: (key: string, category: RosterCategory, label: string) => void
+  onSkip: (key: string) => void
+  onToggleRename: (key: string) => void
+}) {
+  const remaining = codes.filter(c => {
+    const k = canonCode(c)
+    return !classified[k] && !skipped.has(k)
+  }).length
+  return (
+    <div className="rounded-md border-2 border-brand-100 bg-brand-050 p-3 flex flex-col gap-3">
+      <div>
+        <p className="text-callout font-bold text-ink-900">처음 보는 코드 {codes.length}개</p>
+        <p className="text-caption text-ink-500 mt-0.5">
+          {remaining > 0 ? `${remaining}개를 분류하면 다음부터 자동으로 알아봐요` : '다 분류했어요. 다음부터 자동 인식돼요'}
+        </p>
+      </div>
+      {codes.map(code => {
+        const key = canonCode(code)
+        const sel = classified[key]
+        const isSkip = skipped.has(key)
+        const isRenaming = renaming.has(key)
+        return (
+          <div key={key} className={`flex flex-col gap-1.5 pt-2.5 border-t border-brand-100 first:border-t-0 first:pt-0 ${isSkip ? 'opacity-55' : ''}`}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-bold text-callout text-ink-900 font-en truncate">
+                {code}
+                {!isSkip && sel && <span className="ml-2 font-sans text-caption font-bold text-brand">✓ {sel.label}</span>}
+                {isSkip && <span className="ml-2 font-sans text-caption font-semibold text-ink-500">건너뜀</span>}
+              </span>
+              <button type="button" onClick={() => onSkip(key)} className="shrink-0 text-caption font-semibold text-ink-500 hover:text-ink-700">
+                {isSkip ? '되돌리기' : '건너뛰기'}
+              </button>
+            </div>
+            {!isSkip && (
+              <>
+                <div className="flex flex-wrap gap-1.5">
+                  {CATEGORY_ORDER.map(cat => {
+                    const on = sel?.category === cat
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => onPick(key, cat, CATEGORY_META[cat].label)}
+                        className={`px-2.5 py-1 rounded-pill border-2 text-caption font-bold transition-colors ${on ? 'border-brand bg-surface text-brand' : 'border-line bg-surface text-ink-700'}`}
+                      >
+                        {CATEGORY_META[cat].label}
+                      </button>
+                    )
+                  })}
+                </div>
+                {sel && (
+                  isRenaming ? (
+                    <input
+                      autoFocus
+                      value={sel.label}
+                      placeholder="이름 입력 (예: 관숙비행)"
+                      onChange={e => onPick(key, sel.category, e.target.value)}
+                      onBlur={e => onPick(key, sel.category, normalizeAnswerLabel(e.target.value) || CATEGORY_META[sel.category].label)}
+                      className="h-9 px-2.5 rounded-sm border border-line bg-surface text-caption self-start min-w-[180px]"
+                    />
+                  ) : (
+                    <button type="button" onClick={() => onToggleRename(key)} className="self-start text-caption font-semibold text-brand">
+                      다르게 부르기
+                    </button>
+                  )
+                )}
+              </>
+            )}
+          </div>
+        )
+      })}
+      <p className="text-caption text-ink-300">안 골라도 원문 그대로 저장돼요.</p>
+    </div>
+  )
 }
 
 interface PreviewBodyProps {

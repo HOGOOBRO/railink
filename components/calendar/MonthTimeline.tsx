@@ -20,13 +20,25 @@ import { toInitials } from '@/components/ui/Avatar'
 import { PinIcon } from '@/components/ui/icons'
 import type { AppointmentStatus } from '@/lib/types/schedule'
 
+/** 하루치 비행 한 구간의 표시용 정보(아시아나 등 다중 레그). 상세 시트에서 레그별로
+ *  편명·노선·출도착(현지+한국시간)을 보여준다. */
+export interface LegView {
+  flight?: string
+  route?: string      // "ICN→NKG"
+  depLabel?: string   // "ICN 12:30" 또는 "FRA 19:40 (한국시간 03:40)"
+  arrLabel?: string
+  dir?: '아웃바운드' | '인바운드'
+}
+
 export interface MonthShift {
   day: number        // 1-based day of month
   dia?: string
   trainNr?: string
   start: number      // decimal hour within `day`
   end: number        // decimal hour; > 24 when the shift ends next day (박차)
-  noTime?: boolean   // a working day whose 출퇴근 times weren't read (OCR miss)
+  noTime?: boolean   // a working day with no 출퇴근 times
+  codeOnly?: boolean // noTime이지만 편명/노선 없는 '의도된 코드'(훈련 등) — 경고 대신 코드만
+  standby?: boolean  // STBY(대기) — 시각 미상이라 하루종일 밴드로 그린다(start 0, end 24)
   // 밤샘 연속근무로 한쪽 시각만 있는 날. 'end'=전날 시작분이 이 날에서 끝남(시작=0 채움),
   // 'start'=이 날 시작했고 익일 계속됨(끝=24 채움). 표시에서 0/24 대신 안내 라벨로 바꾼다.
   cont?: 'start' | 'end'
@@ -43,6 +55,7 @@ export interface MonthShift {
   // true면 그쪽 모서리 radius를 0으로 해 붙여 그린다(하나의 근무처럼).
   connectTop?: boolean
   connectBottom?: boolean
+  legs?: LegView[]    // 다중 레그(아시아나). 상세 시트에서 구간별 표시.
 }
 
 /** One appointment positioned in the timeline. start/end are decimal hours
@@ -110,6 +123,10 @@ export interface ShiftDetail {
   depLabel?: string
   arrLabel?: string
   dir?: '아웃바운드' | '인바운드'
+  route?: string       // 저장된 노선(아시아나) — routeForFlights 표가 없을 때 사용
+  legs?: LegView[]     // 다중 레그 상세
+  codeOnly?: boolean   // 시간 없는 의도된 코드(훈련 등) — 상세도 경고 대신 코드만
+  standby?: boolean    // STBY — 상세에 '하루 종일 대기'로
 }
 
 export function MonthTimeline({
@@ -304,12 +321,36 @@ export function MonthTimeline({
                   </div>
                 )
               }
+              if (s.standby) {
+                // STBY — 하루종일 밴드(시각 미상). 줄무늬로 확정 비행과 구분.
+                const st = yOf((s.day - 1) * 24)
+                const h = yOf((s.day - 1) * 24 + 24) - st
+                return (
+                  <button
+                    type="button"
+                    key={si}
+                    onClick={() => onTapShift?.({ name: p.name, dia: s.dia, start: 0, end: 24, standby: true })}
+                    className="absolute left-0 right-0 flex flex-col gap-1 overflow-hidden leading-tight text-left"
+                    style={{ top: st, height: h, background: `repeating-linear-gradient(45deg, color-mix(in oklab, ${p.color} 6%, white), color-mix(in oklab, ${p.color} 6%, white) 9px, color-mix(in oklab, ${p.color} 12%, white) 9px, color-mix(in oklab, ${p.color} 12%, white) 18px)`, borderStyle: 'solid', borderColor: `color-mix(in oklab, ${p.color} 26%, white)`, borderLeftColor: p.color, borderWidth: 1, borderLeftWidth: 3, borderRadius: 10, padding: '5px 6px' }}
+                  >
+                    <div className="flex items-center gap-1 min-w-0">
+                      <Initial name={p.name} photo={p.photo} color={p.color} />
+                      <span className="font-bold text-[11px] text-ink-900 truncate">{p.name}</span>
+                      {p.tag && <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>}
+                    </div>
+                    <span className="font-en text-[12px] font-bold text-ink-900">{s.dia}</span>
+                    <span className="text-[10px] font-semibold text-ink-500">종일 대기</span>
+                  </button>
+                )
+              }
               if (s.noTime) {
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={si}
-                    className="absolute left-0 right-0 flex flex-col gap-1 overflow-hidden leading-tight"
-                    style={{ top: yOf((s.day - 1) * 24), height: NO_TIME_H, background: 'var(--bg)', boxShadow: 'inset 0 0 0 1px var(--line-2)', borderLeft: `3px dashed ${p.color}`, borderRadius: 10, padding: '5px 6px' }}
+                    onClick={() => onTapShift?.({ name: p.name, dia: s.dia, trainNr: s.trainNr, start: s.start, end: s.end, noTime: true, codeOnly: s.codeOnly })}
+                    className="absolute left-0 right-0 flex flex-col gap-1 overflow-hidden leading-tight text-left"
+                    style={{ top: yOf((s.day - 1) * 24), height: NO_TIME_H, background: 'var(--bg)', boxShadow: 'inset 0 0 0 1px var(--line-2)', borderLeft: `3px ${s.codeOnly ? 'solid' : 'dashed'} ${p.color}`, borderRadius: 10, padding: '5px 6px' }}
                   >
                     <div className="flex items-center gap-1 min-w-0">
                       <Initial name={p.name} photo={p.photo} color={p.color} />
@@ -317,12 +358,15 @@ export function MonthTimeline({
                       {p.tag && <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>}
                     </div>
                     <div className="flex items-center gap-1 min-w-0">
-                      {s.dia && <span className="font-en text-[11px] font-bold text-ink-500 truncate">{s.dia}</span>}
+                      {s.dia && <span className="font-bold text-[12px] text-ink-900 truncate">{s.dia}</span>}
                       {s.trainNr && <span className="font-en text-[11px] font-bold text-ink-700 truncate">{prettyTrain(s.trainNr)}</span>}
-                      <span className="text-[9px] font-bold px-1 rounded-pill text-ink-700 shrink-0 whitespace-nowrap" style={{ background: 'color-mix(in oklab, var(--warn) 38%, white)' }}>시간 미입력</span>
+                      {/* 의도된 코드(대기·훈련 등)는 깔끔히 코드만. 진짜 시간 누락만 경고 배지. */}
+                      {!s.codeOnly && (
+                        <span className="text-[9px] font-bold px-1 rounded-pill text-ink-700 shrink-0 whitespace-nowrap" style={{ background: 'color-mix(in oklab, var(--warn) 38%, white)' }}>시간 미입력</span>
+                      )}
                     </div>
                     {s.route && <span className="font-en text-[10px] font-bold text-ink-700 truncate">{s.route}</span>}
-                  </div>
+                  </button>
                 )
               }
               const top = yOf((s.day - 1) * 24 + s.start)
@@ -335,7 +379,7 @@ export function MonthTimeline({
                 <button
                   type="button"
                   key={si}
-                  onClick={() => onTapShift?.({ name: p.name, dia: s.dia, trainNr: s.trainNr, start: s.start, end: s.end, depLabel: s.depLabel, arrLabel: s.arrLabel, dir: s.dir })}
+                  onClick={() => onTapShift?.({ name: p.name, dia: s.dia, trainNr: s.trainNr, start: s.start, end: s.end, depLabel: s.depLabel, arrLabel: s.arrLabel, dir: s.dir, route: s.route, legs: s.legs })}
                   className={`absolute left-0 right-0 flex flex-col overflow-hidden leading-tight text-left ${compact ? 'justify-center gap-1.5' : 'justify-between'}`}
                   style={{ top, height: h, background: `color-mix(in oklab, ${p.color} 12%, white)`, borderStyle: 'solid', borderColor: `color-mix(in oklab, ${p.color} 26%, white)`, borderLeftColor: p.color, borderTopWidth: s.connectTop ? 0 : 1, borderRightWidth: 1, borderBottomWidth: s.connectBottom ? 0 : 1, borderLeftWidth: 3, borderTopLeftRadius: s.connectTop ? 0 : 10, borderTopRightRadius: s.connectTop ? 0 : 10, borderBottomLeftRadius: s.connectBottom ? 0 : 10, borderBottomRightRadius: s.connectBottom ? 0 : 10, padding: '5px 6px 6px' }}
                 >

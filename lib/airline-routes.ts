@@ -42,19 +42,51 @@ const ROUTES_BY_AIRLINE: Record<string, Record<string, Route>> = {
 /** 공항(IATA) → IANA 타임존. 로스터 시각은 각 공항 현지시각이라, 인천(KST) 기준으로
  *  환산하려면 출발/도착 공항의 시간대가 필요하다. 모르는 공항은 KST로 간주. */
 const AIRPORT_TZ: Record<string, string> = {
-  ICN: 'Asia/Seoul', GMP: 'Asia/Seoul',
-  NRT: 'Asia/Tokyo', HND: 'Asia/Tokyo',
+  ICN: 'Asia/Seoul', GMP: 'Asia/Seoul', CJU: 'Asia/Seoul', RSU: 'Asia/Seoul', PUS: 'Asia/Seoul',
+  NRT: 'Asia/Tokyo', HND: 'Asia/Tokyo', KIX: 'Asia/Tokyo', FUK: 'Asia/Tokyo', NGO: 'Asia/Tokyo',
   HKG: 'Asia/Hong_Kong',
   BKK: 'Asia/Bangkok',
   SIN: 'Asia/Singapore',
   DAD: 'Asia/Ho_Chi_Minh', SGN: 'Asia/Ho_Chi_Minh',
+  MNL: 'Asia/Manila',
+  // 중국(베이징/난징/톈진/상하이/칭다오) — 전국 단일 표준시
+  PEK: 'Asia/Shanghai', PKX: 'Asia/Shanghai', NKG: 'Asia/Shanghai', TSN: 'Asia/Shanghai',
+  PVG: 'Asia/Shanghai', SHA: 'Asia/Shanghai', TAO: 'Asia/Shanghai', CKG: 'Asia/Shanghai',
+  TPE: 'Asia/Taipei',
   HNL: 'Pacific/Honolulu',
-  LAX: 'America/Los_Angeles', SFO: 'America/Los_Angeles',
-  EWR: 'America/New_York', IAD: 'America/New_York',
+  LAX: 'America/Los_Angeles', SFO: 'America/Los_Angeles', SEA: 'America/Los_Angeles',
+  EWR: 'America/New_York', IAD: 'America/New_York', JFK: 'America/New_York',
+  FRA: 'Europe/Berlin', // 프랑크푸르트
+  CDG: 'Europe/Paris', LHR: 'Europe/London', IST: 'Europe/Istanbul',
+  SYD: 'Australia/Sydney',
 }
 
 export function airportTz(iata: string | undefined): string {
   return (iata && AIRPORT_TZ[iata.toUpperCase()]) || 'Asia/Seoul'
+}
+
+// ─── 레그(저장된 노선) 기반 헬퍼 ───────────────────────────────────────────
+// 노선이 캡쳐에 명시된 항공사(아시아나 등)는 편명 룩업표 대신 저장된 flights[]에서
+// 노선·출도착 공항을 직접 얻는다. 노선 수백 개라 표로 못 박기 때문(에어프레미아만 표).
+
+/** flights[]의 첫 레그 출발공항·마지막 레그 도착공항. */
+export function endpointsFromLegs(flights: { from?: string; to?: string }[] | undefined): { from?: string; to?: string } {
+  if (!flights?.length) return {}
+  const withFrom = flights.find(f => f.from)
+  const withTo = [...flights].reverse().find(f => f.to)
+  return { from: withFrom?.from, to: withTo?.to }
+}
+
+/** flights[]를 노선 경로 문자열로. 예: [ICN→NKG, NKG→ICN] → "ICN→NKG→ICN". */
+export function routeFromLegs(flights: { from?: string; to?: string }[] | undefined): string | null {
+  if (!flights?.length) return null
+  const path: string[] = []
+  for (const f of flights) {
+    if (f.from && path[path.length - 1] !== f.from) path.push(f.from)
+    if (f.to) path.push(f.to)
+  }
+  const compact = path.filter((p, i) => i === 0 || p !== path[i - 1])
+  return compact.length ? compact.join('→') : null
 }
 
 /** trainNr의 첫 레그 출발공항·마지막 레그 도착공항(IATA). 출발/도착 시각을
