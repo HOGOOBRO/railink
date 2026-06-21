@@ -9,8 +9,10 @@ export const runtime = 'nodejs'
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 const MAX_IMAGES = 5
-// Keep multipart payloads below Vercel's request body ceiling after client-side compression.
-const MAX_TOTAL_IMAGE_BYTES = 3 * 1024 * 1024
+// Keep multipart payloads below Vercel's request body ceiling (~4.5MB) after client-side
+// compression. 4MB matches the client budget (lib/parse/schedule-image.ts) — raised from 3MB
+// so dense rosters keep enough resolution for small time digits.
+const MAX_TOTAL_IMAGE_BYTES = 4 * 1024 * 1024
 const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 const MONTHLY_AI_LIMIT = 5
 const MODEL = process.env.OPENAI_VISION_MODEL || 'gpt-4.1'

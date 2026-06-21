@@ -41,14 +41,20 @@ interface ParseImageResponse {
 
 const SUPABASE_JWT_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
 const MAX_RAW_IMAGE_BYTES = 12 * 1024 * 1024
-const MAX_UPLOAD_IMAGE_BYTES = 3 * 1024 * 1024
+// Vercel 요청 본문 한도(~4.5MB) 아래로 여유를 두고 4MB까지 허용. 해상도를 더 지켜
+// 작은 시각 숫자가 압축으로 뭉개지는 걸 줄인다(서버 MAX_TOTAL_IMAGE_BYTES와 일치).
+const MAX_UPLOAD_IMAGE_BYTES = 4 * 1024 * 1024
 const IMAGE_EXT_RE = /\.(png|jpe?g|webp)$/i
 const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
+// 압축 단계: 예산에 맞는 첫 단계를 쓴다. 바닥을 2048px로 둔 건 OpenAI 비전(detail:high)이
+// 긴 변을 ~2048px로 다운스케일해 처리하기 때문 — 그 아래로 줄이면 모델이 쓸 수 있는 것보다
+// 더 작게 보내 작은 글자가 깨진다. 1800은 다장 업로드가 4MB를 못 맞출 때만 쓰는 최후수단.
 const COMPRESSION_PLANS = [
   { maxEdge: 2600, quality: 0.92 },
-  { maxEdge: 2200, quality: 0.88 },
-  { maxEdge: 1900, quality: 0.82 },
-  { maxEdge: 1600, quality: 0.76 },
+  { maxEdge: 2400, quality: 0.88 },
+  { maxEdge: 2200, quality: 0.84 },
+  { maxEdge: 2048, quality: 0.80 },
+  { maxEdge: 1800, quality: 0.72 },
 ]
 
 export async function recognizeScheduleImage(
