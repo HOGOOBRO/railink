@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ParsedScheduleRow } from '@/lib/parse/schedule-file'
 import type { Flight } from '@/lib/types/schedule'
+import { isAirportCode } from '@/lib/airline-routes'
 
 export const runtime = 'nodejs'
 
@@ -787,10 +788,16 @@ function normalizeRows(
           flights,
         }
       }
+      const trainNr = normalizeTrainNr(row.trainNr) || undefined
+      // 편명·시간 없이 공항코드만 찍힌 행(예: "BKK", "FRA")은 체류 마커다. 프롬프트가
+      // REST로 시키지만 모델이 '모르는 코드'로 원문 보존해버리는 경우가 있어, 서버에서
+      // 확정적으로 REST로 정규화한다 → 분류 UI에 안 뜨고(REST는 내장 코드), 캘린더에선
+      // 체류 처리로 스킵된다. 편명/시간이 있으면 진짜 비행이므로 건드리지 않는다.
+      const dia = !trainNr && !startTime && !endTime && isAirportCode(diaNr) ? 'REST' : diaNr
       const normalizedRow: ParsedScheduleRow = {
         date,
-        diaNr: diaNr || undefined,
-        trainNr: normalizeTrainNr(row.trainNr) || undefined,
+        diaNr: dia || undefined,
+        trainNr,
         startTime: startTime || undefined,
         endTime: endTime || undefined,
         isOff,

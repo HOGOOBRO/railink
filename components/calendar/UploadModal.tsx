@@ -11,6 +11,7 @@ import { recognizeScheduleImage, type OcrProgress } from '@/lib/parse/schedule-i
 import { fmtClock, hmToDecimal, canonicalEnd, isOvernight, normalizeTimeInput } from '@/lib/schedule-utils'
 import { getCodebook, type CodebookEntry } from '@/lib/store/codebook'
 import { canonCode, builtinCode, normalizeAnswerLabel, categoryEffect, CATEGORY_ORDER, CATEGORY_META, type RosterCategory } from '@/lib/roster-codes'
+import { isAirportCode } from '@/lib/airline-routes'
 import { fetchRosterCodes, recordRosterCode, type RosterCodeEntry } from '@/lib/store/roster-codes'
 import { AnalyzeTableSkeleton } from '@/components/calendar/AnalyzeTableSkeleton'
 import { RosterExampleCard } from '@/components/calendar/RosterExampleCard'
@@ -256,6 +257,8 @@ export function UploadModal({
       if (!dia) continue
       const key = canonCode(dia)
       if (!key || seen.has(key)) continue
+      // 공항코드(BKK·FRA 등 체류 마커)는 근무코드가 아니므로 분류 대상에서 제외.
+      if (isAirportCode(dia)) continue
       if (builtinCode(dia) || codeCatalog.get(key)?.category) continue
       seen.add(key)
       list.push(dia)
