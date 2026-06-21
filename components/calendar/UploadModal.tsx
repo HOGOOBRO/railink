@@ -1026,6 +1026,33 @@ function CodeClassifier({ codes, classified, skipped, renaming, onPick, onSkip, 
   )
 }
 
+/** "HH:MM" → 분. 형식이 아니면 null. */
+function legHm(t?: string): number | null {
+  if (!t) return null
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim())
+  if (!m) return null
+  return Number(m[1]) * 60 + Number(m[2])
+}
+
+/** 다중 레그에서 물리적으로 불가능한 시각 = 다음 레그가 이전 레그 도착 전에 출발.
+ *  OCR 시각 오독을 잡는 안전망(예: 8961 도착 16:55 vs 8962 출발 16:35). 자정을 넘기는
+ *  레그(sta<std) 다음부터는 익일이라 비교가 모호하므로 건너뛴다(오탐 방지). 문제면 안내
+ *  문구, 없으면 null. */
+function legTimeIssue(flights: ParsedScheduleRow['flights']): string | null {
+  if (!flights || flights.length < 2) return null
+  for (let i = 0; i < flights.length - 1; i++) {
+    const a = flights[i], b = flights[i + 1]
+    const aStd = legHm(a.std), aSta = legHm(a.sta), bStd = legHm(b.std)
+    if (aSta == null || bStd == null) continue
+    if (aStd != null && aSta < aStd) continue   // a가 자정 넘김 → 이후 비교 모호
+    if (bStd < aSta) {
+      const bn = b.flight || '다음 편', an = a.flight || '이전 편'
+      return `${bn}이 ${an} 도착(${a.sta}) 전에 출발(${b.std})해요. 시각을 확인해 주세요.`
+    }
+  }
+  return null
+}
+
 interface PreviewBodyProps {
   rows: ParsedScheduleRow[]
   onChange: (i: number, patch: Partial<ParsedScheduleRow>) => void
@@ -1128,6 +1155,12 @@ function PreviewBody({ rows, onChange, onRemove, onAppend, airline }: PreviewBod
             {!row.isOff && isOvernight(row.startTime, row.endTime) && (
               <span className="mt-1.5 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-pill bg-brand-050 text-brand">
                 종료 시각은 다음날 (익일)
+              </span>
+            )}
+            {!row.isOff && legTimeIssue(row.flights) && (
+              <span className="mt-1.5 flex items-start gap-1 text-[10px] font-bold leading-snug text-danger">
+                <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-danger text-ink-on-brand text-[9px] grid place-items-center mt-px">!</span>
+                {legTimeIssue(row.flights)}
               </span>
             )}
           </div>
