@@ -216,6 +216,46 @@ export function MonthTimeline({
         }
         const hitsShift = (t: number, b: number) => shiftBands.some(([a, z]) => t < z && b > a)
 
+        // ── shift 충돌 레인 ──
+        // shift는 시각 절대배치라, 밤샘 비행(end>24로 다음날 영역 침범)·종일 STBY·codeOnly가
+        // 같은 세로구간에서 겹쳐 그려진다(약속과 달리 근무끼리 비켜주는 로직이 없었음). 실제
+        // 시간대(MIN_CARD_H 부풀림 제외)로 겹치는 것끼리 묶어 좌우 레인으로 나눈다. 트립 연속
+        // 세그먼트(비행→체류→비행)는 시간상 맞닿기만 해(lo == 직전 hi) 안 겹치므로 full-width 유지
+        // → KTX·단일근무·에어프레미아 등 겹침 없는 경우는 그대로(left:0/right:0).
+        const trueBand = (s: MonthShift): [number, number] => {
+          const dt = yOf((s.day - 1) * 24)
+          if (s.standby) return [dt, dt + DAY_PX]
+          if (s.noTime) return [dt, dt + NO_TIME_H]
+          const t = yOf((s.day - 1) * 24 + s.start)
+          return [t, yOf((s.day - 1) * 24 + s.end)]
+        }
+        const laneOf: ({ left: string; width: string } | null)[] = new Array(p.shifts.length).fill(null)
+        {
+          const items = p.shifts
+            .map((s, i) => { const [lo, hi] = trueBand(s); return { i, lo, hi } })
+            .sort((a, b) => a.lo - b.lo)
+          let cluster: typeof items = []
+          let clusterHi = -Infinity
+          const flush = () => {
+            const n = cluster.length
+            if (n > 1) {
+              cluster.forEach((it, k) => {
+                laneOf[it.i] = { left: `calc(${(100 / n) * k}% + ${k > 0 ? 1 : 0}px)`, width: `calc(${100 / n}% - 1px)` }
+              })
+            }
+            cluster = []
+            clusterHi = -Infinity
+          }
+          for (const it of items) {
+            if (cluster.length && it.lo >= clusterHi) flush()
+            cluster.push(it)
+            clusterHi = Math.max(clusterHi, it.hi)
+          }
+          flush()
+        }
+        const laneStyle = (i: number): React.CSSProperties =>
+          laneOf[i] ? { left: laneOf[i]!.left, width: laneOf[i]!.width } : { left: 0, right: 0 }
+
         const placed: Placed[] = appointments
           .filter(a => a.participants.includes(p.uid) && a.participantStatuses?.[p.uid] !== 'declined')
           .map(a => {
@@ -314,8 +354,8 @@ export function MonthTimeline({
                 return (
                   <div
                     key={si}
-                    className="absolute left-0 right-0 overflow-hidden leading-tight"
-                    style={{ top: lt, height: lh, background: `color-mix(in oklab, ${p.color} 5%, white)`, borderStyle: 'solid', borderColor: `color-mix(in oklab, ${p.color} 26%, white)`, borderLeftColor: p.color, borderTopWidth: s.connectTop ? 0 : 1, borderRightWidth: 1, borderBottomWidth: s.connectBottom ? 0 : 1, borderLeftWidth: 3, borderTopLeftRadius: s.connectTop ? 0 : 10, borderTopRightRadius: s.connectTop ? 0 : 10, borderBottomLeftRadius: s.connectBottom ? 0 : 10, borderBottomRightRadius: s.connectBottom ? 0 : 10, padding: '6px 8px' }}
+                    className="absolute overflow-hidden leading-tight"
+                    style={{ ...laneStyle(si), top: lt, height: lh, background: `color-mix(in oklab, ${p.color} 5%, white)`, borderStyle: 'solid', borderColor: `color-mix(in oklab, ${p.color} 26%, white)`, borderLeftColor: p.color, borderTopWidth: s.connectTop ? 0 : 1, borderRightWidth: 1, borderBottomWidth: s.connectBottom ? 0 : 1, borderLeftWidth: 3, borderTopLeftRadius: s.connectTop ? 0 : 10, borderTopRightRadius: s.connectTop ? 0 : 10, borderBottomLeftRadius: s.connectBottom ? 0 : 10, borderBottomRightRadius: s.connectBottom ? 0 : 10, padding: '6px 8px' }}
                   >
                     <span className="text-[11px] font-bold text-ink-500">{s.dia}</span>
                   </div>
@@ -330,8 +370,8 @@ export function MonthTimeline({
                     type="button"
                     key={si}
                     onClick={() => onTapShift?.({ name: p.name, dia: s.dia, start: 0, end: 24, standby: true })}
-                    className="absolute left-0 right-0 flex flex-col gap-1 overflow-hidden leading-tight text-left"
-                    style={{ top: st, height: h, background: `repeating-linear-gradient(45deg, color-mix(in oklab, ${p.color} 6%, white), color-mix(in oklab, ${p.color} 6%, white) 9px, color-mix(in oklab, ${p.color} 12%, white) 9px, color-mix(in oklab, ${p.color} 12%, white) 18px)`, borderStyle: 'solid', borderColor: `color-mix(in oklab, ${p.color} 26%, white)`, borderLeftColor: p.color, borderWidth: 1, borderLeftWidth: 3, borderRadius: 10, padding: '5px 6px' }}
+                    className="absolute flex flex-col gap-1 overflow-hidden leading-tight text-left"
+                    style={{ ...laneStyle(si), top: st, height: h, background: `repeating-linear-gradient(45deg, color-mix(in oklab, ${p.color} 6%, white), color-mix(in oklab, ${p.color} 6%, white) 9px, color-mix(in oklab, ${p.color} 12%, white) 9px, color-mix(in oklab, ${p.color} 12%, white) 18px)`, borderStyle: 'solid', borderColor: `color-mix(in oklab, ${p.color} 26%, white)`, borderLeftColor: p.color, borderWidth: 1, borderLeftWidth: 3, borderRadius: 10, padding: '5px 6px' }}
                   >
                     <div className="flex items-center gap-1 min-w-0">
                       <Initial name={p.name} photo={p.photo} color={p.color} />
@@ -349,8 +389,8 @@ export function MonthTimeline({
                     type="button"
                     key={si}
                     onClick={() => onTapShift?.({ name: p.name, dia: s.dia, trainNr: s.trainNr, start: s.start, end: s.end, noTime: true, codeOnly: s.codeOnly })}
-                    className="absolute left-0 right-0 flex flex-col gap-1 overflow-hidden leading-tight text-left"
-                    style={{ top: yOf((s.day - 1) * 24), height: NO_TIME_H, background: 'var(--bg)', boxShadow: 'inset 0 0 0 1px var(--line-2)', borderLeft: `3px ${s.codeOnly ? 'solid' : 'dashed'} ${p.color}`, borderRadius: 10, padding: '5px 6px' }}
+                    className="absolute flex flex-col gap-1 overflow-hidden leading-tight text-left"
+                    style={{ ...laneStyle(si), top: yOf((s.day - 1) * 24), height: NO_TIME_H, background: 'var(--bg)', boxShadow: 'inset 0 0 0 1px var(--line-2)', borderLeft: `3px ${s.codeOnly ? 'solid' : 'dashed'} ${p.color}`, borderRadius: 10, padding: '5px 6px' }}
                   >
                     <div className="flex items-center gap-1 min-w-0">
                       <Initial name={p.name} photo={p.photo} color={p.color} />
@@ -380,8 +420,8 @@ export function MonthTimeline({
                   type="button"
                   key={si}
                   onClick={() => onTapShift?.({ name: p.name, dia: s.dia, trainNr: s.trainNr, start: s.start, end: s.end, depLabel: s.depLabel, arrLabel: s.arrLabel, dir: s.dir, route: s.route, legs: s.legs })}
-                  className={`absolute left-0 right-0 flex flex-col overflow-hidden leading-tight text-left ${compact ? 'justify-center gap-1.5' : 'justify-between'}`}
-                  style={{ top, height: h, background: `color-mix(in oklab, ${p.color} 12%, white)`, borderStyle: 'solid', borderColor: `color-mix(in oklab, ${p.color} 26%, white)`, borderLeftColor: p.color, borderTopWidth: s.connectTop ? 0 : 1, borderRightWidth: 1, borderBottomWidth: s.connectBottom ? 0 : 1, borderLeftWidth: 3, borderTopLeftRadius: s.connectTop ? 0 : 10, borderTopRightRadius: s.connectTop ? 0 : 10, borderBottomLeftRadius: s.connectBottom ? 0 : 10, borderBottomRightRadius: s.connectBottom ? 0 : 10, padding: '5px 6px 6px' }}
+                  className={`absolute flex flex-col overflow-hidden leading-tight text-left ${compact ? 'justify-center gap-1.5' : 'justify-between'}`}
+                  style={{ ...laneStyle(si), top, height: h, background: `color-mix(in oklab, ${p.color} 12%, white)`, borderStyle: 'solid', borderColor: `color-mix(in oklab, ${p.color} 26%, white)`, borderLeftColor: p.color, borderTopWidth: s.connectTop ? 0 : 1, borderRightWidth: 1, borderBottomWidth: s.connectBottom ? 0 : 1, borderLeftWidth: 3, borderTopLeftRadius: s.connectTop ? 0 : 10, borderTopRightRadius: s.connectTop ? 0 : 10, borderBottomLeftRadius: s.connectBottom ? 0 : 10, borderBottomRightRadius: s.connectBottom ? 0 : 10, padding: '5px 6px 6px' }}
                 >
                   {compact ? (
                     <>
