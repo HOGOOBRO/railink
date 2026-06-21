@@ -1006,7 +1006,8 @@ export default function CalendarPage() {
   // 가드로만 막는다(같은 기기 재노출 방지). 직무를 실제로 고르면 서버 값이 차서
   // 모든 기기에서 다시 안 뜬다.
   useEffect(() => {
-    if (!session || session.isDemo || session.profileType !== 'personal') return
+    // 항공 승무원(personal + airline)은 이미 직무가 식별돼 있으므로 묻지 않는다.
+    if (!session || session.isDemo || session.profileType !== 'personal' || session.airline) return
     const key = `railink_job_asked_${session.uid}`
     if (typeof window !== 'undefined' && localStorage.getItem(key)) return
     let alive = true

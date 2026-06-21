@@ -61,6 +61,12 @@ const AIRPORT_TZ: Record<string, string> = {
   SYD: 'Australia/Sydney',
 }
 
+/** 등재된 IATA 공항코드인지(시차표 기준). 로스터에 편명 없이 공항코드만 찍힌 체류/레스트
+ *  행을 '모르는 근무코드'로 오인하지 않도록 서버 후처리에서 거르는 데 쓴다. */
+export function isAirportCode(code: string | undefined | null): boolean {
+  return !!code && Object.prototype.hasOwnProperty.call(AIRPORT_TZ, code.trim().toUpperCase())
+}
+
 export function airportTz(iata: string | undefined): string {
   return (iata && AIRPORT_TZ[iata.toUpperCase()]) || 'Asia/Seoul'
 }
