@@ -32,6 +32,13 @@ export default function WelcomePage() {
   const isOther = category === 'other'
   const selectedAirline = findAirline(airline)
 
+  // 선택이 덜 끝났으면 '시작하기'를 비활성화한다(눌러서 에러 띄우기 전에 버튼으로 막음).
+  // 항공 승무원=항공사 필수, 기타=직무 필수(직접입력 선택 시 내용까지), KTX=추가 입력 없음.
+  const incomplete =
+    (isAirline && !airline) ||
+    (isOther && !jobCategory) ||
+    (isOther && jobCategory === 'other' && !jobOther.trim())
+
   // 진입 가드: 비로그인 → 로그인, 이미 선택 끝났으면 → 캘린더. 그 외에만 폼을 띄운다.
   useEffect(() => {
     let alive = true
@@ -173,7 +180,7 @@ export default function WelcomePage() {
             </div>
           )}
 
-          <Button block className="mt-2" onClick={handleSubmit} disabled={saving}>
+          <Button block className="mt-2" onClick={handleSubmit} disabled={saving || incomplete}>
             {saving ? '저장 중…' : '시작하기'}
           </Button>
 
