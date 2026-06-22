@@ -1,3 +1,6 @@
+'use client'
+
+import { useTranslations, useLocale } from 'next-intl'
 import { DOW_KR } from '@/lib/schedule-utils'
 import { Skeleton } from '@/components/ui/Skeleton'
 
@@ -12,9 +15,16 @@ import { Skeleton } from '@/components/ui/Skeleton'
  *
  * Header (date) is real — we always know which day was tapped; only the
  * schedule area shimmers. */
+
+// 표시용 영어 요일. DOW_KR(lib)는 색상 인덱스 로직에 쓰고, 화면 라벨만 로케일에 맞춰 고른다.
+const DOW_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
 export function TimelineSkeleton({ date, month }: { date: Date; month: number }) {
+  const t = useTranslations('calendarUi.timelineSkeleton')
+  const locale = useLocale()
   const day = date.getDate()
   const dow = date.getDay()
+  const dowLabel = (locale === 'en' ? DOW_EN : DOW_KR)[dow]
   const dowClass = dow === 0 ? 'text-danger' : dow === 6 ? 'text-c1' : 'text-ink-500'
 
   return (
@@ -23,7 +33,7 @@ export function TimelineSkeleton({ date, month }: { date: Date; month: number })
       <div className="flex items-start justify-between px-5 pt-2 pb-2 shrink-0 border-b border-line">
         <div>
           <h3 className="text-title font-bold tracking-tighter text-ink-900">
-            {month}월 {day}일 <span className={`font-medium ${dowClass}`}>{DOW_KR[dow]}</span>
+            {t('dateHeader', { month, day })} <span className={`font-medium ${dowClass}`}>{dowLabel}</span>
           </h3>
           <div className="mt-1.5">
             <Skeleton className="w-[120px] h-3 rounded" />
@@ -33,7 +43,7 @@ export function TimelineSkeleton({ date, month }: { date: Date; month: number })
 
       {/* timeline body skeleton — hour rail + shimmer lanes */}
       <div className="flex-1 overflow-hidden px-5 py-4">
-        <div className="text-[11px] font-bold text-ink-500 tracking-wider uppercase mb-3">내 일정</div>
+        <div className="text-[11px] font-bold text-ink-500 tracking-wider uppercase mb-3">{t('mySchedule')}</div>
         <div className="flex gap-2.5 h-full min-h-0">
           <div className="flex flex-col justify-between w-8 pt-0.5 pb-10">
             {['09', '12', '15', '18', '21'].map(h => (

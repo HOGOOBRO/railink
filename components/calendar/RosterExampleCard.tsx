@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations, useLocale } from 'next-intl'
+
 /* 항공 승무원 업로드 안내용 "AI 스캔" 예시 카드.
  * ⚠️ 표시되는 데이터는 전부 합성(가짜)이다 — 실제 편명/이름/근무표가 아니라 순수
  *    일러스트. 그래서 실제 승무원 캡쳐를 박지 않고도 "이런 화면을 올려라"를 보여준다.
@@ -14,21 +16,26 @@ const ROWS: ('w' | 'o' | '')[][] = [
   ['w', 'o', 'o', 'o', 'w', 'o', 'o'],
   ['o', 'w', 'w', '', '', '', ''],
 ]
-const DOW = ['일', '월', '화', '수', '목', '금', '토']
+// 표시용 요일 라벨. 한글/영어를 인덱스로 골라 로케일에 맞춰 보여준다(예시 카드 헤더).
+const DOW_KR = ['일', '월', '화', '수', '목', '금', '토']
+const DOW_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 export function RosterExampleCard() {
+  const t = useTranslations('calendarUi.rosterExampleCard')
+  const locale = useLocale()
+  const DOW = locale === 'en' ? DOW_EN : DOW_KR
   return (
     <div className="rounded-2xl border border-line overflow-hidden bg-surface shadow-sh3 select-none">
       {/* header — 항공사 brand 색 */}
       <div className="flex items-center justify-between px-3.5 py-2.5" style={{ background: 'var(--brand)' }}>
         <span className="text-[12.5px] font-bold text-white tracking-tight font-en">
-          2026 · 06 <span className="font-kr font-semibold opacity-90">월 근무표</span>
+          2026 · 06 <span className="font-kr font-semibold opacity-90">{t('scheduleLabel')}</span>
         </span>
         <span
           className="text-[10px] font-bold text-white px-1.5 py-0.5 rounded-full"
           style={{ background: 'rgba(255,255,255,0.18)' }}
         >
-          예시
+          {t('example')}
         </span>
       </div>
 

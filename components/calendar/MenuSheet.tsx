@@ -2,6 +2,7 @@
 
 import { ReactNode } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { Avatar } from '@/components/ui/Avatar'
 import {
   UserIcon, UserPlusIcon, UploadIcon, InfoIcon, LogoutIcon, ChevronRightIcon, EditIcon,
@@ -19,6 +20,7 @@ interface MenuSheetProps {
 }
 
 export function MenuSheet({ session, compareCount, hasPending, onManageSchedule, onInvite, onLogout }: MenuSheetProps) {
+  const t = useTranslations('calendarUi.menu')
   const isPersonal = session.profileType === 'personal'
   return (
     <div className="flex flex-col pb-7">
@@ -28,26 +30,26 @@ export function MenuSheet({ session, compareCount, hasPending, onManageSchedule,
           <div className="flex-1 min-w-0">
             <p className="text-subtitle font-bold tracking-tight text-ink-900">{session.name}</p>
             <p className={`text-caption text-ink-700 mt-0.5 ${isPersonal ? 'font-kr' : 'font-en'}`}>
-              {isPersonal ? '개인 계정' : `${session.employeeId}${session.part ? ` · ${session.part}파트` : ''}`}
+              {isPersonal ? t('personalAccount') : `${session.employeeId}${session.part ? ` · ${t('partSuffix', { part: session.part })}` : ''}`}
             </p>
             <p className="font-en text-caption text-ink-500 mt-px truncate">{session.email}</p>
           </div>
         </div>
         <p className="flex gap-2.5 mt-2.5 text-caption text-ink-500">
-          비교 동료 <strong className="font-en text-ink-700">{compareCount}</strong>명
+          {t.rich('compareCount', { count: compareCount, n: (chunks) => <strong className="font-en text-ink-700">{chunks}</strong> })}
         </p>
       </div>
 
       <div className="h-px bg-line mx-4 my-2" />
 
       <div className="px-2 pb-3">
-        <MenuRow icon={<UserIcon size={18} />} label="내 정보" href="/settings/info" indicator={hasPending} />
-        <MenuRow icon={<UserPlusIcon size={18} />} label="친구 초대" onClick={onInvite} />
-        <MenuRow icon={<UploadIcon size={18} />} label="내 근무표 관리" onClick={onManageSchedule} />
-        <MenuRow icon={<EditIcon size={18} />} label="내 근무 코드" href="/settings/codebook" />
-        <MenuRow icon={<InfoIcon size={18} />} label="도움말 · 약관" href="/settings/help" />
+        <MenuRow icon={<UserIcon size={18} />} label={t('myInfo')} href="/settings/info" indicator={hasPending} />
+        <MenuRow icon={<UserPlusIcon size={18} />} label={t('inviteFriend')} onClick={onInvite} />
+        <MenuRow icon={<UploadIcon size={18} />} label={t('manageSchedule')} onClick={onManageSchedule} />
+        <MenuRow icon={<EditIcon size={18} />} label={t('myCodes')} href="/settings/codebook" />
+        <MenuRow icon={<InfoIcon size={18} />} label={t('help')} href="/settings/help" />
         <div className="h-px bg-line mx-4 my-1" />
-        <MenuRow icon={<LogoutIcon size={18} />} label="로그아웃" danger onClick={onLogout} />
+        <MenuRow icon={<LogoutIcon size={18} />} label={t('logout')} danger onClick={onLogout} />
       </div>
     </div>
   )

@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { CloseIcon, CheckIcon } from '@/components/ui/icons'
@@ -28,7 +29,8 @@ export function CompareMemberSheet({
   /** Optional in demo (color override is real-account only). */
   onChangeColor?: (color: CompareColor) => void
 }) {
-  const statusLabel = pending ? '수락 대기 중' : '공유 중'
+  const t = useTranslations('calendarUi.compareMember')
+  const statusLabel = pending ? t('statusPending') : t('statusSharing')
   const statusTone = pending
     ? 'bg-bg text-ink-500'
     : 'bg-brand-050 text-brand'
@@ -38,7 +40,7 @@ export function CompareMemberSheet({
       <div className="flex items-center justify-end">
         <button
           onClick={onClose}
-          aria-label="닫기"
+          aria-label={t('close')}
           className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
         >
           <CloseIcon size={18} />
@@ -68,7 +70,7 @@ export function CompareMemberSheet({
       {onChangeColor && (
         <section className="mb-4">
           <p className="px-1 pb-2.5 text-[11px] font-bold tracking-wider uppercase text-ink-500">
-            표시 색상 <span className="font-normal text-ink-300">· 내 화면에만 적용</span>
+            {t('colorLabel')} <span className="font-normal text-ink-300">{t('colorLabelNote')}</span>
           </p>
           <div className="grid grid-cols-5 gap-2.5">
             {COLOR_OPTIONS.map((c, i) => (
@@ -83,19 +85,19 @@ export function CompareMemberSheet({
             ))}
           </div>
           <p className="px-1 pt-3 text-[11px] text-ink-300 leading-relaxed">
-            색상은 내 화면에서만 보여요. 흐리게 표시된 색은 다른 동료가 쓰고 있어요.
+            {t('colorHint')}
           </p>
         </section>
       )}
 
       {pending && !isDemo && (
         <p className="mb-3 text-[11px] text-ink-500 text-center leading-relaxed">
-          빼면 보낸 공유 요청도 함께 취소돼요.
+          {t('removePendingNote')}
         </p>
       )}
 
       <Button variant="danger-ghost" block onClick={onRemove}>
-        비교에서 빼기
+        {t('remove')}
       </Button>
     </div>
   )
@@ -111,12 +113,13 @@ function ColorSwatch({
   takenBy?: string
   onClick: () => void
 }) {
-  const label = active ? `색 ${index}` : (takenBy ?? `색 ${index}`)
+  const t = useTranslations('calendarUi.compareMember')
+  const label = active ? t('colorName', { index }) : (takenBy ?? t('colorName', { index }))
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={takenBy ? `${color} 색상 · ${takenBy} 사용 중` : `${color} 색상`}
+      aria-label={takenBy ? t('colorTakenAria', { color, name: takenBy }) : t('colorAria', { color })}
       aria-pressed={active}
       className="flex flex-col items-center gap-1"
     >

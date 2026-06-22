@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { UserIcon, CheckIcon, InfoIcon, ShareIosIcon, CloseIcon } from '@/components/ui/icons'
 import { createInvite, buildInviteMessage, DEMO_INVITE_TOKEN } from '@/lib/store/invites'
 import { track } from '@/lib/analytics'
@@ -26,6 +27,7 @@ interface InviteCreateSheetProps {
 export function InviteCreateSheet({
   groups, activeGroupId, onClose, showToast, inviterName, initialEmail,
 }: InviteCreateSheetProps) {
+  const t = useTranslations('calendarUi.inviteCreate')
   const [stage, setStage] = useState<'setup' | 'created'>('setup')
   const [groupId, setGroupId] = useState<string | null>(activeGroupId ?? groups[0]?.id ?? null)
   const [matchEmail, setMatchEmail] = useState(!!initialEmail?.trim())
@@ -34,11 +36,11 @@ export function InviteCreateSheet({
   const [link, setLink] = useState('')
 
   const selectedGroupName =
-    groups.find(g => g.id === groupId)?.name ?? '기본'
+    groups.find(g => g.id === groupId)?.name ?? t('defaultGroup')
 
   async function handleCreate() {
     if (matchEmail && email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      showToast('이메일 형식을 확인해 주세요.', 'danger')
+      showToast(t('toastEmailInvalid'), 'danger')
       return
     }
     setLoading(true)
@@ -56,9 +58,9 @@ export function InviteCreateSheet({
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(buildInviteMessage(inviterName, link))
-      showToast('초대 메시지를 복사했어요. 카톡에 붙여넣어 보내세요.', 'success')
+      showToast(t('toastCopied'), 'success')
     } catch {
-      showToast('복사하지 못했어요. 링크를 길게 눌러 복사해 주세요.', 'danger')
+      showToast(t('toastCopyFailed'), 'danger')
     }
   }
 
@@ -67,7 +69,7 @@ export function InviteCreateSheet({
       try {
         // Pass both: `text` carries the full 문구+링크 for chat apps that paste
         // the message, `url` lets targets like KakaoTalk render the OG card.
-        await navigator.share({ title: 'RaiLink 초대', text: buildInviteMessage(inviterName, link), url: link })
+        await navigator.share({ title: t('shareTitle'), text: buildInviteMessage(inviterName, link), url: link })
       } catch { /* user cancelled — no toast */ }
     } else {
       copyLink()
@@ -82,10 +84,10 @@ export function InviteCreateSheet({
           <UserIcon size={20} />
         </span>
         <div className="flex-1 min-w-0">
-          <p className="text-subtitle font-bold tracking-tight text-ink-900">친구 초대</p>
-          <p className="text-caption text-ink-500">링크를 받은 사람이 가입하면 서로 일정이 연결돼요</p>
+          <p className="text-subtitle font-bold tracking-tight text-ink-900">{t('title')}</p>
+          <p className="text-caption text-ink-500">{t('subtitle')}</p>
         </div>
-        <button onClick={onClose} aria-label="닫기" className="w-9 h-9 grid place-items-center text-ink-500 rounded-full hover:bg-bg">
+        <button onClick={onClose} aria-label={t('close')} className="w-9 h-9 grid place-items-center text-ink-500 rounded-full hover:bg-bg">
           <CloseIcon size={18} />
         </button>
       </div>
@@ -93,9 +95,9 @@ export function InviteCreateSheet({
       <div className="px-5">
         {stage === 'setup' ? (
           <>
-            <p className="text-caption font-semibold text-ink-900 mb-2">어느 비교 그룹에 추가할까요?</p>
+            <p className="text-caption font-semibold text-ink-900 mb-2">{t('groupPrompt')}</p>
             {groups.length === 0 ? (
-              <p className="text-caption text-ink-500 mb-4">가입하면 ‘기본’ 그룹에 자동으로 연결돼요.</p>
+              <p className="text-caption text-ink-500 mb-4">{t('noGroupsHint')}</p>
             ) : (
               <div className="flex flex-wrap gap-2 mb-4">
                 {groups.map(g => {
@@ -122,9 +124,9 @@ export function InviteCreateSheet({
               className="w-full flex items-center gap-3 px-3.5 py-3.5 rounded-md border border-line bg-surface text-left"
             >
               <div className="flex-1 min-w-0">
-                <p className="text-callout font-semibold text-ink-900">이메일 확인 추가</p>
+                <p className="text-callout font-semibold text-ink-900">{t('emailMatchTitle')}</p>
                 <p className="text-caption text-ink-500 mt-0.5 leading-relaxed">
-                  켜면 지정한 이메일로만 가입할 수 있어 더 안전해요.
+                  {t('emailMatchDesc')}
                 </p>
               </div>
               <ToggleDot on={matchEmail} />
@@ -135,7 +137,7 @@ export function InviteCreateSheet({
                 onChange={e => setEmail(e.target.value)}
                 type="email"
                 inputMode="email"
-                placeholder="초대할 사람의 이메일"
+                placeholder={t('emailPlaceholder')}
                 className="mt-2.5 w-full px-3.5 h-12 rounded-sm border-2 border-line bg-surface font-en text-body outline-none focus:border-brand"
               />
             )}
@@ -145,7 +147,7 @@ export function InviteCreateSheet({
               disabled={loading}
               className="mt-5 w-full h-btn rounded-sm bg-brand text-ink-on-brand font-semibold text-callout disabled:opacity-60"
             >
-              {loading ? '만드는 중…' : '초대 링크 만들기'}
+              {loading ? t('creating') : t('createLink')}
             </button>
           </>
         ) : (
@@ -155,7 +157,12 @@ export function InviteCreateSheet({
               style={{ background: 'color-mix(in oklab, var(--success) 12%, white)' }}
             >
               <span className="text-success shrink-0"><CheckIcon size={16} /></span>
-              <span className="text-ink-900"><strong>{selectedGroupName}</strong> 그룹 초대 링크가 만들어졌어요.</span>
+              <span className="text-ink-900">
+                {t.rich('createdNotice', {
+                  group: selectedGroupName,
+                  b: (chunks) => <strong>{chunks}</strong>,
+                })}
+              </span>
             </div>
 
             <div className="flex items-center gap-2 px-3.5 py-3 rounded-md border border-line-2 bg-bg mb-2">
@@ -164,25 +171,25 @@ export function InviteCreateSheet({
                 onClick={copyLink}
                 className="shrink-0 px-3 py-1.5 rounded-pill bg-brand-050 text-brand text-caption font-bold"
               >
-                복사
+                {t('copy')}
               </button>
             </div>
             <p className="flex items-center gap-1.5 text-caption text-ink-500 mb-5">
               <span className="text-warn shrink-0"><InfoIcon size={14} /></span>
-              이 링크는 <strong className="text-ink-700">14일 동안, 최대 30명까지</strong> 쓸 수 있어요.
+              {t.rich('linkLimit', { b: (chunks) => <strong className="text-ink-700">{chunks}</strong> })}
             </p>
 
             <button
               onClick={shareLink}
               className="w-full h-btn rounded-sm bg-brand text-ink-on-brand font-semibold text-callout inline-flex items-center justify-center gap-2"
             >
-              <ShareIosIcon size={16} /> 공유하기
+              <ShareIosIcon size={16} /> {t('share')}
             </button>
             <button
               onClick={() => { setStage('setup'); setLink('') }}
               className="mt-3 w-full text-caption text-ink-500 py-1.5"
             >
-              ← 다른 그룹으로 새 링크 만들기
+              {t('newLinkOtherGroup')}
             </button>
           </>
         )}

@@ -383,13 +383,28 @@
   },
   "fields": {
     "visibility": {
-      "public": { "title": "Public", "desc": "Your name and photo appear in colleague search. Schedules still require separate acceptance." },
-      "private": { "title": "Private", "desc": "You won't appear in search. Only colleagues who know your exact employee ID can request sharing." }
+      "public": {
+        "title": "Public",
+        "desc": "Your name and photo appear in colleague search. Schedules still require separate acceptance."
+      },
+      "private": {
+        "title": "Private",
+        "desc": "You won't appear in search. Only colleagues who know your exact employee ID can request sharing."
+      }
     },
     "category": {
-      "ktx": { "title": "KTX crew", "desc": "I'm a KORAIL KTX cabin attendant." },
-      "airline": { "title": "Airline crew", "desc": "I'm airline cabin or flight crew." },
-      "other": { "title": "Other", "desc": "You can use this even if you're not crew." }
+      "ktx": {
+        "title": "KTX crew",
+        "desc": "I'm a KORAIL KTX cabin attendant."
+      },
+      "airline": {
+        "title": "Airline crew",
+        "desc": "I'm airline cabin or flight crew."
+      },
+      "other": {
+        "title": "Other",
+        "desc": "You can use this even if you're not crew."
+      }
     },
     "job": {
       "nurse": "Nurse",
@@ -825,5 +840,133 @@
     "noTimeBadge": "No time entered",
     "fromPrevDay": "From prev. day",
     "continuesNextDay": "Continues next day"
+  },
+  "calendarUi": {
+    "inviteCreate": {
+      "title": "Invite a friend",
+      "subtitle": "When they sign up from your link, your schedules connect automatically",
+      "close": "Close",
+      "groupPrompt": "Which compare group should they join?",
+      "noGroupsHint": "They’ll be added to your ‘Default’ group automatically when they sign up.",
+      "emailMatchTitle": "Add email verification",
+      "emailMatchDesc": "When on, only the email you set can sign up — safer.",
+      "emailPlaceholder": "Invitee’s email",
+      "creating": "Creating…",
+      "createLink": "Create invite link",
+      "createdNotice": "Invite link for the <b>{group}</b> group is ready.",
+      "copy": "Copy",
+      "linkLimit": "This link works <b>for 14 days, for up to 30 people</b>.",
+      "share": "Share",
+      "newLinkOtherGroup": "← Create a new link for another group",
+      "shareTitle": "RaiLink invite",
+      "defaultGroup": "Default",
+      "toastEmailInvalid": "Please check the email format.",
+      "toastCopied": "Invite message copied. Paste it into your chat to send.",
+      "toastCopyFailed": "Couldn’t copy. Long-press the link to copy it."
+    },
+    "invitePrompt": {
+      "close": "Close",
+      "createLink": "Create invite link",
+      "first_compare": {
+        "title": "Want to invite one more friend?",
+        "subtitle": "Overlay what you just saw with another friend too",
+        "body": "When they join via your invite link, their schedule lands in your calendar automatically — so you can instantly spot the days you’re both off."
+      },
+      "upload_empty": {
+        "title": "Now you just need friends to compare with",
+        "subtitle": "Your schedule is all set",
+        "body": "When a friend joins, your schedules connect automatically and the days you’re both off show up right away."
+      },
+      "upload_has_friends": {
+        "title": "While you’re at it, invite a friend too?",
+        "subtitle": "Bring in a friend who isn’t on RaiLink yet",
+        "body": "When they join via your invite link, they connect instantly with no searching — and you can see new schedules together."
+      }
+    },
+    "rosterExampleTable": {
+      "scheduleLabel": "Monthly schedule",
+      "example": "Example",
+      "colDate": "Date",
+      "colFlight": "Flight",
+      "colSector": "Sector",
+      "colTime": "Time"
+    },
+    "rosterExampleCard": {
+      "scheduleLabel": "Monthly schedule",
+      "example": "Example"
+    },
+    "manageGroups": {
+      "title": "Compare groups",
+      "close": "Close",
+      "memberCount": "{count} colleagues",
+      "editNameAria": "Edit name",
+      "saveNameAria": "Save name",
+      "deleteGroupAria": "Delete {name} group",
+      "addGroup": "Add group",
+      "footerHint": "You can create up to {max} groups. Each group can hold up to 10 colleagues.",
+      "newGroupName": "New group",
+      "deleteConfirmTitle": "Delete the {name} group?",
+      "deleteConfirmBody": "{count} compare members in this group will be unlinked. The colleagues themselves aren’t deleted.",
+      "toastDuplicate": "A group with that name already exists.",
+      "toastMaxGroups": "You can create up to {max} groups.",
+      "toastDefaultUndeletable": "The default group can’t be deleted."
+    },
+    "groupTabs": {
+      "groupPill": "Group",
+      "comparing": "Comparing · {name}",
+      "manage": "Manage groups",
+      "toastMaxGroups": "You can create up to {max} groups."
+    },
+    "skeleton": {
+      "loading": "Loading this month’s schedule"
+    },
+    "menu": {
+      "personalAccount": "Personal account",
+      "partSuffix": "{part} Part",
+      "compareCount": "<n>{count}</n> compare colleagues",
+      "myInfo": "My info",
+      "inviteFriend": "Invite a friend",
+      "manageSchedule": "Manage my schedule",
+      "myCodes": "My work codes",
+      "help": "Help · Terms",
+      "logout": "Log out"
+    },
+    "analyzeSkeleton": {
+      "colDate": "Date",
+      "colCodeDefault": "Duty/Train",
+      "colStart": "Start",
+      "colEnd": "End",
+      "analyzing": "You’ll see the results once analysis finishes"
+    },
+    "compareMember": {
+      "close": "Close",
+      "statusPending": "Awaiting acceptance",
+      "statusSharing": "Sharing",
+      "colorLabel": "Display color",
+      "colorLabelNote": "· applies on my screen only",
+      "colorHint": "Colors show only on your screen. Dimmed colors are already used by other colleagues.",
+      "removePendingNote": "Removing also cancels the share request you sent.",
+      "remove": "Remove from compare",
+      "colorName": "Color {index}",
+      "colorAria": "{color} color",
+      "colorTakenAria": "{color} color · used by {name}"
+    },
+    "personalHint": {
+      "title": "Want to compare your schedule too?",
+      "bodyWithOwner": "{name} is already visible. Add your shifts and you can sync up.",
+      "bodyDefault": "Register your shifts or invite a friend to start comparing.",
+      "register": "Register",
+      "dismissAria": "Dismiss hint"
+    },
+    "fab": {
+      "addAppointment": "Add appointment",
+      "uploadSchedule": "Upload schedule",
+      "openAria": "Add",
+      "closeMenuAria": "Close menu"
+    },
+    "timelineSkeleton": {
+      "dateHeader": "{month}/{day}",
+      "mySchedule": "My schedule"
+    }
   }
 }

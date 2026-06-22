@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { CloseIcon, EditIcon, CheckIcon, PlusIcon } from '@/components/ui/icons'
 import { DangerConfirm } from '@/components/ui/DangerConfirm'
 import { MAX_GROUPS } from '@/lib/store/groups'
@@ -24,6 +25,7 @@ const colorTag = (i: number) => (i === 0 ? 'var(--brand)' : `var(--c${((i - 1) %
 export function ManageGroupsSheet({
   groups, startCreate, onClose, onRename, onDelete, onCreate, showToast,
 }: Props) {
+  const t = useTranslations('calendarUi.manageGroups')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [invalid, setInvalid] = useState(false)
@@ -44,7 +46,7 @@ export function ManageGroupsSheet({
     if (!name) { setInvalid(true); return }
     const err = onRename(editingId, name)
     if (err === 'duplicate') {
-      showToast('같은 이름의 그룹이 이미 있어요.', 'danger')
+      showToast(t('toastDuplicate'), 'danger')
       return
     }
     setEditingId(null)
@@ -53,9 +55,9 @@ export function ManageGroupsSheet({
 
   function handleCreate() {
     const id = onCreate()
-    if (!id) { showToast('그룹은 최대 8개까지 만들 수 있어요.', 'danger'); return }
+    if (!id) { showToast(t('toastMaxGroups', { max: MAX_GROUPS }), 'danger'); return }
     setEditingId(id)
-    setDraft('새 그룹')
+    setDraft(t('newGroupName'))
     setInvalid(false)
   }
 
@@ -82,10 +84,10 @@ export function ManageGroupsSheet({
     <div className="pb-8">
       {/* Header */}
       <div className="flex items-center justify-between px-[18px] pb-3 pt-1">
-        <h3 className="text-[18px] font-bold tracking-tight text-ink-900">비교 그룹</h3>
+        <h3 className="text-[18px] font-bold tracking-tight text-ink-900">{t('title')}</h3>
         <button
           onClick={onClose}
-          aria-label="닫기"
+          aria-label={t('close')}
           className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
         >
           <CloseIcon size={18} />
@@ -129,12 +131,12 @@ export function ManageGroupsSheet({
                     {g.name}
                   </div>
                 )}
-                <div className="font-en text-[11px] text-ink-500 mt-0.5">동료 {g.members.length}명</div>
+                <div className="font-en text-[11px] text-ink-500 mt-0.5">{t('memberCount', { count: g.members.length })}</div>
               </div>
               {/* edit / commit */}
               <button
                 onClick={() => (editing ? commit() : beginEdit(g))}
-                aria-label={editing ? '이름 저장' : '이름 편집'}
+                aria-label={editing ? t('saveNameAria') : t('editNameAria')}
                 className={`w-8 h-8 rounded-xs grid place-items-center ${editing ? 'text-brand' : 'text-ink-500'}`}
               >
                 {editing ? <CheckIcon size={18} /> : <EditIcon size={15} />}
@@ -142,10 +144,10 @@ export function ManageGroupsSheet({
               {/* delete */}
               <button
                 onClick={() => {
-                  if (isDefault) { showToast('기본 그룹은 삭제할 수 없어요.'); return }
+                  if (isDefault) { showToast(t('toastDefaultUndeletable')); return }
                   setPendingDelete(g)
                 }}
-                aria-label={`${g.name} 그룹 삭제`}
+                aria-label={t('deleteGroupAria', { name: g.name })}
                 className={`w-8 h-8 rounded-xs grid place-items-center text-danger ${
                   isDefault ? 'opacity-35 cursor-not-allowed' : ''
                 }`}
@@ -166,19 +168,19 @@ export function ManageGroupsSheet({
             atMax ? 'opacity-40 cursor-not-allowed' : ''
           }`}
         >
-          <PlusIcon size={16} /> 그룹 추가
+          <PlusIcon size={16} /> {t('addGroup')}
         </button>
       </div>
 
       {/* Footer hint */}
       <p className="px-[18px] pt-3.5 text-[11px] text-ink-500 leading-relaxed">
-        그룹은 최대 8개까지 만들 수 있어요. 각 그룹마다 동료를 10명까지 추가할 수 있어요.
+        {t('footerHint', { max: MAX_GROUPS })}
       </p>
 
       {pendingDelete && (
         <DangerConfirm
-          title={`${pendingDelete.name} 그룹을 삭제할까요?`}
-          body={`이 그룹의 비교 멤버 ${pendingDelete.members.length}명이 해제되요. 동료 자체는 삭제되지 않아요.`}
+          title={t('deleteConfirmTitle', { name: pendingDelete.name })}
+          body={t('deleteConfirmBody', { count: pendingDelete.members.length })}
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => { onDelete(pendingDelete.id); setPendingDelete(null) }}
         />

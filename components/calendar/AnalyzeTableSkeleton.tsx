@@ -1,3 +1,6 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { LoadDots } from '@/components/ui/LoadDots'
 
@@ -10,7 +13,8 @@ import { LoadDots } from '@/components/ui/LoadDots'
  * Columns default to the KTX roster shape (사업일자 · 다이/열번 · 출근 · 퇴근).
  * Personal rosters have no 다이/열번 — pass ktx={false} to drop that column.
  * 항공 승무원은 codeLabel='근무코드/편명'로 컬럼 라벨만 바꾼다(KTX 용어 노출 방지). */
-export function AnalyzeTableSkeleton({ ktx = true, codeLabel = '다이/열번' }: { ktx?: boolean; codeLabel?: string }) {
+export function AnalyzeTableSkeleton({ ktx = true, codeLabel }: { ktx?: boolean; codeLabel?: string }) {
+  const t = useTranslations('calendarUi.analyzeSkeleton')
   const cols = ktx ? 'grid-cols-[90px_1fr_56px_56px]' : 'grid-cols-[1fr_56px_56px]'
 
   return (
@@ -19,10 +23,10 @@ export function AnalyzeTableSkeleton({ ktx = true, codeLabel = '다이/열번' }
         <div
           className={`grid ${cols} gap-2 bg-bg px-2.5 py-2 border-b border-line text-[10px] font-bold text-ink-500 uppercase tracking-[0.04em]`}
         >
-          <span>사업일자</span>
-          {ktx && <span>{codeLabel}</span>}
-          <span>출근</span>
-          <span>퇴근</span>
+          <span>{t('colDate')}</span>
+          {ktx && <span>{codeLabel ?? t('colCodeDefault')}</span>}
+          <span>{t('colStart')}</span>
+          <span>{t('colEnd')}</span>
         </div>
         {Array.from({ length: 8 }).map((_, i) => (
           <div
@@ -43,7 +47,7 @@ export function AnalyzeTableSkeleton({ ktx = true, codeLabel = '다이/열번' }
       </div>
       <div className="mt-3.5 flex justify-center items-center gap-2.5">
         <LoadDots />
-        <span className="text-[12px] font-medium text-ink-500">분석이 끝나면 결과를 확인할 수 있어요</span>
+        <span className="text-[12px] font-medium text-ink-500">{t('analyzing')}</span>
       </div>
     </div>
   )

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { EditIcon, PlusIcon } from '@/components/ui/icons'
 import { MAX_GROUPS } from '@/lib/store/groups'
 import type { Group } from '@/lib/types/schedule'
@@ -33,6 +34,7 @@ export function GroupTabs({
   groups, activeGroupId, activeGroupName,
   onSelect, onAddGroup, onManage, onReorder, showToast,
 }: Props) {
+  const t = useTranslations('calendarUi.groupTabs')
   const atMax = groups.length >= MAX_GROUPS
   const rowRef = useRef<HTMLDivElement>(null)
   const longPressTimer = useRef<number | null>(null)
@@ -163,25 +165,25 @@ export function GroupTabs({
           )
         })}
         <button
-          onClick={() => (atMax ? showToast('그룹은 최대 8개까지 만들 수 있어요.', 'danger') : onAddGroup())}
+          onClick={() => (atMax ? showToast(t('toastMaxGroups', { max: MAX_GROUPS }), 'danger') : onAddGroup())}
           className={`inline-flex items-center gap-1 px-3 py-2 rounded-pill border border-dashed border-line-2 text-ink-500 text-[13px] font-semibold whitespace-nowrap shrink-0 ${
             atMax ? 'opacity-40 cursor-not-allowed' : ''
           }`}
         >
-          <PlusIcon size={14} /> 그룹
+          <PlusIcon size={14} /> {t('groupPill')}
         </button>
       </div>
 
       {/* Secondary header */}
       <div className="flex items-center justify-between px-4 mt-1.5 mb-0.5">
         <span className="text-[11px] font-bold text-ink-500 uppercase" style={{ letterSpacing: '0.06em' }}>
-          비교 중 · {activeGroupName}
+          {t('comparing', { name: activeGroupName })}
         </span>
         <button
           onClick={onManage}
           className="inline-flex items-center gap-1 text-ink-500 text-[11px] font-semibold"
         >
-          <EditIcon size={12} /> 그룹 관리
+          <EditIcon size={12} /> {t('manage')}
         </button>
       </div>
     </div>

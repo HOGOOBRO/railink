@@ -1,3 +1,6 @@
+'use client'
+
+import { useTranslations, useLocale } from 'next-intl'
 import { buildMonthCells, DOW_KR } from '@/lib/schedule-utils'
 import { Avatar } from '@/components/ui/Avatar'
 import { BrandMark, SearchIcon, ChevronLeftIcon, ChevronRightIcon } from '@/components/ui/icons'
@@ -38,6 +41,10 @@ export function CalendarGridSkeleton({ year, month }: { year: number; month: num
  * DOW, 6×7 grid with real date numbers) and shimmers only the data areas.
  * §5.5: never hardcode which days are work — every in-month cell gets the same
  * neutral shimmer bar, so we don't fake a roster we haven't loaded yet. */
+// 표시용 영어 요일. DOW_KR(lib)는 색상 등 인덱스 로직에 그대로 쓰고, 화면 라벨만
+// 로케일에 맞춰 고른다(en일 때만 치환).
+const DOW_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
 export function CalendarSkeleton({
   name,
   photo,
@@ -49,6 +56,10 @@ export function CalendarSkeleton({
   year: number
   month: number
 }) {
+  const t = useTranslations('calendar')
+  const tu = useTranslations('calendarUi.skeleton')
+  const locale = useLocale()
+  const dow = locale === 'en' ? DOW_EN : DOW_KR
   return (
     <div className="relative flex flex-col min-h-[100dvh] bg-bg">
       {/* Top bar — real chrome; avatar is the real user */}
@@ -75,7 +86,7 @@ export function CalendarSkeleton({
       {/* Compare strip — self pill real, colleague chips shimmer */}
       <section className="bg-surface border-b border-line pb-3.5">
         <div className="flex items-center justify-between px-4 pt-3 mb-2">
-          <span className="text-[11px] font-bold text-ink-500 tracking-wider uppercase">비교 중인 동료</span>
+          <span className="text-[11px] font-bold text-ink-500 tracking-wider uppercase">{t('compare.sectionLabel')}</span>
           <Skeleton className="w-7 h-2.5 rounded" />
         </div>
         <div className="flex gap-2.5 overflow-hidden px-4 pt-1 pb-1 items-start">
@@ -86,7 +97,7 @@ export function CalendarSkeleton({
             >
               <Avatar name={name} size="lg" className="!w-[42px] !h-[42px]" color="brand" />
               <span className="absolute -right-1 -bottom-0.5 bg-brand text-ink-on-brand text-[9px] font-bold px-1.5 rounded-pill shadow-[0_0_0_2px_#fff]">
-                나
+                {t('compare.selfTag')}
               </span>
             </div>
             <span className="text-[11px] font-semibold max-w-[56px] truncate text-center text-ink-900">{name}</span>
@@ -107,7 +118,7 @@ export function CalendarSkeleton({
             <ChevronLeftIcon size={20} />
           </span>
           <span className="font-kr text-title font-bold tracking-tight text-ink-900">
-            {year}년 {month}월
+            {t('month.label', { year, month })}
           </span>
           <span className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700">
             <ChevronRightIcon size={20} />
@@ -115,7 +126,7 @@ export function CalendarSkeleton({
         </div>
 
         <div className="grid grid-cols-7 border-b-2 border-divider">
-          {DOW_KR.map((d, i) => (
+          {dow.map((d, i) => (
             <div
               key={d}
               className={`text-center font-kr text-[13px] font-bold py-1 ${
@@ -134,7 +145,7 @@ export function CalendarSkeleton({
       <div className="px-4 pt-3">
         <div className="flex items-center gap-2 bg-surface border border-line rounded-md px-3.5 py-2.5">
           <LoadDots />
-          <span className="text-[12px] font-medium text-ink-500">이번 달 근무표 불러오는 중</span>
+          <span className="text-[12px] font-medium text-ink-500">{tu('loading')}</span>
         </div>
       </div>
       <div className="flex-1" />

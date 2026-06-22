@@ -6,6 +6,7 @@
  * and a single white menu card rises above it; a scrim closes on tap-outside. */
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { PlusIcon, PinIcon, UploadIcon } from '@/components/ui/icons'
 
 export function FabSpeedDial({
@@ -14,6 +15,7 @@ export function FabSpeedDial({
   onAppointment: () => void
   onUpload: () => void
 }) {
+  const t = useTranslations('calendarUi.fab')
   const [open, setOpen] = useState(false)
 
   return (
@@ -36,15 +38,15 @@ export function FabSpeedDial({
             className="bg-surface rounded-lg shadow-sh3 overflow-hidden animate-fade-in"
             style={{ minWidth: 168 }}
           >
-            <MenuRow icon={<PinIcon size={18} />} label="일정 추가" onClick={() => { setOpen(false); onAppointment() }} />
+            <MenuRow icon={<PinIcon size={18} />} label={t('addAppointment')} onClick={() => { setOpen(false); onAppointment() }} />
             <div className="h-px bg-line mx-3.5" />
-            <MenuRow icon={<UploadIcon size={18} />} label="근무표 등록" onClick={() => { setOpen(false); onUpload() }} />
+            <MenuRow icon={<UploadIcon size={18} />} label={t('uploadSchedule')} onClick={() => { setOpen(false); onUpload() }} />
           </div>
         )}
 
         <button
           onClick={() => setOpen(o => !o)}
-          aria-label={open ? '메뉴 닫기' : '추가'}
+          aria-label={open ? t('closeMenuAria') : t('openAria')}
           aria-expanded={open}
           className="w-[58px] h-[58px] rounded-full bg-brand text-ink-on-brand grid place-items-center shadow-sh-brand active:scale-95 transition-transform"
         >

@@ -383,13 +383,28 @@
   },
   "fields": {
     "visibility": {
-      "public": { "title": "공개", "desc": "이름·사진이 동료 검색에 떠요. 일정은 따로 수락이 필요해요." },
-      "private": { "title": "비공개", "desc": "검색에는 안 떠요. 사번을 정확히 아는 동료만 공유를 요청할 수 있어요." }
+      "public": {
+        "title": "공개",
+        "desc": "이름·사진이 동료 검색에 떠요. 일정은 따로 수락이 필요해요."
+      },
+      "private": {
+        "title": "비공개",
+        "desc": "검색에는 안 떠요. 사번을 정확히 아는 동료만 공유를 요청할 수 있어요."
+      }
     },
     "category": {
-      "ktx": { "title": "KTX 승무원", "desc": "코레일 KTX 객실승무원이에요." },
-      "airline": { "title": "항공 승무원", "desc": "항공사 객실/운항 승무원이에요." },
-      "other": { "title": "기타", "desc": "승무원이 아니라도 사용할 수 있어요." }
+      "ktx": {
+        "title": "KTX 승무원",
+        "desc": "코레일 KTX 객실승무원이에요."
+      },
+      "airline": {
+        "title": "항공 승무원",
+        "desc": "항공사 객실/운항 승무원이에요."
+      },
+      "other": {
+        "title": "기타",
+        "desc": "승무원이 아니라도 사용할 수 있어요."
+      }
     },
     "job": {
       "nurse": "간호사",
@@ -825,5 +840,133 @@
     "noTimeBadge": "시간 미입력",
     "fromPrevDay": "전날부터",
     "continuesNextDay": "익일 계속"
+  },
+  "calendarUi": {
+    "inviteCreate": {
+      "title": "친구 초대",
+      "subtitle": "링크를 받은 사람이 가입하면 서로 일정이 연결돼요",
+      "close": "닫기",
+      "groupPrompt": "어느 비교 그룹에 추가할까요?",
+      "noGroupsHint": "가입하면 ‘기본’ 그룹에 자동으로 연결돼요.",
+      "emailMatchTitle": "이메일 확인 추가",
+      "emailMatchDesc": "켜면 지정한 이메일로만 가입할 수 있어 더 안전해요.",
+      "emailPlaceholder": "초대할 사람의 이메일",
+      "creating": "만드는 중…",
+      "createLink": "초대 링크 만들기",
+      "createdNotice": "<b>{group}</b> 그룹 초대 링크가 만들어졌어요.",
+      "copy": "복사",
+      "linkLimit": "이 링크는 <b>14일 동안, 최대 30명까지</b> 쓸 수 있어요.",
+      "share": "공유하기",
+      "newLinkOtherGroup": "← 다른 그룹으로 새 링크 만들기",
+      "shareTitle": "RaiLink 초대",
+      "defaultGroup": "기본",
+      "toastEmailInvalid": "이메일 형식을 확인해 주세요.",
+      "toastCopied": "초대 메시지를 복사했어요. 카톡에 붙여넣어 보내세요.",
+      "toastCopyFailed": "복사하지 못했어요. 링크를 길게 눌러 복사해 주세요."
+    },
+    "invitePrompt": {
+      "close": "닫기",
+      "createLink": "초대 링크 만들기",
+      "first_compare": {
+        "title": "친구 한 명 더 초대해볼까요?",
+        "subtitle": "방금 본 겹쳐보기를 다른 친구와도",
+        "body": "초대 링크로 들어오면 그 친구 근무가 캘린더에 자동으로 들어와, 둘 다 쉬는 날을 바로 찾을 수 있어요."
+      },
+      "upload_empty": {
+        "title": "이제 같이 볼 친구만 있으면 돼요",
+        "subtitle": "근무표는 다 준비됐어요",
+        "body": "친구가 들어오면 서로 근무가 자동으로 연결돼, 둘 다 쉬는 날이 바로 보여요."
+      },
+      "upload_has_friends": {
+        "title": "올린 김에, 친구도 초대할까요?",
+        "subtitle": "아직 RaiLink에 없는 친구를 데려와요",
+        "body": "초대 링크로 들어오면 따로 검색할 필요 없이 바로 연결돼, 새 근무까지 같이 볼 수 있어요."
+      }
+    },
+    "rosterExampleTable": {
+      "scheduleLabel": "월 근무표",
+      "example": "예시",
+      "colDate": "날짜",
+      "colFlight": "편명",
+      "colSector": "구간",
+      "colTime": "시각"
+    },
+    "rosterExampleCard": {
+      "scheduleLabel": "월 근무표",
+      "example": "예시"
+    },
+    "manageGroups": {
+      "title": "비교 그룹",
+      "close": "닫기",
+      "memberCount": "동료 {count}명",
+      "editNameAria": "이름 편집",
+      "saveNameAria": "이름 저장",
+      "deleteGroupAria": "{name} 그룹 삭제",
+      "addGroup": "그룹 추가",
+      "footerHint": "그룹은 최대 {max}개까지 만들 수 있어요. 각 그룹마다 동료를 10명까지 추가할 수 있어요.",
+      "newGroupName": "새 그룹",
+      "deleteConfirmTitle": "{name} 그룹을 삭제할까요?",
+      "deleteConfirmBody": "이 그룹의 비교 멤버 {count}명이 해제되요. 동료 자체는 삭제되지 않아요.",
+      "toastDuplicate": "같은 이름의 그룹이 이미 있어요.",
+      "toastMaxGroups": "그룹은 최대 {max}개까지 만들 수 있어요.",
+      "toastDefaultUndeletable": "기본 그룹은 삭제할 수 없어요."
+    },
+    "groupTabs": {
+      "groupPill": "그룹",
+      "comparing": "비교 중 · {name}",
+      "manage": "그룹 관리",
+      "toastMaxGroups": "그룹은 최대 {max}개까지 만들 수 있어요."
+    },
+    "skeleton": {
+      "loading": "이번 달 근무표 불러오는 중"
+    },
+    "menu": {
+      "personalAccount": "개인 계정",
+      "partSuffix": "{part}파트",
+      "compareCount": "비교 동료 <n>{count}</n>명",
+      "myInfo": "내 정보",
+      "inviteFriend": "친구 초대",
+      "manageSchedule": "내 근무표 관리",
+      "myCodes": "내 근무 코드",
+      "help": "도움말 · 약관",
+      "logout": "로그아웃"
+    },
+    "analyzeSkeleton": {
+      "colDate": "사업일자",
+      "colCodeDefault": "다이/열번",
+      "colStart": "출근",
+      "colEnd": "퇴근",
+      "analyzing": "분석이 끝나면 결과를 확인할 수 있어요"
+    },
+    "compareMember": {
+      "close": "닫기",
+      "statusPending": "수락 대기 중",
+      "statusSharing": "공유 중",
+      "colorLabel": "표시 색상",
+      "colorLabelNote": "· 내 화면에만 적용",
+      "colorHint": "색상은 내 화면에서만 보여요. 흐리게 표시된 색은 다른 동료가 쓰고 있어요.",
+      "removePendingNote": "빼면 보낸 공유 요청도 함께 취소돼요.",
+      "remove": "비교에서 빼기",
+      "colorName": "색 {index}",
+      "colorAria": "{color} 색상",
+      "colorTakenAria": "{color} 색상 · {name} 사용 중"
+    },
+    "personalHint": {
+      "title": "내 일정도 같이 비교해 볼까요?",
+      "bodyWithOwner": "{name} 님은 이미 보이고 있어요. 내 근무도 더하면 서로 맞춰봐요.",
+      "bodyDefault": "내 근무를 등록하거나 친구를 초대해 비교를 시작해요.",
+      "register": "등록",
+      "dismissAria": "안내 닫기"
+    },
+    "fab": {
+      "addAppointment": "일정 추가",
+      "uploadSchedule": "근무표 등록",
+      "openAria": "추가",
+      "closeMenuAria": "메뉴 닫기"
+    },
+    "timelineSkeleton": {
+      "dateHeader": "{month}월 {day}일",
+      "mySchedule": "내 일정"
+    }
   }
 }
