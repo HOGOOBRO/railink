@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/Button'
 
 /* Destructive-action modal (§15). The user must type a confirm word before the
  * danger button arms. Shared by 데이터 모두 삭제 (settings/info) and 그룹 삭제
  * (ManageGroupsSheet). */
 export function DangerConfirm({
-  title, body, confirmWord = '삭제', confirmLabel = '삭제', onCancel, onConfirm,
+  title, body, confirmWord, confirmLabel, onCancel, onConfirm,
 }: {
   title: string
   body: ReactNode
@@ -16,12 +17,16 @@ export function DangerConfirm({
   onCancel: () => void
   onConfirm: () => void
 }) {
+  const t = useTranslations('ui.dangerConfirm')
+  // 기본값은 훅을 호출할 수 없는 prop 자리 대신 여기서 t()로 채운다.
+  const word = confirmWord ?? t('defaultWord')
+  const label = confirmLabel ?? t('defaultConfirm')
   const [type, setType] = useState('')
-  const armed = type === confirmWord
+  const armed = type === word
   return (
     <div className="fixed inset-0 z-modal flex items-center justify-center px-4">
       <button
-        aria-label="배경 닫기"
+        aria-label={t('closeBackdrop')}
         onClick={onCancel}
         className="absolute inset-0"
         style={{ background: 'rgba(13,30,55,0.55)' }}
@@ -32,7 +37,10 @@ export function DangerConfirm({
         <p className="mt-1.5 text-center text-callout text-ink-700 leading-relaxed">{body}</p>
 
         <p className="mt-3.5 text-caption text-ink-500">
-          확인을 위해 아래 칸에 <strong className="text-danger">{confirmWord}</strong>를 입력해 주세요.
+          {t.rich('prompt', {
+            word,
+            b: (c) => <strong className="text-danger">{c}</strong>,
+          })}
         </p>
         <input
           value={type}
@@ -43,7 +51,7 @@ export function DangerConfirm({
         />
 
         <div className="flex gap-2.5 mt-3.5">
-          <Button variant="outline" className="flex-1" onClick={onCancel}>취소</Button>
+          <Button variant="outline" className="flex-1" onClick={onCancel}>{t('cancel')}</Button>
           <button
             disabled={!armed}
             onClick={armed ? onConfirm : undefined}
@@ -53,7 +61,7 @@ export function DangerConfirm({
                 : 'bg-danger-soft text-danger opacity-70 cursor-not-allowed'
             }`}
           >
-            {confirmLabel}
+            {label}
           </button>
         </div>
       </div>

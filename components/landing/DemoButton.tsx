@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import { login } from '@/lib/auth'
 import { DEMO_LOGIN } from '@/lib/demo-data'
@@ -20,6 +21,7 @@ export function DemoButton({
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const t = useTranslations('landing')
   const [loading, setLoading] = useState(false)
 
   async function enterDemo() {
@@ -36,7 +38,7 @@ export function DemoButton({
 
   return (
     <button type="button" onClick={enterDemo} disabled={loading} className={className}>
-      {loading ? '들어가는 중…' : children}
+      {loading ? t('demoLoading') : children}
     </button>
   )
 }

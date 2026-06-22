@@ -1,3 +1,6 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { Spinner } from '@/components/ui/Spinner'
 
 /* ② 근무표 불러오는 중 — full-screen spinner for a fast transition/reconnect
@@ -11,13 +14,14 @@ import { Spinner } from '@/components/ui/Spinner'
  * screen rather than blanking it. Use this for a future full-screen refetch
  * that has no prior content to preserve (e.g. an explicit "reconnecting" gate). */
 export function SyncLoading() {
+  const t = useTranslations('loading')
   return (
     <div
       className="flex flex-col items-center justify-center gap-[18px] min-h-[100dvh] bg-surface"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       <Spinner size={44} stroke={3.5} />
-      <div className="text-[15px] font-semibold text-ink-700">근무표 불러오는 중</div>
+      <div className="text-[15px] font-semibold text-ink-700">{t('sync')}</div>
     </div>
   )
 }

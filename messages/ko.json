@@ -1,6 +1,7 @@
 {
   "common": {
-    "or": "또는"
+    "or": "또는",
+    "loading": "불러오는 중"
   },
   "settings": {
     "language": {
@@ -971,7 +972,12 @@
   },
   "meta": {
     "title": "레일링크 RaiLink · 근무표 공유 캘린더",
-    "description": "레일링크는 교대근무자를 위한 무료 근무표 공유 캘린더예요. 내 근무 스케줄을 등록하고 동료와 겹치는 휴무를 한눈에 확인하세요."
+    "description": "레일링크는 교대근무자를 위한 무료 근무표 공유 캘린더예요. 내 근무 스케줄을 등록하고 동료와 겹치는 휴무를 한눈에 확인하세요.",
+    "signupTitle": "가입하기 · 레일링크 RaiLink",
+    "signupDesc": "레일링크에 무료로 가입하고 근무표를 등록해 보세요. 이메일 또는 Google 계정으로 1분이면 끝나요.",
+    "loginTitle": "로그인 · 레일링크 RaiLink",
+    "loginDesc": "레일링크에 로그인하고 동료와 근무표를 비교해 보세요.",
+    "installTitle": "홈 화면에 추가 · RaiLink"
   },
   "landing": {
     "nav": {
@@ -1095,6 +1101,27 @@
     "jsonLd": {
       "appName": "레일링크",
       "appDescription": "레일링크(RaiLink)는 교대근무자를 위한 무료 근무표 공유 캘린더입니다. 근무 스케줄을 등록하고 동료와 겹치는 휴무를 한눈에 확인하세요."
+    },
+    "demoLoading": "들어가는 중…",
+    "mock": {
+      "avatar1": "고양이가",
+      "avatar2": "세상을",
+      "avatar3": "구한다",
+      "selfTag": "나",
+      "dayDate": "6월 12일",
+      "dayDow": "금",
+      "daySub": "근무 3명 · 위아래로 넘겨 다른 날",
+      "avatar4": "얍",
+      "comparing": "비교 중인 동료",
+      "peopleCount": "{n}명",
+      "add": "추가",
+      "monthTitle": "2026년 6월",
+      "holiday": "현충일",
+      "summary": "이번 달 <b>내 근무 {work}일</b> · 휴무 {off}일 · 비교 동료 {compare}명",
+      "birthdayLabel": "생일",
+      "birthdayName": "{name} 님",
+      "editSchedule": "일정 수정",
+      "addCompare": "동료 비교 추가"
     }
   },
   "legal": {
@@ -1530,5 +1557,40 @@
       "fontPretendard": "한글 본문 폰트로 사용.",
       "fontJetbrains": "영문·숫자·날짜·시각 표기 폰트로 사용."
     }
+  },
+  "authCallback": {
+    "errorHeading": "로그인하지 못했어요",
+    "errorCancelled": "Google 로그인이 취소되었거나 완료되지 않았어요.",
+    "errorGeneric": "로그인 처리 중 문제가 생겼어요. 다시 시도해 주세요.",
+    "backToLogin": "로그인 화면으로"
+  },
+  "ui": {
+    "dangerConfirm": {
+      "defaultWord": "삭제",
+      "defaultConfirm": "삭제",
+      "closeBackdrop": "배경 닫기",
+      "prompt": "확인을 위해 아래 칸에 <b>{word}</b>를 입력해 주세요.",
+      "cancel": "취소"
+    },
+    "timeSelect": {
+      "hour": "시",
+      "minute": "분",
+      "hourLabel": "{h}시",
+      "minuteLabel": "{m}분"
+    },
+    "checkbox": {
+      "required": "필수",
+      "optional": "선택"
+    }
+  },
+  "installBanner": {
+    "title": "홈 화면에 추가해 앱처럼 쓰기",
+    "subtitle": "1분 설치 가이드",
+    "cta": "설치 방법",
+    "dismiss": "닫기"
+  },
+  "loading": {
+    "sync": "근무표 불러오는 중",
+    "tagline": "동료와 함께 일정 맞추기"
   }
 }

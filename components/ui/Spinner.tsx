@@ -1,3 +1,7 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
+
 /* Loading spinner ring — design_handoff_loading_states §3.
  * 24×24 viewBox, light track + brand (or colleague-color) arc, 1s linear spin
  * via Tailwind's `animate-spin`. `color` accepts any CSS color incl. a var()
@@ -11,6 +15,7 @@ interface SpinnerProps {
 }
 
 export function Spinner({ size = 22, stroke = 3, color = 'var(--brand)', className }: SpinnerProps) {
+  const t = useTranslations('common')
   return (
     <svg
       width={size}
@@ -18,7 +23,7 @@ export function Spinner({ size = 22, stroke = 3, color = 'var(--brand)', classNa
       viewBox="0 0 24 24"
       className={`animate-spin shrink-0${className ? ` ${className}` : ''}`}
       role="img"
-      aria-label="불러오는 중"
+      aria-label={t('loading')}
     >
       <circle cx="12" cy="12" r="9.5" fill="none" stroke="var(--line)" strokeWidth={stroke} />
       <circle

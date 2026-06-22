@@ -2,12 +2,14 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { track } from '@/lib/analytics'
 
 /** 상단바 CTA — 처음엔 숨겨 hero의 CTA와 겹치지 않게 하고, hero의 CTA가 화면
  *  위로 스크롤돼 사라지면 슬며시 나타난다(#hero-cta-anchor 기준). 숨김 상태에도
  *  레이아웃 자리는 차지해 나타날 때 다른 요소가 밀리지 않는다. */
 export function NavCta({ className = '' }: { className?: string }) {
+  const t = useTranslations('landing.hero')
   const [show, setShow] = useState(false)
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export function NavCta({ className = '' }: { className?: string }) {
         show ? 'max-w-[200px] opacity-100' : 'pointer-events-none max-w-0 opacity-0'
       }`}
     >
-      무료로 시작하기
+      {t('ctaStart')}
     </Link>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { Avatar } from '@/components/ui/Avatar'
 import { BrandMark, SearchIcon, CloseIcon, EditIcon, PlusIcon, CakeIcon } from '@/components/ui/icons'
 import { MonthTimeline, DAY_PX, type MonthPerson } from '@/components/calendar/MonthTimeline'
@@ -20,7 +21,7 @@ const TODAY = new Date(2026, 5, FOCUS_DAY) // 포커스 날을 today로 둬 거�
 // 휴식 간격을 둔다. 헤더 "근무 3명"은 12일 기준(셋 다 12일 근무).
 const PEOPLE: MonthPerson[] = [
   {
-    uid: 'theo', name: 'Theo', tag: '나', color: 'var(--brand)',
+    uid: 'theo', name: 'Theo', color: 'var(--brand)',
     shifts: [
       { day: FOCUS_DAY, trainNr: 'H1055', dia: '1011', start: 9.97, end: 21.5 }, // 09:58 → 21:30
     ],
@@ -42,7 +43,12 @@ const PEOPLE: MonthPerson[] = [
 ]
 
 export function DayDetailMock({ size, rotate }: { size?: string; rotate?: number }) {
+  const t = useTranslations('landing.mock')
   const scrollRef = useRef<HTMLDivElement>(null)
+  // 'me' 태그는 표시 문구라 사전에서 채운다(PEOPLE는 모듈 상수라 훅을 못 쓴다).
+  const people: MonthPerson[] = PEOPLE.map(p =>
+    p.uid === 'theo' ? { ...p, tag: t('selfTag') } : p,
+  )
 
   // 정적 목업이라 스크롤은 막고(overflow-hidden), 포커스 날의 근무 카드(대략
   // 17:30 중심)를 고정 뷰 가운데에 둔다 — 빈 날로 넘어가지 않게. 레이아웃 확정
@@ -82,9 +88,9 @@ export function DayDetailMock({ size, rotate }: { size?: string; rotate?: number
           <div className="flex items-start justify-between px-5 pt-1 pb-2 shrink-0 border-b border-line">
             <div>
               <h3 className="text-title font-bold tracking-tighter text-ink-900">
-                6월 12일 <span className="font-medium text-ink-500">금</span>
+                {t('dayDate')} <span className="font-medium text-ink-500">{t('dayDow')}</span>
               </h3>
-              <p className="text-caption text-ink-500 mt-0.5">근무 3명 · 위아래로 넘겨 다른 날</p>
+              <p className="text-caption text-ink-500 mt-0.5">{t('daySub')}</p>
             </div>
             <span className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"><CloseIcon size={18} /></span>
           </div>
@@ -101,8 +107,8 @@ export function DayDetailMock({ size, rotate }: { size?: string; rotate?: number
               <span style={{ color: '#E8669B' }}><CakeIcon size={24} /></span>
             </span>
             <div className="min-w-0">
-              <p className="text-[10.5px] font-extrabold tracking-[0.06em] uppercase" style={{ color: '#C24B82' }}>생일</p>
-              <p className="text-[15px] font-bold mt-0.5 truncate" style={{ color: '#7E2A52' }}>Fred 님</p>
+              <p className="text-[10.5px] font-extrabold tracking-[0.06em] uppercase" style={{ color: '#C24B82' }}>{t('birthdayLabel')}</p>
+              <p className="text-[15px] font-bold mt-0.5 truncate" style={{ color: '#7E2A52' }}>{t('birthdayName', { name: 'Fred' })}</p>
             </div>
             <span className="ml-auto rounded-full shrink-0" style={{ boxShadow: '0 0 0 2px #FBEEF4' }}>
               <Avatar name="Fred" color="c2" size="sm" className="!w-[30px] !h-[30px] !text-[11px]" />
@@ -111,17 +117,17 @@ export function DayDetailMock({ size, rotate }: { size?: string; rotate?: number
 
           {/* 타임라인 (실제 MonthTimeline 재사용) */}
           <div ref={scrollRef} className="flex-1 min-h-0 overflow-hidden">
-            <MonthTimeline people={PEOPLE} year={2026} month={6} today={TODAY} appointments={[]} />
+            <MonthTimeline people={people} year={2026} month={6} today={TODAY} appointments={[]} />
           </div>
 
           {/* 하단 액션 바 */}
           <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-t border-line bg-surface">
             <span className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md border border-solid border-line-2 text-[13px] font-semibold text-ink-700">
-              <EditIcon size={14} /> 일정 수정
+              <EditIcon size={14} /> {t('editSchedule')}
             </span>
             <div className="flex-1" />
             <span className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md bg-brand-050 text-[13px] font-semibold text-brand">
-              <PlusIcon size={14} /> 동료 비교 추가
+              <PlusIcon size={14} /> {t('addCompare')}
             </span>
           </div>
         </div>

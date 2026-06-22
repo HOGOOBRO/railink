@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { CheckIcon, ChevronDownIcon } from '@/components/ui/icons'
 
 export interface CbOption {
@@ -131,19 +132,21 @@ export function CbSelect({
   )
 }
 
-const HOUR_OPTS: CbOption[] = Array.from({ length: 24 }, (_, h) => ({ v: String(h).padStart(2, '0'), label: `${h}시` }))
-const MIN_OPTS: CbOption[] = ['00', '10', '20', '30', '40', '50'].map(m => ({ v: m, label: `${m}분` }))
+const MIN_VALUES = ['00', '10', '20', '30', '40', '50']
 
 /** Dual 시/분 dropdowns. Stored value is 'HH:MM'; 분 disabled until 시 chosen. */
 export function CbTimeField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const t = useTranslations('ui.timeSelect')
   const [hh, mm] = value ? value.split(':') : ['', '']
+  const hourOpts: CbOption[] = Array.from({ length: 24 }, (_, h) => ({ v: String(h).padStart(2, '0'), label: t('hourLabel', { h }) }))
+  const minOpts: CbOption[] = MIN_VALUES.map(m => ({ v: m, label: t('minuteLabel', { m }) }))
   return (
     <div className="flex gap-2">
-      <CbSelect value={hh} options={HOUR_OPTS} placeholder="시" onChange={h => onChange(`${h}:${mm || '00'}`)} />
+      <CbSelect value={hh} options={hourOpts} placeholder={t('hour')} onChange={h => onChange(`${h}:${mm || '00'}`)} />
       <CbSelect
         value={hh === '' ? '' : (mm || '00')}
-        options={MIN_OPTS}
-        placeholder="분"
+        options={minOpts}
+        placeholder={t('minute')}
         disabled={hh === ''}
         onChange={m => onChange(`${hh}:${m}`)}
       />

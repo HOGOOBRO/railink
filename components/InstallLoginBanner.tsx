@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { PhoneIcon, ChevronRightIcon, CloseIcon } from '@/components/ui/icons'
 
@@ -14,6 +15,7 @@ const INSTALLED_KEY = 'railink_installed'
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000
 
 export function InstallLoginBanner() {
+  const t = useTranslations('installBanner')
   const [show, setShow] = useState(false)
 
   useEffect(() => {
@@ -51,18 +53,18 @@ export function InstallLoginBanner() {
           <PhoneIcon size={20} />
         </span>
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-bold tracking-tight text-brand-700">홈 화면에 추가해 앱처럼 쓰기</p>
-          <p className="mt-px font-en text-[11px] tracking-[0.04em] text-ink-500">1분 설치 가이드</p>
+          <p className="text-[13px] font-bold tracking-tight text-brand-700">{t('title')}</p>
+          <p className="mt-px font-en text-[11px] tracking-[0.04em] text-ink-500">{t('subtitle')}</p>
         </div>
         <Link
           href="/install"
           className="inline-flex items-center gap-1 rounded-pill bg-brand text-ink-on-brand px-3 py-2 text-caption font-bold shrink-0 active:scale-[.98] transition-transform"
         >
-          설치 방법 <ChevronRightIcon size={12} />
+          {t('cta')} <ChevronRightIcon size={12} />
         </Link>
         <button
           onClick={dismiss}
-          aria-label="닫기"
+          aria-label={t('dismiss')}
           className="w-7 h-7 grid place-items-center rounded-full text-ink-500 shrink-0"
         >
           <CloseIcon size={14} />

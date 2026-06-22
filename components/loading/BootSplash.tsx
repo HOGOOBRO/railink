@@ -1,3 +1,6 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { BrandMark } from '@/components/ui/icons'
 import { LoadDots } from '@/components/ui/LoadDots'
 
@@ -5,6 +8,7 @@ import { LoadDots } from '@/components/ui/LoadDots'
  * design_handoff_loading_states §4. Shown delay-gated (only when the
  * session/data resolve is slow) so fast opens never flash it. */
 export function BootSplash() {
+  const t = useTranslations('loading')
   return (
     <div
       className="relative flex flex-col min-h-[100dvh] bg-surface"
@@ -35,7 +39,7 @@ export function BootSplash() {
           RAILINK
         </div>
         <div className="mt-2 text-[13px] font-medium text-ink-500">
-          동료와 함께 일정 맞추기
+          {t('tagline')}
         </div>
       </div>
 

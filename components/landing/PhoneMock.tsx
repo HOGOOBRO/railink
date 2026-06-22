@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Avatar } from '@/components/ui/Avatar'
 import { CalCell, type CellBar } from '@/components/calendar/CalCell'
 import {
@@ -20,12 +21,13 @@ const CODE_COLOR: Record<Code, string> = {
 }
 
 // 실제 데모 계정에 들어간 아바타(/public/avatars)를 그대로 사용.
+// nameKey는 landing.mock의 표시 이름 키(Theo는 고정 영문이라 키 없음).
 const PEOPLE = [
   { name: 'Theo', color: 'brand' as const, me: true, photo: '/avatars/avatar-5.svg' },
-  { name: '고양이가', color: 'c1' as const, photo: '/avatars/cat-1.jpg' },
-  { name: '세상을', color: 'c2' as const, photo: '/avatars/cat-2.jpg' },
-  { name: '구한다', color: 'c3' as const, photo: '/avatars/cat-3.jpg' },
-  { name: '얍', color: 'c4' as const, photo: '/avatars/cat-4.jpg' },
+  { nameKey: 'avatar1' as const, color: 'c1' as const, photo: '/avatars/cat-1.jpg' },
+  { nameKey: 'avatar2' as const, color: 'c2' as const, photo: '/avatars/cat-2.jpg' },
+  { nameKey: 'avatar3' as const, color: 'c3' as const, photo: '/avatars/cat-3.jpg' },
+  { nameKey: 'avatar4' as const, color: 'c4' as const, photo: '/avatars/cat-4.jpg' },
 ]
 
 // 6월 매일 근무자 (실제 앱과 동일한 칩/도트 셀로 렌더된다).
@@ -42,11 +44,12 @@ const TODAY_ISO = '2026-06-14'
 
 // 실제 calendar/page.tsx의 PersonPill 정적 버전.
 function PersonPill({
-  name, color, self, editable, photo,
+  name, color, self, selfLabel, editable, photo,
 }: {
   name: string
   color: 'brand' | 'c1' | 'c2' | 'c3' | 'c4'
   self?: boolean
+  selfLabel?: string
   editable?: boolean
   photo?: string
 }) {
@@ -60,7 +63,7 @@ function PersonPill({
         <Avatar name={name} photo={photo} size="lg" className="!w-[42px] !h-[42px]" color={color} />
         {self && (
           <span className="absolute -right-1 -bottom-0.5 bg-brand text-ink-on-brand text-[9px] font-bold px-1.5 rounded-pill shadow-[0_0_0_2px_#fff]">
-            나
+            {selfLabel}
           </span>
         )}
         {editable && !self && (
@@ -86,8 +89,11 @@ export function PhoneMock({
   size?: string
   rotate?: number
 }) {
+  const t = useTranslations('landing.mock')
   const overlap = variant === 'overlap'
-  const compares = overlap ? PEOPLE.slice(1) : []
+  const compares = overlap
+    ? PEOPLE.slice(1).map(p => ({ ...p, name: t(p.nameKey!) }))
+    : []
   const weeks = buildMonthCells(2026, 6)
   const selected = overlap ? 17 : null
   const workDays = Object.values(WORK).filter(list => list.includes('n')).length
@@ -115,11 +121,11 @@ export function PhoneMock({
             {/* ── Compare-group zone ── */}
             <section className="bg-surface border-b border-line pb-3.5">
               <div className="flex items-center justify-between px-4 pt-3 mb-2">
-                <span className="text-[11px] font-bold text-ink-500 tracking-wider uppercase">비교 중인 동료</span>
-                <span className="font-en text-[11px] font-semibold text-ink-500">{compares.length}명</span>
+                <span className="text-[11px] font-bold text-ink-500 tracking-wider uppercase">{t('comparing')}</span>
+                <span className="font-en text-[11px] font-semibold text-ink-500">{t('peopleCount', { n: compares.length })}</span>
               </div>
               <div className="flex gap-2.5 px-4 pt-1 pb-1 items-start overflow-hidden">
-                <PersonPill name="Theo" color="brand" self photo={PEOPLE[0].photo} />
+                <PersonPill name="Theo" color="brand" self selfLabel={t('selfTag')} photo={PEOPLE[0].photo} />
                 {compares.map(c => (
                   <PersonPill key={c.name} name={c.name} color={c.color} editable photo={c.photo} />
                 ))}
@@ -127,7 +133,7 @@ export function PhoneMock({
                   <span className="w-12 h-12 rounded-full bg-brand-050 text-brand grid place-items-center shadow-[inset_0_0_0_1.5px_var(--brand-100)]">
                     <PlusIcon size={20} />
                   </span>
-                  <span className="text-[11px] font-semibold text-brand">추가</span>
+                  <span className="text-[11px] font-semibold text-brand">{t('add')}</span>
                 </div>
               </div>
             </section>
@@ -136,7 +142,7 @@ export function PhoneMock({
             <div className="bg-surface flex flex-col">
               <div className="flex items-center justify-between h-topbar px-4">
                 <span className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"><ChevronLeftIcon size={20} /></span>
-                <span className="font-kr text-title font-bold tracking-tight text-ink-900">2026년 6월</span>
+                <span className="font-kr text-title font-bold tracking-tight text-ink-900">{t('monthTitle')}</span>
                 <span className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"><ChevronRightIcon size={20} /></span>
               </div>
 
@@ -163,7 +169,7 @@ export function PhoneMock({
                         selected={!c.isOther && c.d === selected}
                         bars={c.iso && !c.isOther ? barsFor(c.d) : []}
                         dow={ci}
-                        holiday={!c.isOther && c.d === 6 ? '현충일' : null}
+                        holiday={!c.isOther && c.d === 6 ? t('holiday') : null}
                         isPast={!!c.iso && c.iso < TODAY_ISO}
                         hasBirthday={overlap && !c.isOther && BDAYS.includes(c.d)}
                       />
@@ -178,8 +184,12 @@ export function PhoneMock({
               <div className="bg-bg px-3.5 py-2.5 rounded-md flex items-center gap-2">
                 <span className="text-brand shrink-0"><UploadIcon size={14} /></span>
                 <span>
-                  이번 달 <strong className="font-en text-ink-700">내 근무 {workDays}일</strong>
-                  {' · '}휴무 {30 - workDays}일 · 비교 동료 {compares.length}명
+                  {t.rich('summary', {
+                    work: workDays,
+                    off: 30 - workDays,
+                    compare: compares.length,
+                    b: (ch) => <strong className="font-en text-ink-700">{ch}</strong>,
+                  })}
                 </span>
               </div>
             </div>

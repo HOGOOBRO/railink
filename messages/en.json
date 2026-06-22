@@ -1,6 +1,7 @@
 {
   "common": {
-    "or": "or"
+    "or": "or",
+    "loading": "Loading"
   },
   "settings": {
     "language": {
@@ -971,7 +972,12 @@
   },
   "meta": {
     "title": "RaiLink · Shared Work-Schedule Calendar",
-    "description": "RaiLink is a free shared work-schedule calendar for shift workers. Register your work schedule and see overlapping days off with your coworkers at a glance."
+    "description": "RaiLink is a free shared work-schedule calendar for shift workers. Register your work schedule and see overlapping days off with your coworkers at a glance.",
+    "signupTitle": "Sign up · RaiLink",
+    "signupDesc": "Sign up to RaiLink for free and register your work schedule. It takes just a minute with email or your Google account.",
+    "loginTitle": "Sign in · RaiLink",
+    "loginDesc": "Sign in to RaiLink and compare work schedules with your coworkers.",
+    "installTitle": "Add to home screen · RaiLink"
   },
   "landing": {
     "nav": {
@@ -1095,6 +1101,27 @@
     "jsonLd": {
       "appName": "RaiLink",
       "appDescription": "RaiLink is a free shared work-schedule calendar for shift workers. Register your work schedule and see overlapping days off with your coworkers at a glance."
+    },
+    "demoLoading": "Entering…",
+    "mock": {
+      "avatar1": "Cats",
+      "avatar2": "Run the",
+      "avatar3": "World",
+      "selfTag": "Me",
+      "dayDate": "Jun 12",
+      "dayDow": "Fri",
+      "daySub": "3 on shift · swipe up/down for other days",
+      "avatar4": "Yip",
+      "comparing": "Coworkers compared",
+      "peopleCount": "{n}",
+      "add": "Add",
+      "monthTitle": "June 2026",
+      "holiday": "Memorial Day",
+      "summary": "This month <b>{work} shifts</b> · {off} days off · {compare} coworkers",
+      "birthdayLabel": "Birthday",
+      "birthdayName": "{name}",
+      "editSchedule": "Edit schedule",
+      "addCompare": "Add coworker"
     }
   },
   "legal": {
@@ -1530,5 +1557,40 @@
       "fontPretendard": "Used as the Korean body font.",
       "fontJetbrains": "Used as the font for Latin letters, numerals, dates, and times."
     }
+  },
+  "authCallback": {
+    "errorHeading": "Couldn't sign you in",
+    "errorCancelled": "Your Google sign-in was cancelled or did not finish.",
+    "errorGeneric": "Something went wrong while signing you in. Please try again.",
+    "backToLogin": "Back to sign in"
+  },
+  "ui": {
+    "dangerConfirm": {
+      "defaultWord": "delete",
+      "defaultConfirm": "Delete",
+      "closeBackdrop": "Close backdrop",
+      "prompt": "To confirm, type <b>{word}</b> in the box below.",
+      "cancel": "Cancel"
+    },
+    "timeSelect": {
+      "hour": "Hour",
+      "minute": "Min",
+      "hourLabel": "{h}:00",
+      "minuteLabel": ":{m}"
+    },
+    "checkbox": {
+      "required": "Required",
+      "optional": "Optional"
+    }
+  },
+  "installBanner": {
+    "title": "Add to your home screen to use it like an app",
+    "subtitle": "1-minute install guide",
+    "cta": "How to install",
+    "dismiss": "Dismiss"
+  },
+  "loading": {
+    "sync": "Loading your schedule",
+    "tagline": "Sync your schedule with coworkers"
   }
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -35,6 +36,7 @@ function fireSignupIfNew(session: SbSession | null): void {
 
 export default function AuthCallbackPage() {
   const router = useRouter()
+  const t = useTranslations('authCallback')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export default function AuthCallbackPage() {
       if (invite) savePendingInvite(invite)
 
       if (params.get('error') || params.get('error_description')) {
-        if (alive) setError('Google 로그인이 취소되었거나 완료되지 않았어요.')
+        if (alive) setError(t('errorCancelled'))
         return
       }
 
@@ -61,10 +63,10 @@ export default function AuthCallbackPage() {
         const { data: ex, error: exErr } = await supabase.auth.exchangeCodeForSession(code)
         if (!exErr) { fireSignupIfNew(ex.session); if (alive) router.replace('/calendar'); return }
       }
-      if (alive) setError('로그인 처리 중 문제가 생겼어요. 다시 시도해 주세요.')
-    })().catch(() => { if (alive) setError('로그인 처리 중 문제가 생겼어요. 다시 시도해 주세요.') })
+      if (alive) setError(t('errorGeneric'))
+    })().catch(() => { if (alive) setError(t('errorGeneric')) })
     return () => { alive = false }
-  }, [router])
+  }, [router, t])
 
   if (error) {
     return (
@@ -75,11 +77,11 @@ export default function AuthCallbackPage() {
         <div className="w-14 h-14 rounded-lg bg-brand-050 text-brand grid place-items-center mb-5">
           <BrandMark size={26} />
         </div>
-        <h1 className="text-[22px] font-bold tracking-tighter text-ink-900">로그인하지 못했어요</h1>
+        <h1 className="text-[22px] font-bold tracking-tighter text-ink-900">{t('errorHeading')}</h1>
         <p className="mt-3 text-callout text-ink-700 leading-relaxed">{error}</p>
         <div className="h-7" />
         <Link href="/login" className="w-full max-w-[360px]">
-          <Button block>로그인 화면으로</Button>
+          <Button block>{t('backToLogin')}</Button>
         </Link>
       </div>
     )
