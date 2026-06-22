@@ -119,6 +119,31 @@
     "bottomCardTitle": "가입 후 바로 시작할 수 있어요",
     "bottomCardBody": "내 근무표를 등록하고 동료와 일정을 공유할 수 있어요."
   },
+  "welcome": {
+    "greeting": "반가워요",
+    "greetingNamed": "{name} 님, 반가워요",
+    "subtitle": "시작하기 전에 어떤 일을 하는지 알려주세요.",
+    "categoryQuestion": "어떤 일을 하세요?",
+    "categoryAriaLabel": "직무 선택",
+    "airlineLabel": "항공사",
+    "airlinePlaceholder": "항공사를 선택해 주세요",
+    "airlineHintDefault": "준비 중인 항공사도 미리 고를 수 있어요.",
+    "airlineHintActive": "{airline} 근무표를 사진으로 올리면 자동으로 읽어서 채워드려요.",
+    "airlineHintPending": "{airline}{particle} 7월 중 추가될 예정이에요. 그때까지는 근무를 직접 입력해서 쓰다가, 사진 자동 인식이 준비되면 바로 켜져요.",
+    "jobLabel": "직무",
+    "jobAriaLabel": "직무 선택",
+    "jobOtherAriaLabel": "직무 직접 입력",
+    "jobOtherPlaceholder": "어떤 일을 하시나요?",
+    "errors": {
+      "airlineRequired": "항공사를 선택해 주세요.",
+      "jobSelectRequired": "직무를 선택해 주세요.",
+      "jobRequired": "직무를 입력해 주세요."
+    },
+    "saveFailed": "저장 중 문제가 생겼어요.",
+    "saving": "저장 중…",
+    "submit": "시작하기",
+    "switchAccount": "다른 계정으로 로그인"
+  },
   "find": {
     "back": "뒤로",
     "title": "비밀번호 찾기",

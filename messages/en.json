@@ -119,6 +119,31 @@
     "bottomCardTitle": "Start right after signing up",
     "bottomCardBody": "Add your schedule and share it with colleagues."
   },
+  "welcome": {
+    "greeting": "Welcome",
+    "greetingNamed": "Welcome, {name}",
+    "subtitle": "Before we start, tell us what you do.",
+    "categoryQuestion": "What do you do?",
+    "categoryAriaLabel": "Select your role",
+    "airlineLabel": "Airline",
+    "airlinePlaceholder": "Select your airline",
+    "airlineHintDefault": "You can pick an airline that's coming soon, too.",
+    "airlineHintActive": "Upload a photo of your {airline} schedule and we'll read it in automatically.",
+    "airlineHintPending": "{airline} is coming in July. Until then, enter your shifts manually, and photo auto-recognition turns on the moment it's ready.",
+    "jobLabel": "Role",
+    "jobAriaLabel": "Select your role",
+    "jobOtherAriaLabel": "Enter role manually",
+    "jobOtherPlaceholder": "What do you do?",
+    "errors": {
+      "airlineRequired": "Please select your airline.",
+      "jobSelectRequired": "Please select your role.",
+      "jobRequired": "Please enter your role."
+    },
+    "saveFailed": "Something went wrong while saving.",
+    "saving": "Saving…",
+    "submit": "Get started",
+    "switchAccount": "Sign in with a different account"
+  },
   "find": {
     "back": "Back",
     "title": "Forgot password",

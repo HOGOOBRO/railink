@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations, useLocale } from 'next-intl'
 import { Input } from '@/components/ui/Input'
 import { CbSelect } from '@/components/ui/CbSelect'
 import { Button } from '@/components/ui/Button'
@@ -10,14 +11,25 @@ import { useToast } from '@/components/ui/Toast'
 import { RadioGroup } from '@/components/ui/RadioGroup'
 import { getCurrentSession, completeOnboarding, logout } from '@/lib/auth'
 import {
-  CATEGORY_OPTIONS, findAirline, airlineSelectOptions, koTopicParticle, JOB_OPTIONS, type SignupCategory,
+  findAirline, airlineSelectOptions, koTopicParticle, JOB_OPTIONS, type SignupCategory,
 } from '@/lib/profile-fields'
+import type { Locale } from '@/i18n/config'
 
 /** Google 가입자 전용 차단 온보딩. 직업(카테고리)을 고르기 전엔 앱을 쓸 수 없다
  *  (OnboardingGate가 needsOnboarding이면 여기로 보낸다). 선택을 마치면 /calendar로. */
 export default function WelcomePage() {
   const router = useRouter()
   const { showToast } = useToast()
+  const t = useTranslations('welcome')
+  const tFields = useTranslations('fields')
+  const locale = useLocale() as Locale
+
+  const CATEGORY_OPTIONS: { value: SignupCategory; title: string; desc: string }[] = [
+    { value: 'ktx', title: tFields('category.ktx.title'), desc: tFields('category.ktx.desc') },
+    { value: 'airline', title: tFields('category.airline.title'), desc: tFields('category.airline.desc') },
+    { value: 'other', title: tFields('category.other.title'), desc: tFields('category.other.desc') },
+  ]
+  const jobOptions = JOB_OPTIONS.map(opt => ({ value: opt.value, label: tFields('job.' + opt.value) }))
 
   const [ready, setReady] = useState(false)
   const [name, setName] = useState('')
@@ -54,9 +66,9 @@ export default function WelcomePage() {
 
   function validate(): boolean {
     const e: typeof errors = {}
-    if (isAirline && !airline) e.airline = '항공사를 선택해 주세요.'
-    if (isOther && !jobCategory) e.job = '직무를 선택해 주세요.'
-    if (isOther && jobCategory === 'other' && !jobOther.trim()) e.job = '직무를 입력해 주세요.'
+    if (isAirline && !airline) e.airline = t('errors.airlineRequired')
+    if (isOther && !jobCategory) e.job = t('errors.jobSelectRequired')
+    if (isOther && jobCategory === 'other' && !jobOther.trim()) e.job = t('errors.jobRequired')
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -72,7 +84,7 @@ export default function WelcomePage() {
     })
     if (!res.ok) {
       setSaving(false)
-      showToast(res.message ?? '저장 중 문제가 생겼어요.', 'danger')
+      showToast(res.message ?? t('saveFailed'), 'danger')
       return
     }
     router.replace('/calendar')
@@ -90,31 +102,35 @@ export default function WelcomePage() {
         </div>
 
         <h1 className="text-center mt-5 mb-1.5 text-[24px] leading-tight font-bold tracking-tighter text-ink-900">
-          {name ? `${name} 님, 반가워요` : '반가워요'}
+          {name ? t('greetingNamed', { name }) : t('greeting')}
         </h1>
         <p className="text-center text-callout text-ink-500 leading-relaxed mb-6">
-          시작하기 전에 어떤 일을 하는지 알려주세요.
+          {t('subtitle')}
         </p>
 
         <div className="flex flex-col gap-3.5">
           <div>
-            <p className="text-[15px] font-bold text-ink-900 mb-3">어떤 일을 하세요?</p>
+            <p className="text-[15px] font-bold text-ink-900 mb-3">{t('categoryQuestion')}</p>
             <RadioGroup
               options={CATEGORY_OPTIONS}
               value={category}
               onChange={setCategory}
-              ariaLabel="직무 선택"
+              ariaLabel={t('categoryAriaLabel')}
               className="flex flex-col gap-2"
             />
           </div>
 
           {isAirline && (
             <div className="flex flex-col gap-1">
-              <span className="text-caption font-semibold tracking-wide text-ink-900">항공사</span>
+              <span className="text-caption font-semibold tracking-wide text-ink-900">{t('airlineLabel')}</span>
               <CbSelect
                 value={airline}
-                placeholder="항공사를 선택해 주세요"
-                options={airlineSelectOptions()}
+                placeholder={t('airlinePlaceholder')}
+                options={airlineSelectOptions(locale, {
+                  active: tFields('airline.headerActive'),
+                  pending: tFields('airline.headerPending'),
+                  badge: tFields('airline.badgePending'),
+                })}
                 onChange={code => {
                   setAirline(code)
                   setErrors(p => ({ ...p, airline: undefined }))
@@ -128,19 +144,22 @@ export default function WelcomePage() {
               )}
               <p className="text-caption font-normal tracking-normal text-ink-300">
                 {!selectedAirline
-                  ? '준비 중인 항공사도 미리 고를 수 있어요.'
+                  ? t('airlineHintDefault')
                   : selectedAirline.active
-                    ? `${selectedAirline.label} 근무표를 사진으로 올리면 자동으로 읽어서 채워드려요.`
-                    : `${selectedAirline.label}${koTopicParticle(selectedAirline.label)} 7월 중 추가될 예정이에요. 그때까지는 근무를 직접 입력해서 쓰다가, 사진 자동 인식이 준비되면 바로 켜져요.`}
+                    ? t('airlineHintActive', { airline: locale === 'en' ? selectedAirline.labelEn : selectedAirline.label })
+                    : t('airlineHintPending', {
+                        airline: locale === 'en' ? selectedAirline.labelEn : selectedAirline.label,
+                        particle: koTopicParticle(selectedAirline.label),
+                      })}
               </p>
             </div>
           )}
 
           {isOther && (
             <div className="flex flex-col gap-1">
-              <span className="text-caption font-semibold tracking-wide text-ink-900">직무</span>
-              <div className="flex flex-wrap gap-2 mt-0.5" role="group" aria-label="직무 선택">
-                {JOB_OPTIONS.map(opt => {
+              <span className="text-caption font-semibold tracking-wide text-ink-900">{t('jobLabel')}</span>
+              <div className="flex flex-wrap gap-2 mt-0.5" role="group" aria-label={t('jobAriaLabel')}>
+                {jobOptions.map(opt => {
                   const active = jobCategory === opt.value
                   return (
                     <button
@@ -163,8 +182,8 @@ export default function WelcomePage() {
               {jobCategory === 'other' && (
                 <div className="mt-1.5">
                   <Input
-                    id="jobOther" aria-label="직무 직접 입력"
-                    placeholder="어떤 일을 하시나요?"
+                    id="jobOther" aria-label={t('jobOtherAriaLabel')}
+                    placeholder={t('jobOtherPlaceholder')}
                     value={jobOther}
                     onChange={e => { setJobOther(e.target.value); setErrors(p => ({ ...p, job: undefined })) }}
                     error={errors.job}
@@ -181,7 +200,7 @@ export default function WelcomePage() {
           )}
 
           <Button block className="mt-2" onClick={handleSubmit} disabled={saving || incomplete}>
-            {saving ? '저장 중…' : '시작하기'}
+            {saving ? t('saving') : t('submit')}
           </Button>
 
           <button
@@ -189,7 +208,7 @@ export default function WelcomePage() {
             onClick={async () => { await logout(); router.replace('/login') }}
             className="mt-1 text-center text-caption text-ink-300 hover:text-ink-500"
           >
-            다른 계정으로 로그인
+            {t('switchAccount')}
           </button>
         </div>
       </div>
