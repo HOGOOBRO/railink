@@ -2,6 +2,7 @@
 
 import { useState, useEffect, type ReactNode } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/Button'
 import {
   BrandMark, ChevronLeftIcon, ShareIosIcon, DotsIcon, AddSquareIcon,
@@ -13,6 +14,7 @@ import { getDeferredPrompt, clearDeferredPrompt } from '@/lib/pwa-install'
 // beforeinstallprompt we surface a native one-tap install button; otherwise the
 // manual step-by-step is the only path (and the only path iOS ever has).
 export default function InstallGuidePage() {
+  const t = useTranslations('install')
   const [canInstall, setCanInstall] = useState(false)
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export default function InstallGuidePage() {
           <div className="flex items-center gap-2 mb-7">
             <Link
               href="/login"
-              aria-label="뒤로"
+              aria-label={t('back')}
               className="-ml-2 w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
             >
               <ChevronLeftIcon size={20} />
@@ -57,56 +59,60 @@ export default function InstallGuidePage() {
           </div>
 
           <p className="font-en text-[11px] font-semibold tracking-[0.12em] text-brand uppercase">
-            INSTALL · 1분 소요
+            {t('eyebrow')}
           </p>
           <h1 className="mt-2 mb-3.5 text-[30px] font-extrabold tracking-[-0.02em] text-ink-900 leading-[1.15]">
-            홈 화면에 추가해<br />앱처럼 쓰기
+            {t.rich('heroTitle', { br: () => <br /> })}
           </h1>
           <p className="text-callout text-ink-700 leading-relaxed">
-            RaiLink는 별도 앱 설치 없이 <strong className="text-ink-900">홈 화면에 추가</strong>하면
-            일반 앱처럼 쓸 수 있어요. 한 번만 설정해 두세요.
+            {t.rich('heroBody', { b: (chunks) => <strong className="text-ink-900">{chunks}</strong> })}
           </p>
 
           {canInstall && (
             <Button block onClick={onNativeInstall} className="mt-4">
-              지금 바로 설치하기
+              {t('installNow')}
             </Button>
           )}
         </div>
 
         <p className="px-6 pt-5 pb-2.5 text-[11px] font-bold tracking-wider uppercase text-ink-500">
-          기기별 설치 안내
+          {t('byDeviceTitle')}
         </p>
 
         <div className="px-4 pb-3">
           <PlatformCard
             platform="ios"
-            title="아이폰"
+            title={t('iosTitle')}
             browser="Safari"
             steps={[
-              <>Safari로 RaiLink를 엽니다.</>,
-              <>하단 가운데 공유 버튼 <GlyphChip><ShareIosIcon size={16} /></GlyphChip> 을 누릅니다.</>,
-              <>메뉴에서 <strong className="text-ink-900 font-bold">&ldquo;홈 화면에 추가&rdquo;</strong>를 선택하면 끝이에요.</>,
+              <>{t('iosStep1')}</>,
+              <>{t.rich('iosStep2', { chip: () => <GlyphChip><ShareIosIcon size={16} /></GlyphChip> })}</>,
+              <>{t.rich('iosStep3', { b: (chunks) => <strong className="text-ink-900 font-bold">{chunks}</strong> })}</>,
             ]}
-            warning={<><strong className="font-bold">크롬이 아니라 꼭 Safari로 열어 주세요.</strong> 아이폰은 Safari에서만 홈 화면에 추가할 수 있어요.</>}
+            warning={<>{t.rich('iosWarning', { b: (chunks) => <strong className="font-bold">{chunks}</strong> })}</>}
           />
         </div>
 
         <div className="px-4 pb-3">
           <PlatformCard
             platform="android"
-            title="안드로이드"
+            title={t('androidTitle')}
             browser="Chrome"
             steps={[
-              <>Chrome으로 RaiLink를 엽니다.</>,
+              <>{t('androidStep1')}</>,
               <>
-                하단이나 주소창에 뜨는{' '}
-                <span className="inline-flex items-center gap-1 align-middle rounded-pill bg-brand-050 text-brand px-2 py-0.5 text-caption font-bold">
-                  <AddSquareIcon size={12} /> 앱 설치
-                </span>
-                {' '}안내를 누르세요.
+                {t.rich('androidStep2', {
+                  chip: (chunks) => (
+                    <span className="inline-flex items-center gap-1 align-middle rounded-pill bg-brand-050 text-brand px-2 py-0.5 text-caption font-bold">
+                      <AddSquareIcon size={12} /> {chunks}
+                    </span>
+                  ),
+                })}
               </>,
-              <>안내가 보이지 않으면 우측 상단 <GlyphChip><DotsIcon size={16} /></GlyphChip> 메뉴에서 <strong className="text-ink-900 font-bold">&ldquo;앱 설치&rdquo;</strong> (또는 <strong className="text-ink-900 font-bold">&ldquo;홈 화면에 추가&rdquo;</strong>) 를 선택하세요.</>,
+              <>{t.rich('androidStep3', {
+                menu: () => <GlyphChip><DotsIcon size={16} /></GlyphChip>,
+                b: (chunks) => <strong className="text-ink-900 font-bold">{chunks}</strong>,
+              })}</>,
             ]}
           />
         </div>
@@ -114,11 +120,11 @@ export default function InstallGuidePage() {
         {/* value-prop strip */}
         {/* (no contact email — RaiLink is an independent app, not an official Korail service) */}
         <div className="mx-4 mt-3 mb-8 p-4 rounded-[14px] bg-brand-050 border border-brand-100">
-          <p className="text-[13px] font-bold text-brand-700 mb-2">설치하면 이렇게 달라져요</p>
+          <p className="text-[13px] font-bold text-brand-700 mb-2">{t('valueTitle')}</p>
           <ul className="flex flex-col gap-1.5 text-caption text-ink-700 leading-snug">
             {[
-              ['홈 화면 아이콘으로 한 번에 실행', '주소창을 거치지 않아요.'],
-              ['전체 화면으로 표시', 'iOS Safari의 상·하단 바가 사라져요.'],
+              [t('value1Head'), t('value1Sub')],
+              [t('value2Head'), t('value2Sub')],
             ].map(([head, sub]) => (
               <li key={head} className="flex items-start gap-2">
                 <span className="shrink-0 mt-[5px] w-1 h-1 rounded-full bg-brand" />
