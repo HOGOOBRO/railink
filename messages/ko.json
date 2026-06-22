@@ -660,6 +660,25 @@
       "previewEmpty": "저장할 근무 행이 없어요.",
       "checkInput": "입력한 값을 확인해 주세요.",
       "saveFailed": "근무표 저장 중 문제가 생겼어요."
+    },
+    "apiErrors": {
+      "missingApiKey": "OPENAI_API_KEY가 설정되어 있지 않아 이미지 인식을 사용할 수 없어요.",
+      "loginOnly": "AI 이미지 인식은 실제 로그인 계정에서만 사용할 수 있어요.",
+      "bodyUnreadable": "이미지 업로드 본문을 읽지 못했어요. 다시 시도해 주세요.",
+      "monthlyLimit": "이번 달 AI 이미지 인식 {limit}회 한도를 모두 사용했어요. 엑셀/CSV 또는 직접 입력을 사용해 주세요.",
+      "imageRequired": "이미지 파일이 필요해요.",
+      "maxImages": "이미지는 한 번에 최대 {max}장까지 올릴 수 있어요.",
+      "totalSize": "이미지는 총 3MB 이하로 올려주세요.",
+      "format": "PNG, JPG, WEBP 이미지만 업로드할 수 있어요.",
+      "sizePerFile": "이미지는 장당 8MB 이하로 올려주세요.",
+      "apiCallFailed": "이미지 인식 API 호출에 실패했어요.",
+      "emptyResult": "이미지 인식 결과가 비어 있어요.",
+      "malformedResult": "이미지 인식 결과 형식이 올바르지 않아요. 다시 시도해 주세요.",
+      "nameNotFound": "팀 표에서 \"{name}\" 이름을 찾지 못했어요. 표에 적힌 이름과 내 정보의 이름이 정확히 일치하는지 확인해 주세요.",
+      "teamNeedsName": "팀 표는 내 이름이 등록돼 있어야 인식할 수 있어요. 설정 → 내 정보에서 이름을 먼저 채워 주세요.",
+      "noRows": "이미지에서 저장 가능한 근무 행을 찾지 못했어요.",
+      "lowQuality": "표를 또렷이 읽지 못했어요. 사진을 더 크고 선명하게 다시 찍거나, 직접 입력으로 등록해 주세요.",
+      "unexpected": "이미지 인식 중 문제가 생겼어요."
     }
   },
   "appointment": {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getTranslations } from 'next-intl/server'
 import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ParsedScheduleRow } from '@/lib/parse/schedule-file'
@@ -148,6 +149,7 @@ function buildScheduleSchema(includeFlights: boolean) {
 }
 
 export async function POST(req: NextRequest) {
+  const t = await getTranslations('upload.apiErrors')
   try {
     const headerToken = getBearerToken(req)
     console.info('[parse-schedule-image] Request received', {
@@ -158,7 +160,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.OPENAI_API_KEY
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'OPENAI_API_KEY가 설정되어 있지 않아 이미지 인식을 사용할 수 없어요.' },
+        { error: t('missingApiKey') },
         { status: 500 },
       )
     }
@@ -167,12 +169,12 @@ export async function POST(req: NextRequest) {
     if (!auth) {
       console.info('[parse-schedule-image] Authentication rejected')
       return NextResponse.json(
-        { error: 'AI 이미지 인식은 실제 로그인 계정에서만 사용할 수 있어요.' },
+        { error: t('loginOnly') },
         { status: 401 },
       )
     }
     if (!form) {
-      return NextResponse.json({ error: '이미지 업로드 본문을 읽지 못했어요. 다시 시도해 주세요.' }, { status: 400 })
+      return NextResponse.json({ error: t('bodyUnreadable') }, { status: 400 })
     }
 
     const unlimited = isUnlimitedEmail(auth.email)
@@ -183,7 +185,7 @@ export async function POST(req: NextRequest) {
       if (usedThisMonth >= MONTHLY_AI_LIMIT) {
         return NextResponse.json(
           {
-            error: `이번 달 AI 이미지 인식 ${MONTHLY_AI_LIMIT}회 한도를 모두 사용했어요. 엑셀/CSV 또는 직접 입력을 사용해 주세요.`,
+            error: t('monthlyLimit', { limit: MONTHLY_AI_LIMIT }),
             usage: buildUsageStatus(usedThisMonth, usageMonth),
           },
           { status: 429 },
@@ -198,21 +200,21 @@ export async function POST(req: NextRequest) {
     const airline = String(form.get('airline') ?? '').trim()
 
     if (!files.length) {
-      return NextResponse.json({ error: '이미지 파일이 필요해요.' }, { status: 400 })
+      return NextResponse.json({ error: t('imageRequired') }, { status: 400 })
     }
     if (files.length > MAX_IMAGES) {
-      return NextResponse.json({ error: `이미지는 한 번에 최대 ${MAX_IMAGES}장까지 올릴 수 있어요.` }, { status: 400 })
+      return NextResponse.json({ error: t('maxImages', { max: MAX_IMAGES }) }, { status: 400 })
     }
     const totalSize = files.reduce((sum, file) => sum + file.size, 0)
     if (totalSize > MAX_TOTAL_IMAGE_BYTES) {
-      return NextResponse.json({ error: '이미지는 총 3MB 이하로 올려주세요.' }, { status: 400 })
+      return NextResponse.json({ error: t('totalSize') }, { status: 400 })
     }
     for (const file of files) {
       if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
-        return NextResponse.json({ error: 'PNG, JPG, WEBP 이미지만 업로드할 수 있어요.' }, { status: 400 })
+        return NextResponse.json({ error: t('format') }, { status: 400 })
       }
       if (file.size > MAX_IMAGE_BYTES) {
-        return NextResponse.json({ error: '이미지는 장당 8MB 이하로 올려주세요.' }, { status: 400 })
+        return NextResponse.json({ error: t('sizePerFile') }, { status: 400 })
       }
     }
     console.info('[parse-schedule-image] Starting recognition', {
@@ -269,7 +271,7 @@ export async function POST(req: NextRequest) {
         message: getOpenAiErrorMessage(payload),
       })
       return NextResponse.json(
-        { error: getOpenAiErrorMessage(payload) || '이미지 인식 API 호출에 실패했어요.' },
+        { error: getOpenAiErrorMessage(payload) || t('apiCallFailed') },
         { status: response.status },
       )
     }
@@ -281,7 +283,7 @@ export async function POST(req: NextRequest) {
 
     const outputText = extractOutputText(payload)
     if (!outputText) {
-      return NextResponse.json({ error: '이미지 인식 결과가 비어 있어요.' }, { status: 502 })
+      return NextResponse.json({ error: t('emptyResult') }, { status: 502 })
     }
 
     const parsed = parseAiScheduleResult(outputText)
@@ -289,7 +291,7 @@ export async function POST(req: NextRequest) {
       console.error('[parse-schedule-image] Failed to parse model output', {
         preview: outputText.slice(0, 500),
       })
-      return NextResponse.json({ error: '이미지 인식 결과 형식이 올바르지 않아요. 다시 시도해 주세요.' }, { status: 502 })
+      return NextResponse.json({ error: t('malformedResult') }, { status: 502 })
     }
 
     const period = normalizeSchedulePeriod(parsed, defaultYear, defaultMonth)
@@ -304,10 +306,10 @@ export async function POST(req: NextRequest) {
       const nameNotFound = warnings.some(w => /name_not_found/i.test(w))
       const teamNeedsName = warnings.some(w => /team_roster_needs_username/i.test(w))
       const message = nameNotFound
-        ? `팀 표에서 "${userName}" 이름을 찾지 못했어요. 표에 적힌 이름과 내 정보의 이름이 정확히 일치하는지 확인해 주세요.`
+        ? t('nameNotFound', { name: userName })
         : teamNeedsName
-          ? '팀 표는 내 이름이 등록돼 있어야 인식할 수 있어요. 설정 → 내 정보에서 이름을 먼저 채워 주세요.'
-          : '이미지에서 저장 가능한 근무 행을 찾지 못했어요.'
+          ? t('teamNeedsName')
+          : t('noRows')
       return NextResponse.json({ error: message, warnings }, { status: 422 })
     }
 
@@ -337,7 +339,7 @@ export async function POST(req: NextRequest) {
         })
         return NextResponse.json(
           {
-            error: '표를 또렷이 읽지 못했어요. 사진을 더 크고 선명하게 다시 찍거나, 직접 입력으로 등록해 주세요.',
+            error: t('lowQuality'),
             warnings: ['low_diversity_suspicion', ...(parsed.warnings ?? [])],
           },
           { status: 422 },
@@ -359,7 +361,7 @@ export async function POST(req: NextRequest) {
       message: error instanceof Error ? error.message : String(error),
     })
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : '이미지 인식 중 문제가 생겼어요.' },
+      { error: error instanceof Error ? error.message : t('unexpected') },
       { status: 500 },
     )
   }

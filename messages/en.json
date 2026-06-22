@@ -660,6 +660,25 @@
       "previewEmpty": "There are no shift rows to save.",
       "checkInput": "Please check what you entered.",
       "saveFailed": "Something went wrong while saving your schedule."
+    },
+    "apiErrors": {
+      "missingApiKey": "OPENAI_API_KEY is not set, so image recognition is unavailable.",
+      "loginOnly": "AI image recognition is only available on a real signed-in account.",
+      "bodyUnreadable": "Couldn't read the uploaded image. Please try again.",
+      "monthlyLimit": "You've used all {limit} AI image recognitions for this month. Please use Excel/CSV or manual entry instead.",
+      "imageRequired": "An image file is required.",
+      "maxImages": "You can upload up to {max} images at a time.",
+      "totalSize": "Please keep images under 3MB in total.",
+      "format": "Only PNG, JPG, or WEBP images can be uploaded.",
+      "sizePerFile": "Please keep each image under 8MB.",
+      "apiCallFailed": "The image recognition API call failed.",
+      "emptyResult": "The image recognition result was empty.",
+      "malformedResult": "The image recognition result was malformed. Please try again.",
+      "nameNotFound": "Couldn't find the name \"{name}\" in the team table. Make sure the name in the table exactly matches the name in your profile.",
+      "teamNeedsName": "A team table can only be recognized when your name is registered. Fill in your name first under Settings → My info.",
+      "noRows": "Couldn't find any savable shift rows in the image.",
+      "lowQuality": "Couldn't read the table clearly. Retake the photo larger and sharper, or add it via manual entry.",
+      "unexpected": "Something went wrong during image recognition."
     }
   },
   "appointment": {
