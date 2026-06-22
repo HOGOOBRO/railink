@@ -1,6 +1,7 @@
 'use client'
 
 import { ChangeEvent, CSSProperties, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations, useLocale } from 'next-intl'
 import { Button } from '@/components/ui/Button'
 import {
   CloseIcon, FileIcon, ImageIcon, EditIcon, ChevronLeftIcon,
@@ -81,6 +82,9 @@ interface UploadModalProps {
 }
 
 const DOW_KR = ['일', '월', '화', '수', '목', '금', '토']
+// 표시용 영어 요일. r.dow는 내부 비교(주말 색상 등)에 쓰이는 한글 키로 유지하고,
+// 화면에는 로케일에 맞는 라벨만 골라 보여준다(en일 때만 치환).
+const DOW_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 interface ManualRow {
   day: number       // 1..31
@@ -158,12 +162,17 @@ function isIsoDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value)
 }
 
+// Sentinel thrown by normalizePreviewRows for a malformed date — caught in
+// handleSave and mapped to the localized errors.invalidDate message (this
+// module-level helper has no access to the t() hook).
+const INVALID_DATE_ERROR = 'INVALID_DATE'
+
 function normalizePreviewRows(rows: ParsedScheduleRow[]): ParsedScheduleRow[] {
   const byDate = new Map<string, ParsedScheduleRow>()
   for (const row of rows) {
     const date = row.date.trim()
     if (!isIsoDate(date)) {
-      throw new Error('날짜는 YYYY-MM-DD 형식으로 입력해 주세요.')
+      throw new Error(INVALID_DATE_ERROR)
     }
 
     const isOff = Boolean(row.isOff)
@@ -226,10 +235,11 @@ export function UploadModal({
   step, defaultYear, defaultMonth, initialRows = [], userName, userId, isPersonal = false, airline,
   onPreview, onManual, onBack, onClose, onSave,
 }: UploadModalProps) {
+  const t = useTranslations('upload')
   const fileRef = useRef<HTMLInputElement>(null)
   const imageRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState('')
-  const [sourceLabel, setSourceLabel] = useState('엑셀 / CSV')
+  const [sourceKind, setSourceKind] = useState<'file' | 'image'>('file')
   const [rows, setRows] = useState<ParsedScheduleRow[]>([])
   const [busy, setBusy] = useState<'file' | 'image' | null>(null)
   const [ocr, setOcr] = useState<OcrProgress | null>(null)
@@ -360,7 +370,7 @@ export function UploadModal({
     setNotice(null)
     setRows([])
     setFileName(file.name)
-    setSourceLabel('엑셀 / CSV')
+    setSourceKind('file')
 
     try {
       const parsed = await parseScheduleFile(file, defaultYear)
@@ -370,11 +380,11 @@ export function UploadModal({
         : { rows: parsed, stripped: false }
       setRows(displayPreviewRows(display.rows))
       if (display.stripped) {
-        setNotice('이 계정은 일반 근무용이라 다이·열번은 빼고 근무 시간만 저장돼요.')
+        setNotice(t('notice.personalStripped'))
       }
       onPreview()
     } catch (err) {
-      setError(err instanceof Error ? err.message : '파일을 읽는 중 문제가 생겼어요.')
+      setError(err instanceof Error ? err.message : t('errors.fileRead'))
     } finally {
       setBusy(null)
       e.target.value = ''
@@ -389,7 +399,7 @@ export function UploadModal({
 
     setBusy('image')
     setOcr({
-      status: files.length > 1 ? `이미지 ${files.length}장을 준비하고 있어요` : '이미지를 준비하고 있어요',
+      status: files.length > 1 ? t('ocr.preparingMany', { count: files.length }) : t('ocr.preparing'),
       progress: 0.02,
     })
     setOcrText('')
@@ -397,8 +407,8 @@ export function UploadModal({
     setError(null)
     setNotice(null)
     setRows([])
-    setFileName(files.length === 1 ? files[0].name : `${files[0].name} 외 ${files.length - 1}장`)
-    setSourceLabel('이미지')
+    setFileName(files.length === 1 ? files[0].name : t('ocr.fileNameMore', { name: files[0].name, count: files.length - 1 }))
+    setSourceKind('image')
 
     try {
       // 항공 승무원이면 항공사 레이아웃을 쓰고 팀-표(userName) 경로는 끈다.
@@ -413,20 +423,20 @@ export function UploadModal({
       setOcrText(result.text)
       setConfidence(result.confidence)
       const usageText = result.usage
-        ? ` 이번 달 ${result.usage.used}/${result.usage.limit}회 사용.`
+        ? ' ' + t('notice.usage', { used: result.usage.used, limit: result.usage.limit })
         : ''
       const periodText = result.period
         ? result.period.source === 'image'
-          ? ` 이미지에서 ${result.period.year}년 ${result.period.month}월로 읽었어요.`
-          : ` 월 표기가 불명확해 현재 화면의 ${result.period.year}년 ${result.period.month}월 기준으로 읽었어요.`
+          ? ' ' + t('notice.periodFromImage', { year: result.period.year, month: result.period.month })
+          : ' ' + t('notice.periodFromScreen', { year: result.period.year, month: result.period.month })
         : ''
       const personalNote = display.stripped
-        ? ' 이 계정은 일반 근무용이라 다이·열번은 빼고 근무 시간만 저장돼요.'
+        ? ' ' + t('notice.personalStripped')
         : ''
-      setNotice(`AI 인식 신뢰도 ${Math.round(result.confidence)}%.${periodText} 여러 장을 올린 경우 겹치는 날짜는 병합했어요.${usageText}${personalNote}`)
+      setNotice(t('notice.confidence', { confidence: Math.round(result.confidence) }) + periodText + ' ' + t('notice.merged') + usageText + personalNote)
       onPreview()
     } catch (err) {
-      setError(err instanceof Error ? err.message : '이미지를 읽는 중 문제가 생겼어요.')
+      setError(err instanceof Error ? err.message : t('errors.imageRead'))
     } finally {
       setBusy(null)
       e.target.value = ''
@@ -466,11 +476,15 @@ export function UploadModal({
         ? manualRowsToParsed(manualRows, defaultYear, defaultMonth)
         : normalizePreviewRows(applyClassified(rows))
       if (parsed.length === 0) {
-        setError(step === 'manual' ? '하루 이상 입력한 뒤 저장해 주세요.' : '저장할 근무 행이 없어요.')
+        setError(step === 'manual' ? t('errors.manualEmpty') : t('errors.previewEmpty'))
         return
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '입력한 값을 확인해 주세요.')
+      if (err instanceof Error && err.message === INVALID_DATE_ERROR) {
+        setError(t('errors.invalidDate'))
+      } else {
+        setError(err instanceof Error ? err.message : t('errors.checkInput'))
+      }
       return
     }
 
@@ -486,7 +500,7 @@ export function UploadModal({
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '근무표 저장 중 문제가 생겼어요.')
+      setError(err instanceof Error ? err.message : t('errors.saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -540,10 +554,10 @@ export function UploadModal({
     (step === 'manual' && manualFilled === 0)
 
   const footerStatus =
-    saving ? '근무표를 저장하는 중'
-    : step === 'pick' ? '입력 방식을 골라 주세요'
-    : step === 'manual' ? '직접 입력 중'
-    : `총 ${rows.length}건`
+    saving ? t('footer.saving')
+    : step === 'pick' ? t('footer.pickMethod')
+    : step === 'manual' ? t('footer.manualEntry')
+    : t('footer.totalCount', { count: rows.length })
 
   return (
     <div
@@ -568,10 +582,10 @@ export function UploadModal({
 
       {/* Header */}
       <div className="h-topbar flex items-center justify-between pl-4 pr-1.5 border-b border-line shrink-0">
-        <h3 className="text-subtitle font-bold tracking-tight text-ink-900">근무표 등록</h3>
+        <h3 className="text-subtitle font-bold tracking-tight text-ink-900">{t('title')}</h3>
         <button
           onClick={onClose}
-          aria-label="닫기"
+          aria-label={t('close')}
           className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
         >
           <CloseIcon size={20} />
@@ -588,25 +602,23 @@ export function UploadModal({
               onClick={() => setImageGuide(false)}
               className="inline-flex items-center gap-1 text-caption font-semibold text-ink-500 mb-2 -ml-1"
             >
-              <ChevronLeftIcon size={16} /> 등록 방법
+              <ChevronLeftIcon size={16} /> {t('guide.backToMethods')}
             </button>
             <h4 className="text-[22px] font-bold tracking-tight text-ink-900 leading-tight mb-1.5">
-              월 근무표를 올려주세요
+              {t('guide.title')}
             </h4>
             <p className="text-[13.5px] text-ink-500 leading-relaxed mb-4">
-              {airline === 'asiana' ? (
-                <>근무표 <strong className="text-ink-700">스케줄 표 전체</strong>가 한 장에 나오게 캡쳐해 주세요. AI가 날짜·편명·구간·시각을 자동으로 읽어요.</>
-              ) : (
-                <>근무표 <strong className="text-ink-700">달력 화면 전체</strong>가 한 장에 나오게 캡쳐해 주세요. AI가 날짜·편명·시각을 자동으로 읽어요.</>
-              )}
+              {airline === 'asiana'
+                ? t.rich('guide.descAsiana', { b: (chunks) => <strong className="text-ink-700">{chunks}</strong> })
+                : t.rich('guide.descDefault', { b: (chunks) => <strong className="text-ink-700">{chunks}</strong> })}
             </p>
 
             {airline === 'asiana' ? <RosterExampleTable /> : <RosterExampleCard />}
 
             <ul className="mt-4 flex flex-col gap-2">
               {(airline === 'asiana'
-                ? ['한 달 전체가 한 화면에 보이게', '글자가 또렷하게 (흐리면 인식이 떨어져요)', '편명·구간·시각이 잘리지 않게']
-                : ['한 달 전체가 한 화면에 보이게', '글자가 또렷하게 (흐리면 인식이 떨어져요)', '하단 코드 설명까지 같이 나와도 좋아요']
+                ? [t('guide.tipsAsiana.fitsOneScreen'), t('guide.tipsAsiana.clearText'), t('guide.tipsAsiana.noClipping')]
+                : [t('guide.tipsDefault.fitsOneScreen'), t('guide.tipsDefault.clearText'), t('guide.tipsDefault.codeLegendOk')]
               ).map(tip => (
                 <li key={tip} className="flex items-start gap-2 text-caption text-ink-700 leading-relaxed">
                   <span className="shrink-0 mt-0.5 text-brand"><CheckIcon size={15} /></span>
@@ -616,7 +628,7 @@ export function UploadModal({
             </ul>
 
             <Button block className="mt-5" onClick={() => imageRef.current?.click()}>
-              사진 선택
+              {t('guide.selectPhoto')}
             </Button>
           </>
         )}
@@ -624,12 +636,12 @@ export function UploadModal({
         {step === 'pick' && !imageGuide && (
           <>
             <h4 className="text-[22px] font-bold tracking-tight text-ink-900 leading-tight mb-1.5">
-              {imageFirst ? '근무표 사진을 올려 주세요' : '근무 일정을 등록해 주세요'}
+              {imageFirst ? t('pick.titleImage') : t('pick.titleManual')}
             </h4>
             <p className="text-[13.5px] text-ink-500 leading-relaxed mb-4">
               {imageFirst
-                ? `AI가 날짜·${airline ? '편명' : '다이'}·출퇴근 시각을 읽어서 자동으로 채워 드려요.`
-                : '직접 입력으로 빠르게 추가하거나, 사진·파일로도 등록할 수 있어요.'}
+                ? (airline ? t('pick.descImageAirline') : t('pick.descImageKtx'))
+                : t('pick.descManual')}
             </p>
 
             {!imageFirst ? (
@@ -649,9 +661,9 @@ export function UploadModal({
                   <EditIcon size={22} />
                 </span>
                 <span className="flex-1 min-w-0">
-                  <span className="text-[16px] font-bold leading-none">직접 입력</span>
+                  <span className="text-[16px] font-bold leading-none">{t('pick.manualHero')}</span>
                   <span className="block mt-1 text-[12px] leading-snug" style={{ color: 'rgba(255,255,255,0.78)' }}>
-                    날짜별 근무 시간을 빠르게 입력해요
+                    {t('pick.manualHeroSub')}
                   </span>
                 </span>
                 <span style={{ color: 'rgba(255,255,255,0.7)' }} className="shrink-0">
@@ -676,10 +688,10 @@ export function UploadModal({
                 <span className="flex-1 min-w-0">
                   <span className="flex items-center gap-1.5">
                     <SparkleGlyph size={14} className="shrink-0" style={{ color: '#FFD9B8' }} />
-                    <span className="text-[16px] font-bold leading-none">사진으로 등록</span>
+                    <span className="text-[16px] font-bold leading-none">{t('pick.imageHero')}</span>
                   </span>
                   <span className="block mt-1 text-[12px] leading-snug" style={{ color: 'rgba(255,255,255,0.78)' }}>
-                    AI가 자동으로 채워드려요 · 촬영·앨범 모두 가능
+                    {t('pick.imageHeroSub')}
                   </span>
                 </span>
                 <span style={{ color: 'rgba(255,255,255,0.7)' }} className="shrink-0">
@@ -691,7 +703,7 @@ export function UploadModal({
             {/* "또는" divider */}
             <div className="my-5 flex items-center gap-2.5">
               <span className="flex-1 h-px bg-line" />
-              <span className="text-[11px] font-semibold tracking-wider text-ink-300">또는</span>
+              <span className="text-[11px] font-semibold tracking-wider text-ink-300">{t('pick.or')}</span>
               <span className="flex-1 h-px bg-line" />
             </div>
 
@@ -701,15 +713,15 @@ export function UploadModal({
                 <>
                   <SecondaryMethod
                     icon={<ImageIcon size={18} />}
-                    label="사진으로 등록"
-                    sub="근무표 사진을 AI가 읽어드려요"
+                    label={t('pick.imageHero')}
+                    sub={t('pick.imageSecondarySub')}
                     onClick={() => handleOption('image')}
                     disabled={!!busy}
                   />
                   <SecondaryMethod
                     icon={<FileIcon size={18} />}
-                    label="엑셀 / CSV 파일"
-                    sub="회사에서 받은 .xlsx · .csv 업로드"
+                    label={t('pick.fileLabel')}
+                    sub={t('pick.fileSub')}
                     onClick={() => handleOption('file')}
                     disabled={!!busy}
                   />
@@ -718,15 +730,15 @@ export function UploadModal({
                 <>
                   <SecondaryMethod
                     icon={<FileIcon size={18} />}
-                    label="엑셀 / CSV 파일"
-                    sub="회사에서 받은 .xlsx · .csv 업로드"
+                    label={t('pick.fileLabel')}
+                    sub={t('pick.fileSub')}
                     onClick={() => handleOption('file')}
                     disabled={!!busy}
                   />
                   <SecondaryMethod
                     icon={<EditIcon size={18} />}
-                    label="직접 입력"
-                    sub={airline ? '근무 시간을 직접 입력해요' : 'KTX 승무 · 일반 근무 모두 가능'}
+                    label={t('pick.manualHero')}
+                    sub={airline ? t('pick.manualSecondarySubAirline') : t('pick.manualSecondarySubKtx')}
                     onClick={() => handleOption('manual')}
                     disabled={!!busy}
                   />
@@ -737,7 +749,7 @@ export function UploadModal({
             {busy === 'file' && (
               <StatusBox tone="info">
                 <span className="text-brand shrink-0"><InfoIcon size={16} /></span>
-                <span><strong>{fileName}</strong> 파일을 읽고 있어요.</span>
+                <span>{t.rich('ocr.readingFile', { name: fileName, b: (chunks) => <strong>{chunks}</strong> })}</span>
               </StatusBox>
             )}
             {busy === 'image' && (
@@ -746,7 +758,7 @@ export function UploadModal({
                   <div className="flex items-center gap-2">
                     <span className="text-brand shrink-0"><InfoIcon size={16} /></span>
                     <span>
-                      <strong>{fileName}</strong> · {ocr?.status ?? '이미지를 분석하고 있어요'}
+                      <strong>{fileName}</strong> · {ocr?.status ?? t('ocr.analyzing')}
                     </span>
                   </div>
                   <div className="mt-2 h-1.5 rounded-pill bg-line overflow-hidden">
@@ -765,7 +777,7 @@ export function UploadModal({
                     항공/KTX는 코드 컬럼 표시(라벨만 다름), 일반 personal은 컬럼 생략. */}
                 <AnalyzeTableSkeleton
                   ktx={!isPersonal || !!airline}
-                  codeLabel={airline ? '근무코드/편명' : '다이/열번'}
+                  codeLabel={airline ? t('preview.colCodeAirline') : t('preview.colCodeKtx')}
                 />
               </>
             )}
@@ -790,18 +802,18 @@ export function UploadModal({
               onClick={onBack}
               className="flex items-center gap-1.5 text-caption text-ink-500 mb-2.5"
             >
-              <ChevronLeftIcon size={14} /> 입력 방식
+              <ChevronLeftIcon size={14} /> {t('preview.backToMethods')}
               <span className="text-ink-300">·</span>
               <span className="text-ink-900 font-semibold inline-flex items-center gap-1">
-                {sourceLabel === '이미지' ? <ImageIcon size={14} /> : <FileIcon size={14} />}
-                {sourceLabel}
+                {sourceKind === 'image' ? <ImageIcon size={14} /> : <FileIcon size={14} />}
+                {sourceKind === 'image' ? t('preview.sourceImage') : t('preview.sourceFile')}
               </span>
             </button>
             <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-md text-callout" style={{ background: '#DCFCE7', color: '#166534' }}>
               <span className="shrink-0 text-success"><CheckIcon size={16} /></span>
               <div>
-                <strong>{fileName || '근무표 파일'}</strong> ·{' '}
-                <span className="font-en">{rows.length}건 인식</span>
+                <strong>{fileName || t('preview.defaultFileName')}</strong> ·{' '}
+                <span className="font-en">{t('preview.recognizedCount', { count: rows.length })}</span>
               </div>
             </div>
 
@@ -831,7 +843,7 @@ export function UploadModal({
             {saving && (
               <StatusBox tone="info">
                 <span className="text-brand shrink-0"><InfoIcon size={16} /></span>
-                <span>근무표를 저장하고 있어요. 잠시만 기다려 주세요.</span>
+                <span>{t('footer.savingHint')}</span>
               </StatusBox>
             )}
             {error && (
@@ -851,7 +863,7 @@ export function UploadModal({
             {ocrText && confidence !== null && confidence < LOW_CONFIDENCE_PCT && (
               <details className="mt-3 rounded-md border border-line bg-bg px-3 py-2">
                 <summary className="cursor-pointer text-caption font-semibold text-ink-700">
-                  AI 인식 원문 확인
+                  {t('preview.rawTextToggle')}
                 </summary>
                 <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap font-en text-[10px] leading-4 text-ink-500">
                   {ocrText}
@@ -883,7 +895,7 @@ export function UploadModal({
             {saving && (
               <StatusBox tone="info">
                 <span className="text-brand shrink-0"><InfoIcon size={16} /></span>
-                <span>근무표를 저장하고 있어요. 잠시만 기다려 주세요.</span>
+                <span>{t('footer.savingHint')}</span>
               </StatusBox>
             )}
             {error && (
@@ -899,14 +911,14 @@ export function UploadModal({
       {/* Footer */}
       <div className="flex items-center gap-2.5 px-4 py-3 pb-[calc(12px+env(safe-area-inset-bottom))] border-t border-line bg-surface shrink-0">
         <span className="flex-1 text-caption text-ink-500">{footerStatus}</span>
-        <Button variant="ghost" size="sm" onClick={onClose}>취소</Button>
+        <Button variant="ghost" size="sm" onClick={onClose}>{t('footer.cancel')}</Button>
         <Button
           variant={step === 'pick' ? 'outline' : 'primary'}
           size="sm"
           disabled={saveDisabled}
           onClick={handleSave}
         >
-          {saving ? '저장 중...' : '저장'}
+          {saving ? t('footer.savingShort') : t('footer.save')}
         </Button>
       </div>
     </div>
@@ -984,6 +996,7 @@ function CodeClassifier({ codes, classified, skipped, renaming, onPick, onSkip, 
   onSkip: (key: string) => void
   onToggleRename: (key: string) => void
 }) {
+  const t = useTranslations('upload')
   const remaining = codes.filter(c => {
     const k = canonCode(c)
     return !classified[k] && !skipped.has(k)
@@ -991,9 +1004,9 @@ function CodeClassifier({ codes, classified, skipped, renaming, onPick, onSkip, 
   return (
     <div className="rounded-md border-2 border-brand-100 bg-brand-050 p-3 flex flex-col gap-3">
       <div>
-        <p className="text-callout font-bold text-ink-900">처음 보는 코드 {codes.length}개</p>
+        <p className="text-callout font-bold text-ink-900">{t('classify.title', { count: codes.length })}</p>
         <p className="text-caption text-ink-500 mt-0.5">
-          {remaining > 0 ? `${remaining}개를 분류하면 다음부터 자동으로 알아봐요` : '다 분류했어요. 다음부터 자동 인식돼요'}
+          {remaining > 0 ? t('classify.remaining', { count: remaining }) : t('classify.allDone')}
         </p>
       </div>
       {codes.map(code => {
@@ -1007,10 +1020,10 @@ function CodeClassifier({ codes, classified, skipped, renaming, onPick, onSkip, 
               <span className="font-bold text-callout text-ink-900 font-en truncate">
                 {code}
                 {!isSkip && sel && <span className="ml-2 font-sans text-caption font-bold text-brand">✓ {sel.label}</span>}
-                {isSkip && <span className="ml-2 font-sans text-caption font-semibold text-ink-500">건너뜀</span>}
+                {isSkip && <span className="ml-2 font-sans text-caption font-semibold text-ink-500">{t('classify.skipped')}</span>}
               </span>
               <button type="button" onClick={() => onSkip(key)} className="shrink-0 text-caption font-semibold text-ink-500 hover:text-ink-700">
-                {isSkip ? '되돌리기' : '건너뛰기'}
+                {isSkip ? t('classify.undoSkip') : t('classify.skip')}
               </button>
             </div>
             {!isSkip && (
@@ -1035,14 +1048,14 @@ function CodeClassifier({ codes, classified, skipped, renaming, onPick, onSkip, 
                     <input
                       autoFocus
                       value={sel.label}
-                      placeholder="이름 입력 (예: 관숙비행)"
+                      placeholder={t('classify.renamePlaceholder')}
                       onChange={e => onPick(key, sel.category, e.target.value)}
                       onBlur={e => onPick(key, sel.category, normalizeAnswerLabel(e.target.value) || CATEGORY_META[sel.category].label)}
                       className="h-9 px-2.5 rounded-sm border border-line bg-surface text-caption self-start min-w-[180px]"
                     />
                   ) : (
                     <button type="button" onClick={() => onToggleRename(key)} className="self-start text-caption font-semibold text-brand">
-                      다르게 부르기
+                      {t('classify.rename')}
                     </button>
                   )
                 )}
@@ -1051,7 +1064,7 @@ function CodeClassifier({ codes, classified, skipped, renaming, onPick, onSkip, 
           </div>
         )
       })}
-      <p className="text-caption text-ink-300">안 골라도 원문 그대로 저장돼요.</p>
+      <p className="text-caption text-ink-300">{t('classify.noPickHint')}</p>
     </div>
   )
 }
@@ -1067,8 +1080,10 @@ function legHm(t?: string): number | null {
 /** 다중 레그에서 물리적으로 불가능한 시각 = 다음 레그가 이전 레그 도착 전에 출발.
  *  OCR 시각 오독을 잡는 안전망(예: 8961 도착 16:55 vs 8962 출발 16:35). 자정을 넘기는
  *  레그(sta<std) 다음부터는 익일이라 비교가 모호하므로 건너뛴다(오탐 방지). 문제면 안내
- *  문구, 없으면 null. */
-function legTimeIssue(flights: ParsedScheduleRow['flights']): string | null {
+ *  문구를 조립할 params(편명·시각), 없으면 null. 메시지 문장은 호출부(PreviewBody)에서
+ *  t()로 현지화해 조립한다 — 이 모듈 레벨 함수에는 훅이 없으므로. */
+interface LegTimeIssue { next: string; prev: string; arr: string; dep: string }
+function legTimeIssue(flights: ParsedScheduleRow['flights']): LegTimeIssue | null {
   if (!flights || flights.length < 2) return null
   for (let i = 0; i < flights.length - 1; i++) {
     const a = flights[i], b = flights[i + 1]
@@ -1076,8 +1091,7 @@ function legTimeIssue(flights: ParsedScheduleRow['flights']): string | null {
     if (aSta == null || bStd == null) continue
     if (aStd != null && aSta < aStd) continue   // a가 자정 넘김 → 이후 비교 모호
     if (bStd < aSta) {
-      const bn = b.flight || '다음 편', an = a.flight || '이전 편'
-      return `${bn}이 ${an} 도착(${a.sta}) 전에 출발(${b.std})해요. 시각을 확인해 주세요.`
+      return { next: b.flight ?? '', prev: a.flight ?? '', arr: a.sta ?? '', dep: b.std ?? '' }
     }
   }
   return null
@@ -1094,18 +1108,19 @@ interface PreviewBodyProps {
 }
 
 function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline }: PreviewBodyProps) {
+  const t = useTranslations('upload')
   return (
     <div className="mt-3">
       <div className="flex items-center justify-between px-1 mb-2">
         <p className="text-caption font-semibold text-ink-500">
-          저장 전 날짜와 시간을 직접 수정할 수 있어요.
+          {t('preview.editHint')}
         </p>
         <button
           type="button"
           onClick={onAppend}
           className="inline-flex items-center gap-1 text-caption font-bold text-brand"
         >
-          <PlusIcon size={13} /> 행 추가
+          <PlusIcon size={13} /> {t('preview.addRow')}
         </button>
       </div>
 
@@ -1121,7 +1136,7 @@ function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline 
               <input
                 value={row.date}
                 onChange={e => onChange(i, { date: e.target.value })}
-                aria-label="사업일자"
+                aria-label={t('preview.dateAria')}
                 className="font-en text-caption text-ink-900 outline-none px-2 h-8 rounded-xs border border-line bg-bg"
                 style={{ width: 106 }}
               />
@@ -1136,14 +1151,14 @@ function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline 
                   })}
                   className="w-4 h-4 accent-[var(--brand)]"
                 />
-                휴무
+                {t('preview.off')}
               </label>
               <div className="flex-1" />
               <button
                 type="button"
                 onClick={() => onRemove(i)}
                 className="w-8 h-8 grid place-items-center rounded-full text-ink-500 hover:bg-bg"
-                aria-label={`${row.date} 행 삭제`}
+                aria-label={t('preview.removeRowAria', { date: row.date })}
               >
                 <CloseIcon size={14} />
               </button>
@@ -1159,20 +1174,20 @@ function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline 
                     <span className="font-en text-[11px] text-ink-500 w-[64px] shrink-0 truncate">{[lg.from, lg.to].filter(Boolean).join('→') || '—'}</span>
                     <input
                       value={lg.std ?? ''}
-                      placeholder="출발"
+                      placeholder={t('preview.legDeparture')}
                       inputMode="numeric"
                       maxLength={5}
-                      aria-label={`${lg.flight || ''} 출발 시각`}
+                      aria-label={t('preview.legDepartureAria', { flight: lg.flight || '' })}
                       onChange={e => onChangeLeg(i, li, { std: normalizeTimeInput(e.target.value) })}
                       className="flex-1 min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg"
                     />
                     <span className="text-ink-300 text-caption shrink-0">→</span>
                     <input
                       value={lg.sta ?? ''}
-                      placeholder="도착"
+                      placeholder={t('preview.legArrival')}
                       inputMode="numeric"
                       maxLength={5}
-                      aria-label={`${lg.flight || ''} 도착 시각`}
+                      aria-label={t('preview.legArrivalAria', { flight: lg.flight || '' })}
                       onChange={e => onChangeLeg(i, li, { sta: normalizeTimeInput(e.target.value) })}
                       className="flex-1 min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg"
                     />
@@ -1183,20 +1198,20 @@ function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline 
               <div className="mt-2 grid grid-cols-[1fr_1fr_62px_62px] gap-1.5">
                 <input
                   value={row.diaNr ?? ''}
-                  placeholder={row.isOff ? 'S' : (airline ? '근무코드' : '다이')}
+                  placeholder={row.isOff ? 'S' : (airline ? t('preview.placeholderCodeAirline') : t('preview.placeholderCodeKtx'))}
                   onChange={e => onChange(i, { diaNr: e.target.value })}
                   className="min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg"
                 />
                 <input
                   value={row.trainNr ?? ''}
-                  placeholder={airline ? '편명' : '열번'}
+                  placeholder={airline ? t('preview.placeholderTrainAirline') : t('preview.placeholderTrainKtx')}
                   disabled={row.isOff}
                   onChange={e => onChange(i, { trainNr: e.target.value })}
                   className="min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
                 />
                 <input
                   value={row.startTime ?? ''}
-                  placeholder="시작"
+                  placeholder={t('preview.placeholderStart')}
                   disabled={row.isOff}
                   inputMode="numeric"
                   maxLength={5}
@@ -1205,7 +1220,7 @@ function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline 
                 />
                 <input
                   value={row.endTime ?? ''}
-                  placeholder="종료"
+                  placeholder={t('preview.placeholderEnd')}
                   disabled={row.isOff}
                   inputMode="numeric"
                   maxLength={5}
@@ -1217,15 +1232,24 @@ function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline 
 
             {!row.isOff && isOvernight(row.startTime, row.endTime) && (
               <span className="mt-1.5 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-pill bg-brand-050 text-brand">
-                종료 시각은 다음날 (익일)
+                {t('preview.overnightBadge')}
               </span>
             )}
-            {!row.isOff && legTimeIssue(row.flights) && (
-              <span className="mt-1.5 flex items-start gap-1 text-[10px] font-bold leading-snug text-danger">
-                <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-danger text-ink-on-brand text-[9px] grid place-items-center mt-px">!</span>
-                {legTimeIssue(row.flights)}
-              </span>
-            )}
+            {(() => {
+              const issue = !row.isOff ? legTimeIssue(row.flights) : null
+              if (!issue) return null
+              return (
+                <span className="mt-1.5 flex items-start gap-1 text-[10px] font-bold leading-snug text-danger">
+                  <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-danger text-ink-on-brand text-[9px] grid place-items-center mt-px">!</span>
+                  {t('preview.legTimeIssue', {
+                    next: issue.next || t('preview.legNextFallback'),
+                    prev: issue.prev || t('preview.legPrevFallback'),
+                    arr: issue.arr,
+                    dep: issue.dep,
+                  })}
+                </span>
+              )
+            })()}
           </div>
         ))}
       </div>
@@ -1263,7 +1287,9 @@ function ManualBody({
   rows, year, month, filled, total, category, isPersonal, userId, onCategoryChange,
   onBack, onChange, onAppendRest, onFillWeekdays, onUndoFill, canUndoFill,
 }: ManualBodyProps) {
-  const headerLabel = category === 'ktx' ? '다이 · 출근 · 퇴근' : '근무'
+  const t = useTranslations('upload')
+  const locale = useLocale()
+  const headerLabel = category === 'ktx' ? t('manual.headerKtx') : t('manual.headerGeneral')
 
   // Codebook is only used in the general category (KTX cells need a
   // month-specific 다이 number that can't be preset).
@@ -1302,10 +1328,10 @@ function ManualBody({
         onClick={onBack}
         className="flex items-center gap-1.5 text-caption text-ink-500 mb-2.5"
       >
-        <ChevronLeftIcon size={14} /> 입력 방식
+        <ChevronLeftIcon size={14} /> {t('preview.backToMethods')}
         <span className="text-ink-300">·</span>
         <span className="text-ink-900 font-semibold inline-flex items-center gap-1">
-          <EditIcon size={14} /> 직접 입력
+          <EditIcon size={14} /> {t('manual.directInput')}
         </span>
       </button>
 
@@ -1313,8 +1339,10 @@ function ManualBody({
         <div className="flex items-center gap-2">
           <span className="text-brand shrink-0"><EditIcon size={14} /></span>
           <span>
-            {year}년 {month}월 ·{' '}
-            <strong className="font-en">{filled}/{rows.length}</strong>일 입력됨
+            {t.rich('manual.monthProgress', {
+              year, month, filled, total: rows.length,
+              b: (chunks) => <strong className="font-en">{chunks}</strong>,
+            })}
           </span>
         </div>
       </div>
@@ -1324,18 +1352,18 @@ function ManualBody({
           이미 general). KTX 계정만 두 직군을 오갈 수 있다. */}
       {!isPersonal && (
         <>
-          <p className="px-1 pb-1.5 text-[11px] font-semibold tracking-wider uppercase text-ink-300">직군</p>
+          <p className="px-1 pb-1.5 text-[11px] font-semibold tracking-wider uppercase text-ink-300">{t('manual.roleLabel')}</p>
           <div className="grid grid-cols-2 gap-1.5 mb-3">
             <CategoryChip
               active={category === 'ktx'}
-              title="KTX 승무"
-              sub="다이 + 출퇴근"
+              title={t('manual.roleKtxTitle')}
+              sub={t('manual.roleKtxSub')}
               onClick={() => onCategoryChange('ktx')}
             />
             <CategoryChip
               active={category === 'general'}
-              title="일반 근무"
-              sub="출퇴근만"
+              title={t('manual.roleGeneralTitle')}
+              sub={t('manual.roleGeneralSub')}
               onClick={() => onCategoryChange('general')}
             />
           </div>
@@ -1347,8 +1375,7 @@ function ManualBody({
         <div className="mb-3 flex items-start gap-2 px-3 py-2.5 bg-bg rounded-[12px] text-caption text-ink-700 leading-relaxed">
           <span className="text-ink-300 shrink-0 mt-px"><InfoIcon size={14} /></span>
           <span>
-            날짜마다 다이번호와 출·퇴근 시각을 직접 입력해 주세요.
-            쉬는 날은 <strong className="text-ink-900">휴무</strong>로 바꿀 수 있어요.
+            {t.rich('manual.ktxHint', { b: (chunks) => <strong className="text-ink-900">{chunks}</strong> })}
           </span>
         </div>
       )}
@@ -1362,22 +1389,21 @@ function ManualBody({
               className="flex items-center justify-between px-3.5 py-3 rounded-[12px] border border-dashed border-line-2 bg-surface text-caption text-ink-500"
             >
               <span>
-                <strong className="text-ink-700">내 근무 코드</strong>를 등록해 두면
-                탭만으로 입력할 수 있어요.
+                {t.rich('manual.codebookEmpty', { b: (chunks) => <strong className="text-ink-700">{chunks}</strong> })}
               </span>
-              <span className="text-brand font-semibold shrink-0 ml-2">설정 →</span>
+              <span className="text-brand font-semibold shrink-0 ml-2">{t('manual.codebookSettings')}</span>
             </Link>
           ) : (
             <>
               <div className="flex items-center justify-between px-0.5 pb-1.5">
                 <p className="text-[11px] font-bold tracking-wider uppercase text-ink-500">
-                  근무 코드
+                  {t('manual.codePaletteLabel')}
                 </p>
                 <Link
                   href="/settings/codebook?from=calendar"
                   className="inline-flex items-center gap-1 text-caption font-semibold text-brand"
                 >
-                  <EditIcon size={13} /> 코드 관리
+                  <EditIcon size={13} /> {t('manual.codeManage')}
                 </Link>
               </div>
 
@@ -1403,17 +1429,17 @@ function ManualBody({
                 {active?.kind === 'eraser' ? (
                   <>
                     <span className="text-danger"><EraserIcon size={13} /></span>
-                    지우는 중 — 비울 날짜를 탭하세요
+                    {t('manual.paintErasing')}
                   </>
                 ) : active?.kind === 'code' ? (
                   <>
                     <span className="font-en font-bold text-brand">{active.code.label}</span>
-                    {' '}칠하는 중 — 적용할 날짜를 탭하세요
+                    {' '}{t('manual.paintApplying')}
                   </>
                 ) : (
                   <>
                     <span className="text-ink-300 shrink-0"><InfoIcon size={13} /></span>
-                    <span className="text-ink-500">위 코드 칩을 고른 뒤, 아래 날짜를 탭하면 적용돼요</span>
+                    <span className="text-ink-500">{t('manual.paintIdle')}</span>
                   </>
                 )}
               </div>
@@ -1429,7 +1455,7 @@ function ManualBody({
             onClick={onFillWeekdays}
             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-[12px] border border-line-2 bg-surface text-caption font-semibold text-ink-700 active:bg-bg"
           >
-            평일 09:00~18:00 일괄 채우기
+            {t('manual.fillWeekdays')}
           </button>
           {canUndoFill && (
             <button
@@ -1437,7 +1463,7 @@ function ManualBody({
               onClick={onUndoFill}
               className="shrink-0 px-3.5 py-2.5 rounded-[12px] border-[1.5px] border-line bg-bg text-caption font-bold text-ink-700 active:opacity-70"
             >
-              되돌리기
+              {t('manual.undoFill')}
             </button>
           )}
         </div>
@@ -1445,13 +1471,15 @@ function ManualBody({
 
       <div className="border border-line rounded-[12px] overflow-hidden">
         <div className="grid grid-cols-[56px_1fr] bg-bg px-3 py-2 text-[10px] font-bold text-ink-500 tracking-wide uppercase border-b border-line">
-          <span>날짜</span><span>{headerLabel}</span>
+          <span>{t('manual.colDate')}</span><span>{headerLabel}</span>
         </div>
         {rows.map((r, i) => {
           const dowColor =
             r.dow === '일' ? 'text-danger'
             : r.dow === '토' ? 'text-c1'
             : 'text-ink-500'
+          // r.dow(한글)는 비교용으로 두고, 표시는 로케일에 맞춰 영어로 치환.
+          const dowLabel = locale === 'en' ? (DOW_EN[DOW_KR.indexOf(r.dow)] ?? r.dow) : r.dow
 
           // ─── general mode: chip-paint cell (always a button) ─────────
           if (category === 'general') {
@@ -1469,7 +1497,7 @@ function ManualBody({
               >
                 <div className="font-en text-caption text-ink-900 leading-tight">
                   <div>{String(month).padStart(2, '0')}-{String(r.day).padStart(2, '0')}</div>
-                  <div className={`text-[10px] ${dowColor}`}>{r.dow}</div>
+                  <div className={`text-[10px] ${dowColor}`}>{dowLabel}</div>
                 </div>
                 {code && code.isOff ? (
                   <div className="flex items-center gap-2">
@@ -1485,7 +1513,7 @@ function ManualBody({
                 ) : r.holiday ? (
                   <div className="flex items-center gap-2">
                     <HolidayTag />
-                    <span className="text-caption text-ink-500">오프</span>
+                    <span className="text-caption text-ink-500">{t('manual.dayOff')}</span>
                   </div>
                 ) : (r.st || r.et) ? (
                   <div className="flex items-center gap-2 font-en text-[13.5px] text-ink-700">
@@ -1494,7 +1522,7 @@ function ManualBody({
                     <span>{r.et ?? '--:--'}</span>
                   </div>
                 ) : (
-                  <span className="text-caption text-ink-300">탭하여 입력</span>
+                  <span className="text-caption text-ink-300">{t('manual.tapToEnter')}</span>
                 )}
               </button>
             )
@@ -1510,7 +1538,7 @@ function ManualBody({
             >
               <div className="font-en text-caption text-ink-900 leading-tight">
                 <div>{String(month).padStart(2, '0')}-{String(r.day).padStart(2, '0')}</div>
-                <div className={`text-[10px] ${dowColor}`}>{r.dow}</div>
+                <div className={`text-[10px] ${dowColor}`}>{dowLabel}</div>
               </div>
               {r.holiday ? (
                 <div className="flex items-center gap-2">
@@ -1523,7 +1551,7 @@ function ManualBody({
                     onClick={() => onChange(i, { holiday: false, sun: false })}
                     className="font-en text-[11px] font-bold text-brand"
                   >
-                    근무로
+                    {t('manual.toWork')}
                   </button>
                 </div>
               ) : (
@@ -1539,7 +1567,7 @@ function ManualBody({
                   />
                   <input
                     value={r.tr ?? ''}
-                    placeholder="열번"
+                    placeholder={t('manual.placeholderTrain')}
                     onChange={e => onChange(i, { tr: e.target.value })}
                     className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
                       r.tr ? 'border-line-2 bg-surface' : 'border-line bg-bg'
@@ -1548,7 +1576,7 @@ function ManualBody({
                   />
                   <input
                     value={r.st ?? ''}
-                    placeholder="시작"
+                    placeholder={t('manual.placeholderStart')}
                     inputMode="numeric"
                     maxLength={5}
                     onChange={e => onChange(i, { st: normalizeTimeInput(e.target.value) })}
@@ -1560,7 +1588,7 @@ function ManualBody({
                   <span className="text-ink-300 font-en">→</span>
                   <input
                     value={r.et ?? ''}
-                    placeholder="종료"
+                    placeholder={t('manual.placeholderEnd')}
                     inputMode="numeric"
                     maxLength={5}
                     onChange={e => onChange(i, { et: normalizeTimeInput(e.target.value) })}
@@ -1573,7 +1601,7 @@ function ManualBody({
                     onClick={() => onChange(i, { holiday: true, dia: undefined, tr: undefined, st: undefined, et: undefined })}
                     className="font-en text-[11px] font-bold text-brand ml-auto"
                   >
-                    휴무
+                    {t('manual.markOff')}
                   </button>
                 </div>
               )}
@@ -1588,7 +1616,7 @@ function ManualBody({
           className="mt-2.5 w-full flex items-center justify-center gap-1.5 px-3 py-3 rounded-[12px] border border-dashed border-line-2 bg-surface text-callout font-semibold text-ink-700"
         >
           <PlusIcon size={14} />
-          {rows.length + 1}일~{total}일 추가하기
+          {t('manual.appendDays', { from: rows.length + 1, to: total })}
         </button>
       )}
     </>
@@ -1602,6 +1630,7 @@ function CodeChip({
   active: boolean
   onClick: () => void
 }) {
+  const t = useTranslations('upload')
   return (
     <button
       type="button"
@@ -1622,13 +1651,14 @@ function CodeChip({
           code.isOff ? 'font-bold text-warn' : `font-en ${active ? 'text-brand' : 'text-ink-500'}`
         }`}
       >
-        {code.isOff ? '휴무' : `${code.startTime}~${code.endTime}`}
+        {code.isOff ? t('manual.off') : `${code.startTime}~${code.endTime}`}
       </span>
     </button>
   )
 }
 
 function EraserChip({ active, onClick }: { active: boolean; onClick: () => void }) {
+  const t = useTranslations('upload')
   const style = active
     ? { borderColor: 'var(--danger)', background: 'var(--danger-soft)', color: 'var(--danger)', borderWidth: 1.5 }
     : undefined
@@ -1642,18 +1672,19 @@ function EraserChip({ active, onClick }: { active: boolean; onClick: () => void 
       }`}
     >
       <EraserIcon size={16} />
-      <span className="text-[10.5px] font-semibold leading-none">지우개</span>
+      <span className="text-[10.5px] font-semibold leading-none">{t('manual.eraser')}</span>
     </button>
   )
 }
 
 function HolidayTag() {
+  const t = useTranslations('upload')
   return (
     <span
       className="font-bold text-[11px] tracking-wide px-2 py-0.5 rounded-pill"
       style={{ background: '#FEF3C7', color: '#92400E' }}
     >
-      휴무
+      {t('manual.off')}
     </span>
   )
 }
