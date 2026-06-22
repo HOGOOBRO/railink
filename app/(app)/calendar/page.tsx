@@ -2,6 +2,7 @@
 
 import { type ReactNode, useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { BottomSheet } from '@/components/ui/BottomSheet'
@@ -274,6 +275,8 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
 export default function CalendarPage() {
   const router = useRouter()
   const { showToast } = useToast()
+  const t = useTranslations('calendar')
+  const tFields = useTranslations('fields')
 
   const today = useMemo(() => new Date(), [])
   const [year, setYear]   = useState(today.getFullYear())
@@ -554,7 +557,7 @@ export default function CalendarPage() {
       if (!s.isDemo) {
         const invitedOwner = await consumePendingInvite()
         if (!alive) return
-        if (invitedOwner) showToast(`${invitedOwner.name} 님과 연결됐어요!`, 'success')
+        if (invitedOwner) showToast(t('toast.inviteConnected', { name: invitedOwner.name }), 'success')
       }
 
       // 첫 동기화에서만 로딩 표시를 띄운다. 이후 reload(동료 추가)·월 이동은
@@ -634,7 +637,7 @@ export default function CalendarPage() {
             // per uid (noteGroupOverflow) so this doesn't re-toast every mount.
             if (overflowUids.length && noteGroupOverflow(s.uid, overflowUids) > 0) {
               showToast(
-                `${overflowUids.length}명이 더 연결됐어요. 비교 그룹은 최대 ${MAX_PER_GROUP}명까지라, 새 그룹을 만들어 정리해 주세요.`,
+                t('toast.groupOverflow', { count: overflowUids.length, max: MAX_PER_GROUP }),
                 'default',
               )
             }
@@ -663,7 +666,7 @@ export default function CalendarPage() {
       if (alive) { setColleagueLoading(false); setShareSynced(true); directorySynced.current = true }
     })()
     return () => { alive = false }
-  }, [router, year, month, reload, showToast])
+  }, [router, year, month, reload, showToast, t])
 
   function dismissMigration() {
     if (typeof window !== 'undefined') localStorage.setItem(MIGRATION_KEY, 'dismissed')
@@ -862,7 +865,7 @@ export default function CalendarPage() {
     if (!session) return []
     const ppl: MonthPerson[] = [{
       uid: session.uid,
-      color: BRAND, name: session.name, tag: '나', photo: session.photo,
+      color: BRAND, name: session.name, tag: t('compare.selfTag'), photo: session.photo,
       shifts: monthShifts(iso => myByDate.get(iso), year, month, liveAirline),
     }]
     for (const c of compares) {
@@ -875,7 +878,7 @@ export default function CalendarPage() {
       })
     }
     return ppl
-  }, [session, liveAirline, compares, myByDate, compareByDate, year, month, shareStatus])
+  }, [session, liveAirline, compares, myByDate, compareByDate, year, month, shareStatus, t])
 
   const closeOverlays = useCallback(() => {
     setDetailOpen(false); setSearchOpen(false); setUploadOpen(false)
@@ -906,7 +909,7 @@ export default function CalendarPage() {
       if (session.isDemo) addAppointment(appt)
       else await createRemoteAppointment(appt)
     } catch (e) {
-      showToast(e instanceof Error ? e.message : '약속을 저장하지 못했어요.', 'danger')
+      showToast(e instanceof Error ? e.message : t('toast.apptSaveFailed'), 'danger')
       return
     }
     const ay = Number(appt.date.slice(0, 4)), am = Number(appt.date.slice(5, 7))
@@ -923,7 +926,7 @@ export default function CalendarPage() {
       if (session.isDemo) deleteAppointment(id)
       else await deleteRemoteAppointment(id)
     } catch (e) {
-      showToast(e instanceof Error ? e.message : '약속을 삭제하지 못했어요.', 'danger')
+      showToast(e instanceof Error ? e.message : t('toast.apptDeleteFailed'), 'danger')
       return
     }
     await refreshAppts(year, month)
@@ -935,7 +938,7 @@ export default function CalendarPage() {
     try {
       await respondRemoteAppointment(id, accept)
     } catch (e) {
-      showToast(e instanceof Error ? e.message : '처리하지 못했어요.', 'danger')
+      showToast(e instanceof Error ? e.message : t('toast.apptRespondFailed'), 'danger')
       return
     }
     // 서버 반영은 성공 — 화면은 즉시 낙관 갱신한다. (이전엔 재조회에만 의존했는데,
@@ -949,7 +952,7 @@ export default function CalendarPage() {
     // 되살리는 레이스 방지 — 응답 이력은 ref로 들고 도착분을 거른다.
     respondedApptIds.current.add(id)
     setApptInvites(list => list.filter(i => i.id !== id))
-    showToast(accept ? '약속을 수락했어요.' : '약속을 거절했어요.', accept ? 'success' : 'default')
+    showToast(accept ? t('toast.apptAccepted') : t('toast.apptDeclined'), accept ? 'success' : 'default')
     refreshAppts(year, month)
   }
 
@@ -998,7 +1001,7 @@ export default function CalendarPage() {
     setMktAsk(false)
     if (!res.ok) return
     localStorage.setItem(`railink_mkt_asked_${session.uid}`, '1')
-    if (consent) showToast('새 소식이 나오면 알려드릴게요.', 'success')
+    if (consent) showToast(t('toast.marketingThanks'), 'success')
   }
 
   // 직무 프롬프트 노출 판정 — personal && job_category IS NULL 일 때만. job엔 별도
@@ -1027,8 +1030,8 @@ export default function CalendarPage() {
       setJobBusy(true)
       const res = await setJobCategory(category, jobOther)
       setJobBusy(false)
-      if (!res.ok) { showToast(res.message ?? '저장에 실패했어요.', 'danger'); return }
-      showToast('알려주셔서 고마워요!', 'success')
+      if (!res.ok) { showToast(res.message ?? t('toast.jobSaveFailed'), 'danger'); return }
+      showToast(t('toast.jobThanks'), 'success')
     }
     setJobAsk(false)
     localStorage.setItem(`railink_job_asked_${session.uid}`, '1')
@@ -1037,7 +1040,7 @@ export default function CalendarPage() {
   async function onPushNudgeEnable() {
     setPushNudge(null)
     const res = await enablePush()
-    if (res.status === 'enabled') showToast('약속 초대 알림을 켰어요.', 'success')
+    if (res.status === 'enabled') showToast(t('toast.pushEnabled'), 'success')
     else if (res.message) showToast(res.message, 'danger')
   }
 
@@ -1161,7 +1164,7 @@ export default function CalendarPage() {
     if (existing) {
       const next = removeFromActiveGroup(session.uid, uid)
       setReload(n => n + 1)
-      showToast(`${existing.name} 님을 비교에서 제거했어요.`)
+      showToast(t('toast.compareRemoved', { name: existing.name }))
 
       if (session.isDemo) return
       // Only cancel if the colleague is gone from EVERY group — multi-group
@@ -1183,7 +1186,7 @@ export default function CalendarPage() {
       uid, name: meta.name, employeeId: meta.employeeId, photo: meta.photo, office: meta.office,
     })
     if (!res.entry && !res.alreadyIn) {
-      showToast('비교 인원은 최대 10명까지 추가할 수 있어요.', 'danger')
+      showToast(t('toast.compareCap', { max: MAX_PER_GROUP }), 'danger')
       return
     }
     setReload(n => n + 1)
@@ -1194,17 +1197,17 @@ export default function CalendarPage() {
     setLoadingColleague(meta.name)
 
     if (session.isDemo) {
-      showToast(`${meta.name} 님을 ${res.group.name} 그룹에 추가했어요.`, 'success')
+      showToast(t('toast.addedToGroup', { name: meta.name, group: res.group.name }), 'success')
       return
     }
 
     const status = shareStatus[uid]
     if (status === 'accepted') {
-      showToast(`${meta.name} 님을 ${res.group.name} 그룹에 추가했어요.`, 'success')
+      showToast(t('toast.addedToGroup', { name: meta.name, group: res.group.name }), 'success')
       return
     }
     if (status === 'pending') {
-      showToast(`${meta.name} 님을 추가했어요 · 수락을 기다리고 있어요`, 'success')
+      showToast(t('toast.addedPending', { name: meta.name }), 'success')
       return
     }
 
@@ -1225,11 +1228,11 @@ export default function CalendarPage() {
     // pending. Re-set it after the RPC actually succeeded.
     setShareStatus(s => ({ ...s, [uid]: 'pending' }))
     track('share_request')
-    showToast(`${meta.name} 님께 공유 요청을 보냈어요`, 'success')
+    showToast(t('toast.shareRequested', { name: meta.name }), 'success')
   }
 
   async function handleUploadSave(rows: ParsedScheduleRow[]) {
-    if (!session) throw new Error('로그인 상태를 확인한 뒤 다시 저장해 주세요.')
+    if (!session) throw new Error(t('errors.notLoggedIn'))
     // 일반 personal 계정은 KTX 다이/열번 개념이 없어 저장 시 그 필드를 지운다(단일
     // 저장 길목 보장). 단 활성 항공사 승무원(personal + active airline)은 편명·코드가
     // 유의미하므로 제외 — 안 그러면 YP 편명이 저장 직전에 날아간다. 준비중 항공사는
@@ -1252,7 +1255,7 @@ export default function CalendarPage() {
     setUploadOpen(false); setUploadStep('pick')
     setMySched(getMonthSchedules(session.uid, savedYear, savedMonth))
     track('schedule_create', { demo: session.isDemo ? 'yes' : 'no' })
-    showToast(`${entries.length}건 등록 완료`, 'success')
+    showToast(t('toast.uploadDone', { count: entries.length }), 'success')
     // 변형 ② 권유 — 업로드할 때마다 띄움(캡 없음). 연결된 친구 수로 카피만 분기.
     showNudge(compares.length === 0 ? 'upload_empty' : 'upload_has_friends')
   }
@@ -1317,14 +1320,14 @@ export default function CalendarPage() {
           </div>
           <button
             onClick={openSearch}
-            aria-label="동료 검색"
+            aria-label={t('header.searchAria')}
             className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700 hover:bg-bg transition-colors"
           >
             <SearchIcon size={20} />
           </button>
           <button
             onClick={() => { closeOverlays(); setMenuOpen(true) }}
-            aria-label={pendingCount > 0 ? `내 메뉴 · 받은 공유 요청 ${pendingCount}개` : '내 메뉴'}
+            aria-label={pendingCount > 0 ? t('header.menuAriaPending', { count: pendingCount }) : t('header.menuAria')}
             className="w-10 grid place-items-center"
           >
             <span className="relative">
@@ -1356,9 +1359,9 @@ export default function CalendarPage() {
         ) : (
           <div className="flex items-center justify-between px-4 pt-3 mb-2">
             <span className="text-[11px] font-bold text-ink-500 tracking-wider uppercase">
-              비교 중인 동료
+              {t('compare.sectionLabel')}
             </span>
-            <span className="font-en text-[11px] font-semibold text-ink-500">{compares.length}명</span>
+            <span className="font-en text-[11px] font-semibold text-ink-500">{t('compare.countSuffix', { count: compares.length })}</span>
           </div>
         )}
 
@@ -1372,7 +1375,7 @@ export default function CalendarPage() {
                 <button
                   key={c.uid}
                   onClick={() => { closeOverlays(); setMemberSheet(c) }}
-                  aria-label={`${c.name} 프로필`}
+                  aria-label={t('compare.profileAria', { name: c.name })}
                 >
                   <PersonPill
                     name={c.name}
@@ -1389,15 +1392,15 @@ export default function CalendarPage() {
 
           <button
             onClick={() => atCompareCap
-              ? showToast('비교 인원은 최대 10명까지 추가할 수 있어요.', 'danger')
+              ? showToast(t('toast.compareCap', { max: MAX_PER_GROUP }), 'danger')
               : openSearch()}
             className={`shrink-0 flex flex-col items-center gap-1.5 w-14 ${atCompareCap ? 'opacity-40' : ''}`}
-            aria-label="비교 동료 추가"
+            aria-label={t('compare.addAria')}
           >
             <span className="w-12 h-12 rounded-full bg-brand-050 text-brand grid place-items-center shadow-[inset_0_0_0_1.5px_var(--brand-100)]">
               <PlusIcon size={20} />
             </span>
-            <span className="text-[11px] font-semibold text-brand">추가</span>
+            <span className="text-[11px] font-semibold text-brand">{t('compare.add')}</span>
           </button>
         </div>
 
@@ -1408,18 +1411,18 @@ export default function CalendarPage() {
             (colleagueLoading은 월 이동마다 true로 돌아와 CTA가 깜빡여서 못 쓴다.) */}
         {shareSynced && compares.length === 0 && !(nudgeOpen && nudgeTrigger === 'upload_empty') && (
           <div className="mx-4 mt-1 flex flex-col items-center text-center gap-1 rounded-lg bg-brand-050 border border-brand-100 px-5 py-5">
-            <p className="text-callout font-bold text-ink-900">아직 비교할 동료가 없어요</p>
+            <p className="text-callout font-bold text-ink-900">{t('empty.title')}</p>
             <p className="text-caption text-ink-500 leading-relaxed">
-              친구나 동기를 초대하면 가입할 때<br />서로 일정이 자동으로 연결돼요
+              {t.rich('empty.body', { br: () => <br /> })}
             </p>
             <button
               onClick={() => openInvite()}
               className="mt-3 w-full max-w-[260px] h-btn rounded-sm bg-brand text-ink-on-brand font-semibold text-callout inline-flex items-center justify-center gap-2"
             >
-              <UserPlusIcon size={17} /> 친구 초대하기
+              <UserPlusIcon size={17} /> {t('empty.invite')}
             </button>
             <button onClick={openSearch} className="mt-1.5 text-caption font-semibold text-brand py-1">
-              동료 찾기
+              {t('empty.findColleague')}
             </button>
           </div>
         )}
@@ -1432,7 +1435,7 @@ export default function CalendarPage() {
           className="w-full flex items-center gap-2 px-4 py-2.5 bg-brand-050 border-b border-line text-left"
         >
           <span className="flex-1 text-caption font-semibold text-ink-700">
-            받은 공유 요청 <span className="font-en">{pendingCount}</span>개
+            {t.rich('banner.shareRequests', { count: pendingCount, n: (c) => <span className="font-en">{c}</span> })}
           </span>
           <span className="text-brand shrink-0"><ArrowRightIcon size={16} /></span>
         </button>
@@ -1447,7 +1450,7 @@ export default function CalendarPage() {
         >
           <span className="text-brand shrink-0"><PinIcon size={14} /></span>
           <span className="flex-1 text-caption font-semibold text-ink-700">
-            받은 약속 초대 <span className="font-en">{apptInvites.length}</span>개 · 탭해서 확인
+            {t.rich('banner.apptInvites', { count: apptInvites.length, n: (c) => <span className="font-en">{c}</span> })}
           </span>
           <span className="text-brand shrink-0"><ArrowRightIcon size={16} /></span>
         </button>
@@ -1459,16 +1462,16 @@ export default function CalendarPage() {
           <span className="shrink-0 text-brand"><BellIcon size={16} /></span>
           {pushNudge === 'enable' ? (
             <button onClick={onPushNudgeEnable} className="flex-1 text-caption font-semibold text-ink-700 text-left">
-              약속 초대가 오면 알림으로 알려드릴까요? <span className="text-brand">켜기</span>
+              {t.rich('banner.pushEnable', { a: (c) => <span className="text-brand">{c}</span> })}
             </button>
           ) : (
             <button onClick={() => { dismissPushNudge(); router.push('/install') }} className="flex-1 text-caption font-semibold text-ink-700 text-left">
-              홈 화면에 추가하면 약속 초대 알림을 받을 수 있어요 <span className="text-brand">설치 방법</span>
+              {t.rich('banner.pushInstall', { a: (c) => <span className="text-brand">{c}</span> })}
             </button>
           )}
           <button
             onClick={dismissPushNudge}
-            aria-label="알림 안내 닫기"
+            aria-label={t('banner.pushDismissAria')}
             className="shrink-0 text-ink-300 hover:text-ink-500 p-1"
           >
             <CloseIcon size={14} />
@@ -1485,11 +1488,11 @@ export default function CalendarPage() {
             onClick={() => router.push('/settings/info?focus=birthday')}
             className="flex-1 text-caption font-semibold text-ink-700 text-left"
           >
-            내 생일을 등록하면 같이 보는 동료 캘린더에 표시돼요
+            {t('banner.birthday')}
           </button>
           <button
             onClick={dismissBdayNudge}
-            aria-label="생일 안내 닫기"
+            aria-label={t('banner.birthdayDismissAria')}
             className="shrink-0 text-ink-300 hover:text-ink-500 p-1"
           >
             <CloseIcon size={14} />
@@ -1502,27 +1505,27 @@ export default function CalendarPage() {
         <div className="flex items-center justify-between h-topbar px-4">
           <button
             onClick={prevMonth}
-            aria-label="이전 달"
+            aria-label={t('month.prevAria')}
             className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700 hover:bg-bg transition-colors"
           >
             <ChevronLeftIcon size={20} />
           </button>
           <div className="flex flex-col items-center gap-1">
             <span className="font-kr text-title font-bold tracking-tight text-ink-900">
-              {year}년 {month}월
+              {t('month.label', { year, month })}
             </span>
             {!isCurrentMonth && (
               <button
                 onClick={goToday}
                 className="font-kr text-[10px] font-semibold tracking-wide text-brand bg-brand-050 px-2 py-0.5 rounded-pill leading-none"
               >
-                오늘로
+                {t('month.today')}
               </button>
             )}
           </div>
           <button
             onClick={nextMonth}
-            aria-label="다음 달"
+            aria-label={t('month.nextAria')}
             className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700 hover:bg-bg transition-colors"
           >
             <ChevronRightIcon size={20} />
@@ -1601,9 +1604,12 @@ export default function CalendarPage() {
             <div className="flex items-center gap-2">
               <span className="text-brand shrink-0"><UploadIcon size={14} /></span>
               <span>
-                이번 달{' '}
-                <strong className="font-en text-ink-700">내 근무 {workDays}일</strong>
-                {' · '}휴무 {offDays}일 · 비교 동료 {compares.length}명
+                {t.rich('footer.summary', {
+                  workDays,
+                  offDays,
+                  compareCount: compares.length,
+                  strong: (c) => <strong className="font-en text-ink-700">{c}</strong>,
+                })}
               </span>
             </div>
             <div className="border-t border-line my-2.5" />
@@ -1615,8 +1621,8 @@ export default function CalendarPage() {
             className="w-full flex items-center gap-2 bg-brand-050 px-3.5 py-2.5 rounded-md text-left"
           >
             <span className="text-brand shrink-0"><UploadIcon size={14} /></span>
-            <span className="flex-1 text-ink-700 font-semibold">이번 달 내 근무표가 없어요</span>
-            <span className="text-brand font-semibold shrink-0">등록하기 →</span>
+            <span className="flex-1 text-ink-700 font-semibold">{t('footer.noSchedule')}</span>
+            <span className="text-brand font-semibold shrink-0">{t('footer.register')}</span>
           </button>
         )}
       </div>
@@ -1632,7 +1638,7 @@ export default function CalendarPage() {
         >
           <Spinner size={20} color="var(--c1)" />
           <div className="text-[13px] font-medium text-ink-700">
-            <strong className="text-ink-900">{loadingColleague}</strong>님 근무표를 불러오는 중…
+            {t.rich('loading.colleague', { name: loadingColleague, strong: (c) => <strong className="text-ink-900">{c}</strong> })}
           </div>
         </div>
       )}
@@ -1647,7 +1653,7 @@ export default function CalendarPage() {
           style={{ bottom: 'calc(30px + env(safe-area-inset-bottom))' }}
         >
           <Spinner size={20} color="var(--c1)" />
-          <div className="text-[13px] font-medium text-ink-700">동료 근무표를 불러오는 중…</div>
+          <div className="text-[13px] font-medium text-ink-700">{t('loading.colleagues')}</div>
         </div>
       )}
 
@@ -1727,16 +1733,16 @@ export default function CalendarPage() {
       {/* ── 수신 동의 1회 프롬프트 ── */}
       <BottomSheet open={mktAsk} onClose={() => answerMarketing(false)}>
         <div className="px-5 pt-2 pb-8">
-          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">새 기능·이벤트 소식을 받아볼까요?</h3>
+          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">{t('marketingSheet.title')}</h3>
           <p className="mt-2 text-callout text-ink-700 leading-relaxed">
-            레일링크에 새 기능이나 이벤트가 생기면 알려드려요. 받지 않아도 이용에는 아무 영향이 없고, 설정에서 언제든 바꿀 수 있어요.
+            {t('marketingSheet.body')}
           </p>
           <div className="flex gap-2.5 mt-4">
             <Button variant="outline" className="flex-1" disabled={mktBusy} onClick={() => answerMarketing(false)}>
-              괜찮아요
+              {t('marketingSheet.decline')}
             </Button>
             <Button className="flex-1" disabled={mktBusy} onClick={() => answerMarketing(true)}>
-              좋아요, 받을게요
+              {t('marketingSheet.accept')}
             </Button>
           </div>
         </div>
@@ -1746,11 +1752,11 @@ export default function CalendarPage() {
           가입 폼을 안 거친 personal 계정(주로 Google 가입)의 직무를 백필한다. */}
       <BottomSheet open={jobAsk && !mktAsk} onClose={() => answerJob(null)}>
         <div className="px-5 pt-2 pb-8">
-          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">어떤 일을 하세요?</h3>
+          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">{t('jobSheet.title')}</h3>
           <p className="mt-2 text-callout text-ink-700 leading-relaxed">
-            더 도움이 되는 기능을 준비하려고 여쭤봐요. 선택은 안 해도 괜찮고, 답하지 않아도 이용에는 아무 영향이 없어요.
+            {t('jobSheet.body')}
           </p>
-          <div className="flex flex-wrap gap-2 mt-4" role="group" aria-label="직무 선택">
+          <div className="flex flex-wrap gap-2 mt-4" role="group" aria-label={t('jobSheet.ariaLabel')}>
             {JOB_OPTIONS.map(opt => {
               const active = jobSel === opt.value
               return (
@@ -1763,7 +1769,7 @@ export default function CalendarPage() {
                     active ? 'border-brand bg-brand-050 text-brand' : 'border-line bg-surface text-ink-700'
                   }`}
                 >
-                  {opt.label}
+                  {tFields('job.' + opt.value)}
                 </button>
               )
             })}
@@ -1772,20 +1778,20 @@ export default function CalendarPage() {
             <input
               value={jobOther}
               onChange={e => setJobOther(e.target.value)}
-              placeholder="어떤 일을 하시나요?"
+              placeholder={t('jobSheet.otherPlaceholder')}
               className="w-full mt-3 px-3.5 h-12 rounded-sm border-2 border-line bg-surface font-kr text-body placeholder:text-ink-500 focus:outline-none focus:border-brand"
             />
           )}
           <div className="flex gap-2.5 mt-5">
             <Button variant="outline" className="flex-1" disabled={jobBusy} onClick={() => answerJob(null)}>
-              나중에
+              {t('jobSheet.later')}
             </Button>
             <Button
               className="flex-1"
               disabled={jobBusy || !jobSel || (jobSel === 'other' && !jobOther.trim())}
               onClick={() => answerJob(jobSel)}
             >
-              알려주기
+              {t('jobSheet.submit')}
             </Button>
           </div>
         </div>
@@ -1877,14 +1883,13 @@ export default function CalendarPage() {
       {/* ── Migration notice (§6): one-time, dismissal persists ── */}
       <BottomSheet open={migrationOpen} onClose={dismissMigration}>
         <div className="px-5 pt-2 pb-8">
-          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">동료 공유 방식이 바뀌었어요</h3>
+          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">{t('migration.title')}</h3>
           <p className="mt-2 text-callout text-ink-700 leading-relaxed">
-            이제 일정은 동료가 요청하고 내가 수락할 때만 공유돼요. 그동안 비교하던 동료를
-            다시 추가하면 공유 요청이 시작돼요.
+            {t('migration.body')}
           </p>
           <div className="mt-4">
             <Button block onClick={() => { dismissMigration(); openSearch() }}>
-              캘린더에서 다시 추가하기
+              {t('migration.action')}
             </Button>
           </div>
         </div>
@@ -1916,23 +1921,24 @@ export default function CalendarPage() {
  * 추가하면 여기도 같이. 2열 그리드 고정: flex-wrap은 폭에 따라 줄바꿈이
  * 들쭉날쭉해 훑기 어렵다. */
 function CalendarLegend() {
+  const t = useTranslations('calendar.legend')
   return (
     <div>
-      <p className="text-[11px] font-bold text-ink-700 mb-2">표시 안내</p>
+      <p className="text-[11px] font-bold text-ink-700 mb-2">{t('title')}</p>
       <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 text-[12px] text-ink-700 leading-none">
         {/* 오늘 */}
-        <LegendItem label="오늘">
+        <LegendItem label={t('today')}>
           <span className="w-[18px] h-[18px] rounded-full bg-brand inline-block" />
         </LegendItem>
         {/* 공휴일 */}
-        <LegendItem label="공휴일">
+        <LegendItem label={t('holiday')}>
           <span className="relative inline-grid place-items-center w-[18px] h-[18px]">
             <span className="absolute top-[1px] w-[9px] h-[2px] rounded-[1px] bg-danger" />
             <span className="font-en text-[12px] text-danger">1</span>
           </span>
         </LegendItem>
         {/* 근무 1명 — 그 사람 색 칩 */}
-        <LegendItem label="근무 · 사람 색">
+        <LegendItem label={t('workColor')}>
           <span
             className="font-en text-[12px] font-semibold px-[6px] py-[1px] rounded-pill leading-none"
             style={{ background: 'color-mix(in oklab, var(--brand) 16%, white)', color: 'var(--brand)' }}
@@ -1941,7 +1947,7 @@ function CalendarLegend() {
           </span>
         </LegendItem>
         {/* 근무 2명+ — 색 점 */}
-        <LegendItem label="여러 명 근무">
+        <LegendItem label={t('multiWork')}>
           <span className="inline-flex items-center w-[18px] justify-center">
             {[BRAND, 'var(--c1)', 'var(--c2)'].map((c, i) => (
               <span
@@ -1953,21 +1959,21 @@ function CalendarLegend() {
           </span>
         </LegendItem>
         {/* 휴무 — 취소선 */}
-        <LegendItem label="휴무 (쉬는 날)">
+        <LegendItem label={t('off')}>
           <span className="font-en text-[12px] text-ink-500 line-through decoration-ink-300">1</span>
         </LegendItem>
         {/* 일정 없음 — 그냥 숫자 */}
-        <LegendItem label="일정 없음">
+        <LegendItem label={t('noSchedule')}>
           <span className="font-en text-[12px] text-ink-900">1</span>
         </LegendItem>
         {/* 약속 — 셀 좌상단 brand 핀 */}
-        <LegendItem label="약속 있는 날">
+        <LegendItem label={t('appointment')}>
           <span className="text-brand inline-grid place-items-center">
             <PinIcon size={12} />
           </span>
         </LegendItem>
         {/* 생일 — 셀 우상단 핑크 점 (비교 동료 생일) */}
-        <LegendItem label="동료 생일">
+        <LegendItem label={t('birthday')}>
           <span
             className="w-[7px] h-[7px] rounded-full inline-block"
             style={{ background: '#E8669B', boxShadow: '0 0 0 1.5px #fff' }}
@@ -1998,6 +2004,7 @@ function PersonPill({ name, photo, ringColor, avatarColor, self, pending, editab
    *  hint the pill is tappable to recolor. */
   editable?: boolean
 }) {
+  const t = useTranslations('calendar.compare')
   return (
     <div className="shrink-0 flex flex-col items-center gap-1.5 w-14">
       <div
@@ -2012,7 +2019,7 @@ function PersonPill({ name, photo, ringColor, avatarColor, self, pending, editab
         )}
         {self && (
           <span className="absolute -right-1 -bottom-0.5 bg-brand text-ink-on-brand text-[9px] font-bold px-1.5 rounded-pill shadow-[0_0_0_2px_#fff]">
-            나
+            {t('selfTag')}
           </span>
         )}
         {editable && !self && (
@@ -2029,7 +2036,7 @@ function PersonPill({ name, photo, ringColor, avatarColor, self, pending, editab
       </span>
       {pending && (
         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-pill bg-bg text-ink-500 leading-none -mt-1">
-          수락 대기 중
+          {t('pendingBadge')}
         </span>
       )}
     </div>

@@ -403,5 +403,103 @@
       "badgePending": "Coming soon"
     },
     "branchOther": "Other"
+  },
+  "calendar": {
+    "header": {
+      "searchAria": "Search colleagues",
+      "menuAria": "My menu",
+      "menuAriaPending": "My menu · {count} share request(s) received"
+    },
+    "compare": {
+      "sectionLabel": "Comparing",
+      "countSuffix": "{count}",
+      "profileAria": "{name}'s profile",
+      "addAria": "Add colleague to compare",
+      "add": "Add",
+      "pendingBadge": "Awaiting acceptance",
+      "selfTag": "Me"
+    },
+    "empty": {
+      "title": "No colleagues to compare yet",
+      "body": "Invite a friend or coworker — when they sign up,<br></br>your schedules connect automatically.",
+      "invite": "Invite a friend",
+      "findColleague": "Find colleagues"
+    },
+    "banner": {
+      "shareRequests": "<n>{count}</n> share request(s) received",
+      "apptInvites": "<n>{count}</n> appointment invite(s) · tap to view",
+      "pushEnable": "Want a notification when an appointment invite arrives? <a>Turn on</a>",
+      "pushInstall": "Add to your home screen to get appointment invite notifications <a>How to install</a>",
+      "pushDismissAria": "Dismiss notification tip",
+      "birthday": "Add your birthday and it'll show on the calendars you share with colleagues",
+      "birthdayDismissAria": "Dismiss birthday tip"
+    },
+    "month": {
+      "prevAria": "Previous month",
+      "nextAria": "Next month",
+      "label": "{month}/{year}",
+      "today": "Today"
+    },
+    "footer": {
+      "summary": "This month: <strong>{workDays} work day(s)</strong> · {offDays} off · {compareCount} comparing",
+      "noSchedule": "No schedule for this month yet",
+      "register": "Add →"
+    },
+    "loading": {
+      "colleague": "Loading <strong>{name}</strong>'s schedule…",
+      "colleagues": "Loading colleagues' schedules…"
+    },
+    "toast": {
+      "inviteConnected": "Connected with {name}!",
+      "groupOverflow": "{count} more connected. A compare group holds up to {max}, so create a new group to organize them.",
+      "apptSaveFailed": "Couldn't save the appointment.",
+      "apptDeleteFailed": "Couldn't delete the appointment.",
+      "apptRespondFailed": "Couldn't process that.",
+      "apptAccepted": "Appointment accepted.",
+      "apptDeclined": "Appointment declined.",
+      "marketingThanks": "We'll let you know when there's news.",
+      "jobSaveFailed": "Couldn't save.",
+      "jobThanks": "Thanks for letting us know!",
+      "pushEnabled": "Appointment invite notifications are on.",
+      "compareRemoved": "Removed {name} from compare.",
+      "compareCap": "You can compare up to {max} people.",
+      "addedToGroup": "Added {name} to the {group} group.",
+      "addedPending": "Added {name} · waiting for them to accept",
+      "shareRequested": "Sent a share request to {name}",
+      "uploadDone": "{count} entries saved"
+    },
+    "errors": {
+      "notLoggedIn": "Please confirm you're signed in, then save again."
+    },
+    "marketingSheet": {
+      "title": "Want news about new features and events?",
+      "body": "We'll let you know when RaiLink adds new features or events. Opting out won't affect anything, and you can change this anytime in settings.",
+      "decline": "No thanks",
+      "accept": "Yes, sign me up"
+    },
+    "jobSheet": {
+      "title": "What do you do?",
+      "body": "We're asking so we can build more helpful features. You don't have to pick one, and skipping it won't affect anything.",
+      "ariaLabel": "Select your role",
+      "otherPlaceholder": "What do you do?",
+      "later": "Later",
+      "submit": "Tell us"
+    },
+    "migration": {
+      "title": "Schedule sharing has changed",
+      "body": "Now schedules are shared only when a colleague requests and you accept. Re-add the colleagues you were comparing to start a share request.",
+      "action": "Re-add from the calendar"
+    },
+    "legend": {
+      "title": "Legend",
+      "today": "Today",
+      "holiday": "Holiday",
+      "workColor": "Work · person color",
+      "multiWork": "Multiple working",
+      "off": "Off (rest day)",
+      "noSchedule": "No schedule",
+      "appointment": "Has appointment",
+      "birthday": "Colleague's birthday"
+    }
   }
 }
