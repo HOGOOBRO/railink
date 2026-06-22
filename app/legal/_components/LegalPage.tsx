@@ -9,6 +9,7 @@
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ChevronLeftIcon } from '@/components/ui/icons'
 
 interface LegalPageProps {
@@ -19,6 +20,7 @@ interface LegalPageProps {
 
 export function LegalPage({ title, effectiveDate, children }: LegalPageProps) {
   const router = useRouter()
+  const t = useTranslations('legal.common')
   const [hasBack, setHasBack] = useState(true)
 
   useEffect(() => {
@@ -43,7 +45,7 @@ export function LegalPage({ title, effectiveDate, children }: LegalPageProps) {
             <button
               type="button"
               onClick={() => router.back()}
-              aria-label="뒤로"
+              aria-label={t('back')}
               className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
             >
               <ChevronLeftIcon size={20} />
@@ -51,7 +53,7 @@ export function LegalPage({ title, effectiveDate, children }: LegalPageProps) {
           ) : (
             <Link
               href="/settings/help"
-              aria-label="뒤로"
+              aria-label={t('back')}
               className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
             >
               <ChevronLeftIcon size={20} />
@@ -64,18 +66,24 @@ export function LegalPage({ title, effectiveDate, children }: LegalPageProps) {
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[768px] px-5 pt-5 pb-12 sm:pt-8">
           <p className="font-en text-[11px] tracking-wider uppercase text-ink-500 mb-1">
-            EFFECTIVE
+            {t('effectiveLabel')}
           </p>
-          <p className="font-en text-callout text-ink-700 mb-6">{effectiveDate}</p>
+          <p className="font-en text-callout text-ink-700 mb-4">{effectiveDate}</p>
+
+          <p className="text-caption text-ink-500 leading-relaxed mb-6">
+            {t('koreanPrevails')}
+          </p>
 
           <article className="legal-prose">{children}</article>
 
           <p className="mt-10 text-caption text-ink-500 leading-relaxed">
-            이 문서에 대한 문의는{' '}
-            <a className="text-brand font-semibold" href="mailto:hello@railink.app">
-              hello@railink.app
-            </a>{' '}
-            으로 보내주세요.
+            {t.rich('contact', {
+              email: chunks => (
+                <a className="text-brand font-semibold" href="mailto:hello@railink.app">
+                  {chunks}
+                </a>
+              ),
+            })}
           </p>
         </div>
       </main>

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { getLocale, getTranslations } from 'next-intl/server'
 import { BrandMark } from '@/components/ui/icons'
 import { LandingRedirect } from '@/components/LandingRedirect'
 import { PhoneMock } from '@/components/landing/PhoneMock'
@@ -32,81 +33,9 @@ export const viewport = {
   colorScheme: 'light',
 }
 
-const FEATURES = [
-  {
-    no: '01',
-    title: '근무표 등록',
-    desc: '한 달 근무표를 사진으로 올리거나 엑셀로 가져오면, 캘린더로 자동 정리돼요.',
-  },
-  {
-    no: '02',
-    title: '동료와 일정 비교',
-    desc: '동료의 근무를 내 캘린더 위에 겹쳐 봐요. 같이 쉬는 날이 한눈에 보여요.',
-  },
-  {
-    no: '03',
-    title: '약속 잡기',
-    desc: '겹치는 휴무에 약속을 만들고 동료를 초대해요. 응답이 오면 알림으로 알려드려요.',
-  },
-  {
-    no: '04',
-    title: '공개 범위는 내가',
-    desc: '내가 수락한 동료만 내 일정을 볼 수 있어요. 검색에 보일지도 직접 정해요.',
-  },
-]
-
-const STEPS = [
-  { n: 'STEP 1', title: '가입하기', desc: '이메일이나 Google 계정으로 1분이면 가입 끝.' },
-  { n: 'STEP 2', title: '근무표 올리기', desc: '이번 달 근무표를 사진 한 장으로 등록해요.' },
-  { n: 'STEP 3', title: '동료 초대하기', desc: '링크를 보내면 동료 근무가 자동으로 연결돼요.' },
-]
-
-const FAQS = [
-  {
-    q: '레일링크는 무료인가요?',
-    a: '네. 가입과 모든 기능이 무료예요.',
-  },
-  {
-    q: '승무원이 아니어도 쓸 수 있나요?',
-    a: '네. 교대근무, 스케줄 근무를 하는 누구나 가입해서 쓸 수 있어요.',
-  },
-  {
-    q: '내 근무표는 누가 볼 수 있나요?',
-    a: '내가 공유를 수락한 동료만 볼 수 있어요. 수락하기 전에는 아무에게도 보이지 않아요.',
-  },
-  {
-    q: '동료가 아직 레일링크를 안 쓰면 어떡하죠?',
-    a: '초대 링크를 보내 주세요. 동료가 가입하는 순간 자동으로 나와 연결돼요.',
-  },
-]
-
-// 구조화 데이터 — 검색 결과의 리치 노출(앱 정보, FAQ 펼침) 대상. FAQPage의
-// 질문·답은 아래 FAQS(화면에 보이는 텍스트)와 반드시 일치해야 한다.
-const JSON_LD = {
-  '@context': 'https://schema.org',
-  '@graph': [
-    {
-      '@type': 'WebApplication',
-      name: '레일링크',
-      alternateName: ['RaiLink', 'railink'],
-      url: 'https://railink.app',
-      applicationCategory: 'ProductivityApplication',
-      operatingSystem: 'Web',
-      inLanguage: 'ko',
-      description:
-        '레일링크(RaiLink)는 교대근무자를 위한 무료 근무표 공유 캘린더입니다. 근무 스케줄을 등록하고 동료와 겹치는 휴무를 한눈에 확인하세요.',
-      offers: { '@type': 'Offer', price: '0', priceCurrency: 'KRW' },
-    },
-    {
-      '@type': 'FAQPage',
-      mainEntity: FAQS.map(f => ({
-        '@type': 'Question',
-        name: f.q,
-        acceptedAnswer: { '@type': 'Answer', text: f.a },
-      })),
-    },
-  ],
-}
+interface FeatureItem { no: string; title: string; desc: string }
+interface StepItem { n: string; title: string; desc: string }
+interface FaqItem { q: string; a: string }
 
 // ── shared style fragments ──
 const WRAP = 'mx-auto max-w-[1200px] px-[clamp(20px,5vw,48px)]'
@@ -130,7 +59,44 @@ function ArrowRightBig() {
   )
 }
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const locale = await getLocale()
+  const t = await getTranslations('landing')
+
+  // 모듈 스코프가 아니라 컴포넌트 본문에서 사전(t)으로 배열을 구성한다 —
+  // 서버 컴포넌트의 비동기 getTranslations는 본문에서만 await 가능하므로.
+  const FEATURES = t.raw('features.items') as FeatureItem[]
+  const STEPS = t.raw('steps.items') as StepItem[]
+  const FAQS = t.raw('faq.items') as FaqItem[]
+
+  // 구조화 데이터 — 검색 결과의 리치 노출(앱 정보, FAQ 펼침) 대상. FAQPage의
+  // 질문·답은 아래 FAQS(화면에 보이는 텍스트)와 반드시 일치해야 한다. 활성
+  // 로케일을 inLanguage에 반영한다.
+  const JSON_LD = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'WebApplication',
+        name: t('jsonLd.appName'),
+        alternateName: ['RaiLink', 'railink'],
+        url: 'https://railink.app',
+        applicationCategory: 'ProductivityApplication',
+        operatingSystem: 'Web',
+        inLanguage: locale,
+        description: t('jsonLd.appDescription'),
+        offers: { '@type': 'Offer', price: '0', priceCurrency: 'KRW' },
+      },
+      {
+        '@type': 'FAQPage',
+        mainEntity: FAQS.map(f => ({
+          '@type': 'Question',
+          name: f.q,
+          acceptedAnswer: { '@type': 'Answer', text: f.a },
+        })),
+      },
+    ],
+  }
+
   return (
     <div className="bg-surface text-ink-900 overflow-x-clip">
       <LandingRedirect />
@@ -144,16 +110,16 @@ export default function LandingPage() {
         <div className={`${WRAP} flex h-16 items-center justify-between`}>
           <div className="flex items-center gap-2 text-[17px] font-extrabold tracking-[-0.01em]">
             <BrandMark size={22} className="text-brand" />
-            레일링크
+            {t('jsonLd.appName')}
             <span className="hidden font-en text-[13px] font-semibold tracking-[0.14em] text-ink-500 sm:inline">
-              RAILINK
+              {t('nav.brandSub')}
             </span>
           </div>
           {/* GNB CTA는 처음엔 숨김 — hero CTA와 안 겹치고, 스크롤로 hero를 지나치면
               나타나 전환을 이어 유도한다. */}
           <div className="flex items-center gap-[18px]">
             <TrackedLink href="/login" action="login" location="nav" className="text-[14px] font-semibold text-ink-700">
-              로그인
+              {t('nav.login')}
             </TrackedLink>
             <NavCta className={`${BTN} ${BTN_PRIMARY} h-[42px] px-[18px] text-[14px]`} />
           </div>
@@ -173,11 +139,11 @@ export default function LandingPage() {
           className={`${WRAP} relative grid grid-cols-1 items-center gap-2 pb-[clamp(40px,6vw,72px)] pt-[clamp(40px,7vw,84px)] min-[920px]:grid-cols-[1.04fr_.96fr] min-[920px]:gap-10`}
         >
           <div>
-            <span className={`${EYEBROW} mb-[22px] block`}>WORK SCHEDULE, SHARED</span>
+            <span className={`${EYEBROW} mb-[22px] block`}>{t('hero.eyebrow')}</span>
             <h1 className="m-0 text-[clamp(40px,6.6vw,78px)] font-extrabold leading-[0.98] tracking-[-0.035em] text-ink-900">
-              같이 쉬는 날이,<br />
+              {t('hero.titleLine1')}<br />
               <span className="relative whitespace-nowrap text-brand">
-                한눈에.
+                {t('hero.titleHighlight')}
                 <span
                   aria-hidden
                   className="absolute -left-0.5 -right-0.5 bottom-[0.06em] -z-10 h-[0.16em] rounded-[2px] bg-brand-100"
@@ -185,17 +151,17 @@ export default function LandingPage() {
               </span>
             </h1>
             <p className="mt-[26px] font-en text-[clamp(14px,1.6vw,17px)] font-normal tracking-[-0.01em] text-ink-300">
-              Schedule, together.
+              {t('hero.subEn')}
             </p>
             <p className="mt-3.5 max-w-[30em] text-[clamp(15px,1.7vw,18px)] leading-[1.6] text-ink-700 [text-wrap:pretty]">
-              교대근무 동료의 일정을 내 캘린더 위에 겹쳐 보세요. 둘 다 쉬는 날이 환하게 표시돼, 약속 잡기가 메시지 한 번이면 끝나요.
+              {t('hero.lead')}
             </p>
             <div id="hero-cta-anchor" className="mt-[30px] flex flex-wrap gap-3">
               <TrackedLink href="/signup" action="signup" location="hero" className={`${BTN_LG} ${BTN_PRIMARY}`}>
-                무료로 시작하기
+                {t('hero.ctaStart')}
               </TrackedLink>
               <DemoButton location="hero" className={`${BTN_LG} ${BTN_OUTLINE}`}>
-                데모로 둘러보기
+                {t('hero.ctaDemo')}
               </DemoButton>
             </div>
             <TrackedLink
@@ -204,14 +170,14 @@ export default function LandingPage() {
               location="hero"
               className="mt-3.5 inline-flex items-center gap-1 text-[14px] font-semibold text-brand hover:text-brand-700"
             >
-              겹쳐보기가 뭔가요? <span aria-hidden>→</span>
+              {t('hero.learnMore')} <span aria-hidden>→</span>
             </TrackedLink>
             <div className="mt-[22px] flex flex-wrap items-center gap-4 text-[13px] text-ink-500">
-              <span>가입 1분</span>
+              <span>{t('hero.badge1')}</span>
               <span className="h-1 w-1 rounded-full bg-ink-300" />
-              <span>완전 무료</span>
+              <span>{t('hero.badge2')}</span>
               <span className="h-1 w-1 rounded-full bg-ink-300" />
-              <span>교대·스케줄 근무 누구나</span>
+              <span>{t('hero.badge3')}</span>
             </div>
           </div>
           <div className="relative mt-6 flex justify-center min-[920px]:mt-0">
@@ -223,10 +189,10 @@ export default function LandingPage() {
       {/* ── Problem band ── */}
       <section className="bg-ink-900 text-white">
         <Reveal className={`${WRAP} py-[clamp(48px,7vw,84px)] text-center`}>
-          <p className="font-en text-[12px] uppercase tracking-[0.16em] text-brand-300">The problem</p>
+          <p className="font-en text-[12px] uppercase tracking-[0.16em] text-brand-300">{t('problem.eyebrow')}</p>
           <h2 className="mx-auto mt-4 max-w-[18em] text-[clamp(26px,4.4vw,46px)] font-extrabold leading-[1.18] tracking-[-0.025em] [text-wrap:balance]">
-            교대근무자끼리 약속 한 번 잡으려면,{' '}
-            <span className="text-brand-300">서로 근무표를 캡처해 보내고 달력에 일일이 대조해야 했죠.</span>
+            {t('problem.headingLead')}{' '}
+            <span className="text-brand-300">{t('problem.headingEmph')}</span>
           </h2>
         </Reveal>
       </section>
@@ -235,12 +201,12 @@ export default function LandingPage() {
       <section id="magic" className="py-[clamp(56px,8vw,112px)]">
         <div className={WRAP}>
           <Reveal className="mx-auto mb-[clamp(40px,5vw,64px)] max-w-[40em] text-center">
-            <span className={EYEBROW}>The magic · 겹쳐보기</span>
+            <span className={EYEBROW}>{t('magic.eyebrow')}</span>
             <h2 className="mt-3.5 text-[clamp(28px,4.2vw,52px)] font-extrabold leading-[1.06] tracking-[-0.03em] [text-wrap:balance]">
-              내 근무만 보던 화면에,<br />동료를 얹으면.
+              {t('magic.headingLine1')}<br />{t('magic.headingLine2')}
             </h2>
             <p className="mx-auto mt-4 max-w-[32em] text-[clamp(15px,1.7vw,18px)] leading-[1.6] text-ink-700 [text-wrap:pretty]">
-              동료가 근무표를 올리면 색깔별로 내 캘린더 위에 겹쳐져요. 아무도 일하지 않는 날, 같이 쉬는 날이 바로 눈에 들어옵니다.
+              {t('magic.body')}
             </p>
           </Reveal>
           <Reveal className="mx-auto grid max-w-[920px] grid-cols-1 items-center gap-[clamp(20px,3vw,44px)] min-[780px]:grid-cols-[1fr_auto_1fr]">
@@ -248,7 +214,7 @@ export default function LandingPage() {
               <PhoneMock variant="solo" size="clamp(230px,24vw,300px)" />
               <div className="text-center">
                 <div className="font-en text-[11px] uppercase tracking-[0.12em] text-ink-300">BEFORE</div>
-                <div className="mt-1.5 text-[clamp(16px,1.9vw,20px)] font-bold tracking-[-0.01em] text-ink-900">내 근무만</div>
+                <div className="mt-1.5 text-[clamp(16px,1.9vw,20px)] font-bold tracking-[-0.01em] text-ink-900">{t('magic.beforeCaption')}</div>
               </div>
             </div>
             {/* Before→After 연결 표시 — 폰의 네이비 FAB와 구분되게 연한 브랜드 톤
@@ -260,7 +226,7 @@ export default function LandingPage() {
               <PhoneMock variant="overlap" size="clamp(230px,24vw,300px)" />
               <div className="text-center">
                 <div className="font-en text-[11px] uppercase tracking-[0.12em] text-ink-300">AFTER</div>
-                <div className="mt-1.5 text-[clamp(16px,1.9vw,20px)] font-bold tracking-[-0.01em] text-ink-900">동료까지 겹쳐보면</div>
+                <div className="mt-1.5 text-[clamp(16px,1.9vw,20px)] font-bold tracking-[-0.01em] text-ink-900">{t('magic.afterCaption')}</div>
               </div>
             </div>
           </Reveal>
@@ -271,14 +237,14 @@ export default function LandingPage() {
       <section className="py-[clamp(56px,8vw,104px)]">
         <div className={WRAP}>
           <Reveal className="mx-auto mb-[clamp(36px,5vw,56px)] max-w-[40em] text-center">
-            <span className={EYEBROW}>Zoom in · 하루 보기</span>
+            <span className={EYEBROW}>{t('dayDetail.eyebrow')}</span>
             <h2 className="mt-3.5 text-[clamp(28px,4.2vw,52px)] font-extrabold leading-[1.06] tracking-[-0.03em] [text-wrap:balance]">
-              겹치는 휴무,<br />시간까지 맞춰봐요.
+              {t('dayDetail.headingLine1')}<br />{t('dayDetail.headingLine2')}
             </h2>
             <p className="mx-auto mt-4 max-w-[34em] text-[clamp(15px,1.7vw,18px)] leading-[1.6] text-ink-700 [text-wrap:pretty]">
-              쉬는 날이 겹쳤다면, 그날 서로 몇 시에 일하고 언제 비는지까지 한눈에.
+              {t('dayDetail.bodyLine1')}
               <br className="hidden min-[480px]:block" />
-              {' '}약속 시간 잡기가 훨씬 쉬워져요.
+              {' '}{t('dayDetail.bodyLine2')}
             </p>
           </Reveal>
           <Reveal className="flex justify-center">
@@ -292,13 +258,13 @@ export default function LandingPage() {
         <div className={WRAP}>
           <Reveal className="mb-[clamp(32px,4vw,52px)] flex flex-wrap items-end justify-between gap-6">
             <div>
-              <span className={EYEBROW}>What you can do</span>
+              <span className={EYEBROW}>{t('features.eyebrow')}</span>
               <h2 className="mt-3 text-[clamp(26px,3.6vw,44px)] font-extrabold leading-[1.08] tracking-[-0.03em]">
-                이런 걸 할 수 있어요
+                {t('features.heading')}
               </h2>
             </div>
             <p className="max-w-[24em] text-[15px] text-ink-500">
-              근무표 등록부터 약속 잡기까지, 교대근무자에게 필요한 것만 담았어요.
+              {t('features.subhead')}
             </p>
           </Reveal>
           <Reveal className="grid grid-cols-1 gap-px overflow-hidden rounded-lg bg-line min-[720px]:grid-cols-2">
@@ -320,7 +286,7 @@ export default function LandingPage() {
         <div className={WRAP}>
           <Reveal>
             <h2 className="mb-[clamp(36px,4vw,56px)] text-center text-[clamp(26px,3.6vw,44px)] font-extrabold tracking-[-0.03em]">
-              시작은 세 단계면 충분해요
+              {t('steps.heading')}
             </h2>
           </Reveal>
           <Reveal className="mx-auto grid max-w-[980px] grid-cols-1 gap-[clamp(20px,3vw,40px)] min-[720px]:grid-cols-3">
@@ -341,9 +307,9 @@ export default function LandingPage() {
       <section className="bg-surface-2 py-[clamp(56px,8vw,104px)]">
         <div className={WRAP}>
           <Reveal className="mx-auto max-w-[820px]">
-            <span className={EYEBROW}>FAQ</span>
+            <span className={EYEBROW}>{t('faq.eyebrow')}</span>
             <h2 className="mt-3 text-[clamp(26px,3.6vw,44px)] font-extrabold tracking-[-0.03em]">
-              자주 묻는 질문
+              {t('faq.heading')}
             </h2>
             <dl className="mt-8 border-t border-line">
               {FAQS.map(f => (
@@ -365,19 +331,19 @@ export default function LandingPage() {
           style={{ background: 'radial-gradient(circle at 80% 120%, rgba(255,255,255,.10), transparent 55%)' }}
         />
         <Reveal className={`${WRAP} relative py-[clamp(64px,9vw,128px)] text-center`}>
-          <p className="font-en text-[12px] uppercase tracking-[0.2em] text-brand-300">Schedule, together.</p>
+          <p className="font-en text-[12px] uppercase tracking-[0.2em] text-brand-300">{t('finalCta.eyebrow')}</p>
           <h2 className="mx-auto mt-[18px] max-w-[14em] text-[clamp(30px,5.4vw,64px)] font-extrabold leading-[1.02] tracking-[-0.035em] [text-wrap:balance]">
-            같이 쉬는 날, 이제 찾지 말고 보세요.
+            {t('finalCta.heading')}
           </h2>
           <p className="mx-auto mt-[18px] max-w-[26em] text-[clamp(15px,1.8vw,18px)] text-brand-100">
-            가입은 1분, 모든 기능이 무료예요. 동료를 초대하면 일정 비교가 바로 시작돼요.
+            {t('finalCta.body')}
           </p>
           <div className="mt-[34px] flex flex-wrap justify-center gap-3">
             <TrackedLink href="/signup" action="signup" location="final" className={`${BTN_LG} ${BTN_ON_DARK}`}>
-              무료로 시작하기
+              {t('finalCta.ctaStart')}
             </TrackedLink>
             <DemoButton location="final" className={`${BTN_LG} ${BTN_GHOST_DARK}`}>
-              데모로 둘러보기
+              {t('finalCta.ctaDemo')}
             </DemoButton>
           </div>
           {/* 로그인은 텍스트 링크로 강등 — CTA 버튼은 가입·데모 둘만 두어 위계 정리. */}
@@ -387,7 +353,7 @@ export default function LandingPage() {
             location="final"
             className="mt-4 inline-block text-[14px] font-semibold text-brand-100 hover:text-white"
           >
-            이미 계정이 있나요? 로그인
+            {t('finalCta.loginLink')}
           </TrackedLink>
         </Reveal>
       </section>
@@ -396,8 +362,8 @@ export default function LandingPage() {
       <footer className="border-t border-line">
         <div className={`${WRAP} flex flex-wrap items-center justify-between gap-[18px] py-[30px]`}>
           <div className="flex gap-[18px] text-[13px] text-ink-500">
-            <Link href="/legal/terms" className="hover:text-ink-900">이용약관</Link>
-            <Link href="/legal/privacy" className="hover:text-ink-900">개인정보처리방침</Link>
+            <Link href="/legal/terms" className="hover:text-ink-900">{t('footer.terms')}</Link>
+            <Link href="/legal/privacy" className="hover:text-ink-900">{t('footer.privacy')}</Link>
           </div>
           <div className="font-en text-[11px] tracking-[0.2em] text-ink-300">RAILINK · 2026</div>
         </div>

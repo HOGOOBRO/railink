@@ -968,5 +968,567 @@
       "dateHeader": "{month}/{day}",
       "mySchedule": "My schedule"
     }
+  },
+  "meta": {
+    "title": "RaiLink · Shared Work-Schedule Calendar",
+    "description": "RaiLink is a free shared work-schedule calendar for shift workers. Register your work schedule and see overlapping days off with your coworkers at a glance."
+  },
+  "landing": {
+    "nav": {
+      "brandSub": "RAILINK",
+      "login": "Log in"
+    },
+    "hero": {
+      "eyebrow": "WORK SCHEDULE, SHARED",
+      "titleLine1": "Days off together,",
+      "titleHighlight": "at a glance.",
+      "subEn": "Schedule, together.",
+      "lead": "Lay your shift-working coworkers’ schedules over your own calendar. The days you’re both off light up, so making plans takes just one message.",
+      "ctaStart": "Start free",
+      "ctaDemo": "Take a tour",
+      "learnMore": "What is overlay view?",
+      "badge1": "1-minute sign-up",
+      "badge2": "Completely free",
+      "badge3": "For anyone on shift or rotating work"
+    },
+    "problem": {
+      "eyebrow": "The problem",
+      "headingLead": "To make a single plan between shift workers,",
+      "headingEmph": "you used to screenshot your schedules to each other and cross-check them day by day on the calendar."
+    },
+    "magic": {
+      "eyebrow": "The magic · Overlay view",
+      "headingLine1": "Onto the screen that showed only your shifts,",
+      "headingLine2": "add a coworker.",
+      "body": "When a coworker uploads their schedule, it overlays on your calendar in their own color. The days no one is working, the days you’re both off, jump right out at you.",
+      "beforeCaption": "My shifts only",
+      "afterCaption": "With coworkers overlaid"
+    },
+    "dayDetail": {
+      "eyebrow": "Zoom in · Day view",
+      "headingLine1": "Overlapping days off,",
+      "headingLine2": "matched down to the hour.",
+      "bodyLine1": "If your days off overlap, see exactly when each of you works and when you’re free that day, at a glance.",
+      "bodyLine2": "Settling on a time gets much easier."
+    },
+    "features": {
+      "eyebrow": "What you can do",
+      "heading": "Here’s what you can do",
+      "subhead": "From registering schedules to making plans — just what shift workers need, nothing more.",
+      "items": [
+        {
+          "no": "01",
+          "title": "Register your schedule",
+          "desc": "Upload a photo of your monthly schedule or import it from Excel, and it’s organized into a calendar automatically."
+        },
+        {
+          "no": "02",
+          "title": "Compare with coworkers",
+          "desc": "Overlay a coworker’s shifts on your calendar. The days you’re both off show up at a glance."
+        },
+        {
+          "no": "03",
+          "title": "Make plans",
+          "desc": "Create a plan on an overlapping day off and invite coworkers. When they respond, we notify you."
+        },
+        {
+          "no": "04",
+          "title": "You control who sees",
+          "desc": "Only coworkers you’ve accepted can see your schedule. You also decide whether you appear in search."
+        }
+      ]
+    },
+    "steps": {
+      "heading": "Three steps are all it takes",
+      "items": [
+        {
+          "n": "STEP 1",
+          "title": "Sign up",
+          "desc": "Sign up in a minute with email or a Google account."
+        },
+        {
+          "n": "STEP 2",
+          "title": "Upload your schedule",
+          "desc": "Register this month’s schedule with a single photo."
+        },
+        {
+          "n": "STEP 3",
+          "title": "Invite coworkers",
+          "desc": "Send a link and your coworkers’ shifts connect automatically."
+        }
+      ]
+    },
+    "faq": {
+      "eyebrow": "FAQ",
+      "heading": "Frequently asked questions",
+      "items": [
+        {
+          "q": "Is RaiLink free?",
+          "a": "Yes. Sign-up and every feature are free."
+        },
+        {
+          "q": "Can I use it if I’m not a flight attendant?",
+          "a": "Yes. Anyone who works shifts or a rotating schedule can sign up and use it."
+        },
+        {
+          "q": "Who can see my schedule?",
+          "a": "Only coworkers whose sharing you’ve accepted. Until you accept, no one can see it."
+        },
+        {
+          "q": "What if my coworker isn’t on RaiLink yet?",
+          "a": "Send them an invite link. The moment they sign up, they connect to you automatically."
+        }
+      ]
+    },
+    "finalCta": {
+      "eyebrow": "Schedule, together.",
+      "heading": "Stop hunting for shared days off — just see them.",
+      "body": "Sign up in a minute, every feature free. Invite a coworker and schedule comparison starts right away.",
+      "ctaStart": "Start free",
+      "ctaDemo": "Take a tour",
+      "loginLink": "Already have an account? Log in"
+    },
+    "footer": {
+      "terms": "Terms of Service",
+      "privacy": "Privacy Policy"
+    },
+    "jsonLd": {
+      "appName": "RaiLink",
+      "appDescription": "RaiLink is a free shared work-schedule calendar for shift workers. Register your work schedule and see overlapping days off with your coworkers at a glance."
+    }
+  },
+  "legal": {
+    "common": {
+      "back": "Back",
+      "effectiveLabel": "EFFECTIVE",
+      "contact": "For questions about this document, write to <email>hello@railink.app</email>.",
+      "koreanPrevails": "This is a reference translation. In case of any discrepancy, the Korean original prevails."
+    },
+    "terms": {
+      "title": "Terms of Service",
+      "metaTitle": "Terms of Service · RaiLink",
+      "metaDescription": "RaiLink Terms of Service.",
+      "art1": {
+        "number": "Article 1",
+        "title": "Purpose",
+        "p": [
+          "These Terms set out the rights, obligations, and responsibilities between the operator (the “Company”) that provides “RaiLink” (the “Service”) and its members, as well as other matters concerning use of the Service."
+        ]
+      },
+      "art2": {
+        "number": "Article 2",
+        "title": "Definitions",
+        "intro": "The terms used in these Terms are defined as follows.",
+        "items": [
+          "“Service” means all services provided by the Company through RaiLink (including the web client, the mobile web, the domain railink.app and its subdomains).",
+          "“Member” means a person who has agreed to these Terms, entered into a usage agreement with the Company, and uses the features the Service provides.",
+          "“KTX crew member” means a member who, as a KTX cabin crew member of Korail Tourism Development Co., Ltd., signed up by entering their own employee number (the “Employee Number”); an “Individual member” means a member who signed up without an Employee Number.",
+          "“Content” means work schedules, profile information, photos, and any other information that a member registers or uploads to the Service.",
+          "“Schedule sharing” means an act by which one member (the “Data Subject”) discloses their work schedule to another member (the “Viewer”), and is established only where there is the express consent of both the Data Subject and the Viewer (“Mutual Consent”).",
+          "“Comparison” means a feature that displays, on a member’s own calendar, the work schedule of another member who has consented to schedule sharing.",
+          "“Visibility” means a setting (public or private) by which a member determines the extent to which their profile appears in coworker search results. Visibility is a concept separate from schedule sharing."
+        ]
+      },
+      "art3": {
+        "number": "Article 3",
+        "title": "Posting and Amendment of the Terms",
+        "p": [
+          "(1) The Company posts the contents of these Terms on the sign-up screen and the help screen so that members can readily review them.",
+          "(2) The Company may amend these Terms to the extent that it does not violate applicable laws, including the Act on the Regulation of Terms and Conditions, the Act on the Consumer Protection in Electronic Commerce, and the Act on Promotion of Information and Communications Network Utilization and Information Protection.",
+          "(3) When the Company amends the Terms, it specifies the effective date and the reason for the amendment and announces them within the Service from at least 7 days before the effective date. However, for amendments unfavorable to members, it announces them from at least 30 days before the effective date and separately notifies members at the email address they registered.",
+          "(4) If a member does not expressly indicate their refusal of the amended Terms within the period set in the announcement or notice under paragraph (3) (at least 7 days), the member is deemed to have agreed to the amended Terms. A member who does not agree to the amended Terms may terminate the usage agreement under Article 17."
+        ]
+      },
+      "art4": {
+        "number": "Article 4",
+        "title": "Rules Outside the Terms",
+        "p": [
+          "Matters not provided for in these Terms and the interpretation of these Terms are governed by the Act on the Regulation of Terms and Conditions, the Personal Information Protection Act, the Act on Promotion of Information and Communications Network Utilization and Information Protection, other applicable laws, or general commercial practice."
+        ]
+      },
+      "art5": {
+        "number": "Article 5",
+        "title": "Formation of the Usage Agreement",
+        "p1": "(1) The usage agreement is formed when a person who wishes to become a member (the “Applicant”) agrees to these Terms and the Privacy Policy, enters their member information using the sign-up form set by the Company, and the Company accepts it.",
+        "p2": "(2) The Company may decline, or subsequently terminate the usage agreement for, applications that fall under any of the following.",
+        "items": [
+          "Where the applicant has previously lost member status under these Terms.",
+          "Where the applicant uses a name that is not their own or another person’s identity (email address, employee number, name, etc.).",
+          "Where the applicant is under 14 years of age.",
+          "Where there are other reasons that make registering the applicant as a member significantly difficult on technical grounds for the Service."
+        ],
+        "p3": "(3) The Employee Number entered by a KTX crew member is not linked in any way to the HR system of Korail Tourism Development Co., Ltd., and verification of the authenticity of the Employee Number is the applicant’s own responsibility. The Company does not warrant that the Employee Number entered by the applicant is the applicant’s own."
+      },
+      "art6": {
+        "number": "Article 6",
+        "title": "Changes to Member Information",
+        "p": [
+          "(1) A member may view and edit their own information at any time through the settings menu. However, items the Company has designated as necessary for identity verification or identification, such as the email address and the Employee Number, may be restricted from change.",
+          "(2) The Company is not responsible for any disadvantage arising from a member’s failure to update information that has changed since the time of application."
+        ]
+      },
+      "art7": {
+        "number": "Article 7",
+        "title": "Member’s Account Management Obligations",
+        "p": [
+          "(1) The member is responsible for managing their account information, such as email address and password, and may not assign or lend it to any third party.",
+          "(2) If a member becomes aware that their account has been stolen or is being misused by a third party, they must immediately notify the Company and follow the Company’s guidance.",
+          "(3) In the case of paragraph (2), the member bears responsibility for any disadvantage arising from failing to notify the Company, or from failing to follow the Company’s guidance even after notifying it."
+        ]
+      },
+      "art8": {
+        "number": "Article 8",
+        "title": "Notices to Members",
+        "p": [
+          "(1) When the Company gives notice to a member, it may do so through the member’s registered email address, in-service notifications, or in-service announcements.",
+          "(2) For notices to an unspecified number of members, the Company may substitute the notice under paragraph (1) by posting it within the Service for at least 7 days."
+        ]
+      },
+      "art9": {
+        "number": "Article 9",
+        "title": "Company’s Obligations",
+        "p": [
+          "(1) The Company does not engage in any act prohibited by applicable laws or these Terms or contrary to public morals, and endeavors to provide the Service stably.",
+          "(2) To handle members’ personal information securely, the Company establishes, posts, and complies with a separate Privacy Policy.",
+          "(3) Where the Company finds that an opinion or complaint raised by a member regarding use of the Service is justified, it puts in place appropriate procedures to address it."
+        ]
+      },
+      "art10": {
+        "number": "Article 10",
+        "title": "Member’s Obligations",
+        "intro": "A member must not engage in any of the following acts.",
+        "items": [
+          "Registering false information, or misappropriating another person’s information, when applying or changing information.",
+          "Registering, viewing, editing, or sharing, without authorization, another person’s employee number, name, work schedule, or the like.",
+          "Infringing the intellectual property rights, including copyrights, of the Company or third parties.",
+          "Damaging the reputation of, or interfering with the work of, the Company or other members.",
+          "Disclosing or posting obscene or violent content, or information contrary to public order and morals, on the Service.",
+          "Accessing the Service or collecting data using automated means (crawlers, bots, etc.). This does not apply where the Company has given prior written consent.",
+          "Any act that disrupts the smooth operation of the Service or undermines the Company’s stable operation.",
+          "Any other act in violation of applicable laws."
+        ]
+      },
+      "art11": {
+        "number": "Article 11",
+        "title": "Provision and Modification of the Service",
+        "intro": "(1) The Company provides members with the following services.",
+        "items": [
+          "Registering, viewing, editing, and deleting the member’s own work schedule.",
+          "Displaying a member’s registered schedule on a monthly calendar.",
+          "Searching for coworker members using a partial match on employee number or name.",
+          "Schedule sharing and comparison features based on Mutual Consent among members.",
+          "Other services the Company additionally develops or provides through partnerships with other companies."
+        ],
+        "p2": "(2) To provide the Service stably, the Company may modify the content, operational, or technical aspects of the Service within a reasonable scope, and when doing so it announces the changes at least 7 days before the effective date. For changes that materially affect members’ rights or obligations, it announces them at least 30 days before the effective date and notifies members by email."
+      },
+      "art12": {
+        "number": "Article 12",
+        "title": "Suspension of the Service",
+        "p": [
+          "(1) The Company may temporarily suspend provision of the Service where there is maintenance, replacement, or failure of computers and other information and communications equipment, a communications outage, or a reasonable operational cause.",
+          "(2) Where provision of the Service is temporarily suspended for the reasons in paragraph (1), the Company notifies members in advance. However, where the Company cannot reasonably give advance notice (urgent security measures, force majeure, etc.), it may notify members afterward.",
+          "(3) Where the Service is suspended due to causes attributable to a third party (cloud hosting providers, database processors, etc.), the Company informs members of the cause and the expected restoration time as promptly as possible."
+        ]
+      },
+      "art13": {
+        "number": "Article 13",
+        "title": "Rights and Responsibilities for Member-Registered Content",
+        "p1": "(1) The rights to, and responsibility for, content such as work schedules, profiles, and photos that a member registers or uploads to the Service rest with that member.",
+        "p2": "(2) For content the member registers or uploads, the member grants the Company a royalty-free right to use it to the extent necessary for operating, displaying, transmitting, backing up, and statistically processing the Service (limited to processing that cannot identify individuals) and for improving the Service.",
+        "p3": "(3) A member must not register any of the following content.",
+        "items": [
+          "Personal information such as another person’s work schedule, employee number, or name.",
+          "Trade secrets, internal security materials, or non-public operational information of third parties such as Korail Tourism Development Co., Ltd. or Korea Railroad Corporation and its affiliates (the “Korail Group”).",
+          "Other information falling under any item of Article 10."
+        ],
+        "p4": "(4) Where a dispute arises from content a member registered in violation of paragraph (3), that member bears all responsibility for it."
+      },
+      "art14": {
+        "number": "Article 14",
+        "title": "Principles of Schedule Sharing and Comparison",
+        "p": [
+          "(1) Regardless of the visibility setting (public or private) chosen at sign-up, a member’s work schedule is displayed to other members only when there is express acceptance of the schedule-sharing request by the Data Subject (the member whose schedule is to be shared).",
+          "(2) A member may revoke schedule sharing they have accepted at any time, and upon revocation the display of the Data Subject’s schedule on the relevant Viewer’s calendar ends immediately.",
+          "(3) The work schedule of another member that a member views through the comparison feature may not be disclosed or distributed externally without the Company’s prior written consent, and collecting, storing, or redistributing another member’s schedule without authorization constitutes a breach of the obligations under Article 10."
+        ]
+      },
+      "art15": {
+        "number": "Article 15",
+        "title": "Deletion of Content, etc.",
+        "p": [
+          "Where the Company determines that content registered by a member violates Article 10 or Article 13, it may delete the content or restrict its display without prior notice, and notifies the relevant member of the reason afterward."
+        ]
+      },
+      "art16": {
+        "number": "Article 16",
+        "title": "Loss and Suspension of Member Status",
+        "p1": "(1) The Company may restrict, suspend, or revoke a member’s status where the member falls under any of the following.",
+        "items": [
+          "Where the member registered false information when applying.",
+          "Where the member registered, viewed, or shared another person’s employee number, name, work schedule, or the like without authorization.",
+          "Where the member intentionally interfered with operation of the Service.",
+          "Where the member otherwise materially violated these Terms or applicable laws."
+        ],
+        "p2": "(2) Where the Company revokes member status, it notifies the member and gives the member an opportunity to explain. However, where urgency is recognized, it may provide the opportunity to explain afterward."
+      },
+      "art17": {
+        "number": "Article 17",
+        "title": "Termination of the Usage Agreement",
+        "p": [
+          "(1) A member may, at any time, request termination of the usage agreement (membership withdrawal) through the settings menu of the Service or by emailing the operator, and the Company processes it without delay absent justifiable cause.",
+          "(2) Where a member terminates the usage agreement, the Company destroys the member’s personal information and content without delay as set out in the Privacy Policy. However, where applicable laws require retention for a certain period, it stores them separately for that period."
+        ]
+      },
+      "art18": {
+        "number": "Article 18",
+        "title": "Damages",
+        "p": [
+          "Where the Company or a member causes damage to the other party by violating these Terms, it is liable to compensate for that damage. However, for special damages exceeding ordinary damages, liability for compensation arises only where the party knew or could have known of the occurrence of such damage."
+        ]
+      },
+      "art19": {
+        "number": "Article 19",
+        "title": "Disclaimer: Relationship with the Korail Group, etc.",
+        "p": [
+          "(1) The Service is an independent service that KTX cabin crew use voluntarily; it is not a service operated, partnered, sponsored, or certified by Korail Tourism Development Co., Ltd., Korea Railroad Corporation, or its affiliates. The Company is not linked in any way to the Korail Group’s HR, labor, or attendance systems.",
+          "(2) All information displayed in the Service, such as work schedules, “die” numbers, and start/end times, is based on materials that members directly enter or upload, and the Company does not warrant the accuracy, completeness, or timeliness of that information.",
+          "(3) Even where members reach a meeting of the minds on a trade or the like through the Service, such an agreement is merely a private arrangement between members and does not replace formal change approval under the Korail Group’s internal procedures.",
+          "(4) The Company is not liable for damage arising from causes not attributable to the Company’s fault, such as force majeure, acts of God, causes attributable to the member, or disputes arising between members or between a member and a third party.",
+          "(5) As a rule, the Service is provided free of charge, and the Company is not liable for damage arising in connection with use of the Service it provided free of charge, except where the Company is grossly negligent or acted intentionally."
+        ]
+      },
+      "art20": {
+        "number": "Article 20",
+        "title": "Governing Law and Jurisdiction",
+        "p": [
+          "(1) Matters relating to these Terms are governed by the laws of the Republic of Korea.",
+          "(2) The court with jurisdiction over lawsuits concerning disputes arising between the Company and a member is the competent court under the Civil Procedure Act."
+        ]
+      },
+      "addendum": {
+        "number": "Addendum",
+        "title": "Effective Date",
+        "p": "These Terms take effect on {date}."
+      }
+    },
+    "privacy": {
+      "title": "Privacy Policy",
+      "metaTitle": "Privacy Policy · RaiLink",
+      "metaDescription": "RaiLink Privacy Policy.",
+      "intro": "The operator (the “Company”) of RaiLink (the “Service”) establishes and discloses the following Privacy Policy (this “Policy”) in order to handle members’ personal information securely in accordance with applicable laws, including the Personal Information Protection Act and the Act on Promotion of Information and Communications Network Utilization and Information Protection.",
+      "s1": {
+        "title": "1. Items of Personal Information Processed and Method of Collection",
+        "g": "A. Items collected as mandatory at sign-up",
+        "gItems": [
+          "Common: email address, name.",
+          "When signing up directly by email: password (stored with one-way encryption).",
+          "When signing up or logging in with a Google account: the email address and name provided by Google (no password is collected).",
+          "KTX crew members: employee number (4–8 digits)."
+        ],
+        "n": "B. Items members optionally enter or register",
+        "nItems": [
+          "Assigned part (KTX crew members only).",
+          "Birthday (if entered, shown only on the calendars of coworkers with whom the schedule is shared).",
+          "Profile photo.",
+          "Whether the member consents to receiving marketing notifications such as updates and events."
+        ],
+        "d": "C. Information generated in the course of using the Service",
+        "dItems": [
+          "The member’s own work schedule (work date, die number, representative train number, start/end times, day-off status).",
+          "Schedule-sharing relationships between members (history of sharing requests, acceptances, and revocations).",
+          "Comparison group composition and color index.",
+          "Authentication tokens, service access records, activity logs.",
+          "When using the AI image recognition feature: the number of uses per month (the images to be recognized are discarded immediately after the result is returned)."
+        ],
+        "r": "D. Information generated and collected automatically",
+        "rItems": [
+          "Session information and preference values stored in cookies and local storage."
+        ]
+      },
+      "s2": {
+        "title": "2. Purposes of Collecting and Using Personal Information",
+        "items": [
+          "Member identification and authentication, identity verification.",
+          "Providing the Service, including the calendar, schedule sharing, and coworker search and comparison.",
+          "Handling members’ inquiries and complaints, delivering announcements.",
+          "Preventing misuse and ensuring the stability of service operation and security.",
+          "Informing members who have consented to marketing notifications of new features and events."
+        ]
+      },
+      "s3": {
+        "title": "3. Retention and Use Period of Personal Information",
+        "p1": "(1) Member information and content are retained until the member terminates the usage agreement. Upon membership withdrawal, the Company destroys the relevant information without delay; however, it stores the following information separately in accordance with applicable laws.",
+        "items": [
+          "Records of labeling and advertising under the Act on the Consumer Protection in Electronic Commerce: 6 months.",
+          "Communication confirmation data under the Protection of Communications Secrets Act: 3 months."
+        ],
+        "p2": "(2) Where a member has not accessed the Service for at least one year, the Company may, after separate notice, place the account in dormant status or delete it."
+      },
+      "s4": {
+        "title": "4. Provision of Personal Information to Third Parties",
+        "p": "The Company does not provide members’ personal information to outside parties except with the member’s separate consent or as provided by law. Where a member accepts schedule sharing with another member within the Service, the member’s work schedule (including their birthday, if entered) is displayed to that Viewer only to the extent the Data Subject directly consented. This constitutes processing the member directly controls and is not provision to a third party by the Company."
+      },
+      "s5": {
+        "title": "5. Outsourcing of Personal Information Processing",
+        "p": "To provide the Service smoothly and stably, the Company outsources personal information processing tasks to the following businesses. In the outsourcing contracts, the Company stipulates the matters necessary for personal information to be managed securely in accordance with Article 26 of the Personal Information Protection Act.",
+        "scopeLabel": "Outsourced task",
+        "itemsLabel": "Outsourced items",
+        "termLabel": "Retention period",
+        "vendors": [
+          {
+            "name": "Supabase, Inc.",
+            "scope": "Member authentication, database hosting, file storage",
+            "items": "All member information in paragraph 1, items A, B, and C",
+            "term": "Until membership withdrawal or termination of the outsourcing contract"
+          },
+          {
+            "name": "OpenAI, L.L.C.",
+            "scope": "Extracting schedules from work-schedule images uploaded by members (AI recognition)",
+            "items": "Image files, recognition results",
+            "term": "Discarded immediately after the result is returned (no retention for training under OpenAI API policy)"
+          },
+          {
+            "name": "Vercel Inc.",
+            "scope": "Service hosting and content delivery",
+            "items": "Access logs, IP addresses",
+            "term": "Until termination of the outsourcing contract"
+          },
+          {
+            "name": "Resend, Inc.",
+            "scope": "Sending transactional email such as sign-up verification and password reset",
+            "items": "Email address",
+            "term": "Until sending is completed (sending logs retained for a certain period)"
+          },
+          {
+            "name": "Google LLC",
+            "scope": "Google account sign-in (OAuth) authentication: only where the member chooses Google login",
+            "items": "Email address, name, Google account identifier",
+            "term": "While the member uses Google login (retention follows Google’s policy)"
+          }
+        ]
+      },
+      "s6": {
+        "title": "6. Cross-Border Transfer of Personal Information",
+        "p": "For the outsourced processing in paragraph 5 above, the Company transfers personal information abroad as follows. All transfers below are outsourced processing essential to providing the Service and are disclosed through this Policy in accordance with Article 28-8 of the Personal Information Protection Act.",
+        "countryLabel": "Destination country",
+        "purposeLabel": "Purpose of transfer",
+        "itemsLabel": "Items transferred",
+        "whenLabel": "Timing/method of transfer",
+        "termLabel": "Retention period",
+        "transfers": [
+          {
+            "name": "Supabase, Inc.",
+            "country": "United States, Singapore, etc. (region selected by the Company)",
+            "purpose": "Authentication, database, storage",
+            "items": "All member information in paragraph 1",
+            "when": "When the member uses the Service; network transmission over HTTPS",
+            "term": "Until membership withdrawal"
+          },
+          {
+            "name": "OpenAI, L.L.C.",
+            "country": "United States",
+            "purpose": "AI image recognition",
+            "items": "Image files, recognition results",
+            "when": "When the member uploads an image; HTTPS transmission",
+            "term": "Discarded immediately after the result is returned"
+          },
+          {
+            "name": "Vercel Inc.",
+            "country": "United States, etc.",
+            "purpose": "Hosting",
+            "items": "Access logs, IP",
+            "when": "When the Service is accessed; HTTPS transmission",
+            "term": "Until termination of the outsourcing contract"
+          },
+          {
+            "name": "Resend, Inc.",
+            "country": "United States",
+            "purpose": "Sending transactional email",
+            "items": "Email address",
+            "when": "When email such as sign-up verification or password reset is sent; HTTPS transmission",
+            "term": "Until sending is completed"
+          },
+          {
+            "name": "Google LLC",
+            "country": "United States",
+            "purpose": "Google account login (OAuth) authentication",
+            "items": "Email address, name, Google account identifier",
+            "when": "When the member chooses Google login; HTTPS transmission",
+            "term": "Follows Google’s policy"
+          }
+        ]
+      },
+      "s7": {
+        "title": "7. Rights and Obligations of Data Subjects and How to Exercise Them",
+        "p": [
+          "(1) A member may at any time request, with respect to the Company, access to, correction or deletion of, suspension of processing of, and withdrawal of consent regarding their own personal information.",
+          "(2) Rights may be exercised through the settings menu within the Service or by applying to the Company’s email (hello@railink.app), and the Company takes action on these without delay.",
+          "(3) A member may not register the personal information of a child under 14 years of age and must not register the personal information of any person other than themselves."
+        ]
+      },
+      "s8": {
+        "title": "8. Procedure and Method of Destroying Personal Information",
+        "p": [
+          "(1) Where the retention and use period has elapsed or the purpose of processing has been achieved, the Company destroys the relevant personal information without delay.",
+          "(2) Information stored in electronic file form is permanently deleted so that it cannot be recovered or reproduced, and information in paper form is shredded or incinerated."
+        ]
+      },
+      "s9": {
+        "title": "9. Measures to Ensure the Security of Personal Information",
+        "p": "In accordance with Article 29 of the Personal Information Protection Act, the Company implements the following measures to ensure security.",
+        "items": [
+          "One-way encrypted storage of passwords.",
+          "Separation of access permissions to member information and application of the principle of least privilege (database Row Level Security, etc.).",
+          "Application of HTTPS across all external communications.",
+          "Imposition of security obligations on outsourced processors and regular inspections.",
+          "Retention of access logs and monitoring of intrusion attempts."
+        ]
+      },
+      "s10": {
+        "title": "10. Installation, Operation, and Refusal of Automatic Collection Devices (Cookies, etc.)",
+        "p": [
+          "(1) The Company uses automatic collection devices such as cookies and local storage to maintain members’ authentication status and to save preferences.",
+          "(2) A member may refuse to store cookies through the settings of the web browser they use. However, refusing authentication-related cookies may restrict use of the Service."
+        ]
+      },
+      "s11": {
+        "title": "11. Personal Information of Children Under 14",
+        "p": "The Company does not collect the personal information of children under 14 years of age. Where it is confirmed at sign-up that the applicant is under 14, the Company declines the sign-up."
+      },
+      "s12": {
+        "title": "12. Personal Information Protection Officer",
+        "p1": "The Company designates the following Personal Information Protection Officer to oversee tasks related to the processing of personal information and to handle members’ exercise of rights in connection with the processing of their personal information.",
+        "officer": "Personal Information Protection Officer: RaiLink operator",
+        "contactLabel": "Contact:",
+        "p2": "A member may direct to the above contact any inquiries, complaint handling, or damage relief regarding personal information protection arising while using the Service, and the Company answers and addresses members’ inquiries without delay."
+      },
+      "s13": {
+        "title": "13. Remedies for Infringement of Rights",
+        "p": "To obtain relief for personal information infringement, a member may apply for dispute resolution or consultation to the following bodies.",
+        "items": [
+          "Personal Information Dispute Mediation Committee: 1833-6972 (www.kopico.go.kr)",
+          "Personal Information Infringement Report Center: 118 (privacy.kisa.or.kr)",
+          "Cybercrime Investigation Division, Supreme Prosecutors’ Office: 1301 (www.spo.go.kr)",
+          "Cyber Investigation Bureau, National Police Agency: 182 (ecrm.cyber.go.kr)"
+        ]
+      },
+      "s14": {
+        "title": "14. Changes to the Policy",
+        "p": "This Policy may be amended in accordance with changes in law or in the Service, and upon amendment the Company specifies the reason and the effective date and announces them within the Service. For changes that materially affect members, it announces them at least 30 days before the effective date and notifies members by email.",
+        "effective": "Effective date: {date}"
+      }
+    },
+    "oss": {
+      "title": "Open Source Licenses",
+      "metaTitle": "Open Source Licenses · RaiLink",
+      "metaDescription": "Notice of open source licenses used in RaiLink.",
+      "intro": "RaiLink is built using the following open source software. Through this page, the Company provides copies of, or the locations of the originals of, each license. The copyright in each piece of software belongs to its respective rights holder, and this page is provided for notice purposes only. Details of outsourced processing and cross-border transfer of personal information to external services can be found in the Privacy Policy.",
+      "s1Title": "1. Runtime and UI Dependencies",
+      "s2Title": "2. Fonts",
+      "s3Title": "3. General Notice",
+      "s3Body": "The full text of the licenses above (MIT, Apache License 2.0, SIL OFL 1.1, etc.) can be reviewed at the URL linked for each item. If there is any missing license notice, let us know at the Company’s email (hello@railink.app) and we will reflect it without delay.",
+      "fontPretendard": "Used as the Korean body font.",
+      "fontJetbrains": "Used as the font for Latin letters, numerals, dates, and times."
+    }
   }
 }

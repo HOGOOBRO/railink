@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { JetBrains_Mono } from 'next/font/google'
 import { NextIntlClientProvider } from 'next-intl'
-import { getLocale, getMessages } from 'next-intl/server'
+import { getLocale, getMessages, getTranslations } from 'next-intl/server'
 import { ToastProvider } from '@/components/ui/Toast'
 import { AppFrame } from '@/components/AppFrame'
 import { SwRegister } from '@/components/SwRegister'
@@ -15,49 +15,55 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 // 한글 표기 "레일링크"를 제목·설명에 반드시 포함 — 한국어 검색("레일링크",
-// "근무표 공유")이 매칭될 문서가 사이트에 있어야 한다 (2026-06 SEO 진단).
-const SITE_TITLE = '레일링크 RaiLink · 근무표 공유 캘린더'
-const SITE_DESC =
-  '레일링크는 교대근무자를 위한 무료 근무표 공유 캘린더예요. 내 근무 스케줄을 등록하고 동료와 겹치는 휴무를 한눈에 확인하세요.'
+// "근무표 공유")이 매칭될 문서가 사이트에 있어야 한다 (2026-06 SEO 진단). 이
+// 한국어 문구는 meta 네임스페이스(messages/ko.json)의 meta.title·meta.description과
+// 글자 단위로 동일해야 한다 — 쿠키 없는 크롤러는 기본 로케일(ko)로 떨어져 SEO가
+// 그대로 유지된다.
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale()
+  const t = await getTranslations('meta')
+  const title = t('title')
+  const description = t('description')
 
-export const metadata: Metadata = {
-  metadataBase: new URL('https://railink.app'),
-  title: SITE_TITLE,
-  description: SITE_DESC,
-  // Static og:image (public/og-image.png) — a fixed, query-less URL that
-  // KakaoTalk's scraper reliably caches, unlike the dynamic next/og route.
-  openGraph: {
-    title: SITE_TITLE,
-    description: SITE_DESC,
-    url: 'https://railink.app',
-    siteName: 'RaiLink',
-    locale: 'ko_KR',
-    type: 'website',
-    images: [{ url: '/og-image.png', width: 1200, height: 630, type: 'image/png', alt: 'RaiLink' }],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: SITE_TITLE,
-    description: SITE_DESC,
-    images: ['/og-image.png'],
-  },
-  // iOS "Add to Home Screen": full-screen standalone + short home-screen label.
-  appleWebApp: {
-    capable: true,
-    title: 'RaiLink',
-    statusBarStyle: 'default',
-    startupImage: ['/apple-splash'],
-  },
-  // Search engine site verification (rendered into <head> as <meta> tags).
-  // Naver 서치어드바이저 + Google Search Console "HTML 태그" method. (Google can
-  // also verify via the DNS TXT record in Vercel DNS — that path doesn't need
-  // this tag.)
-  verification: {
-    google: 'oETvNpqz_tZgbKyUYZ15GbF10AGg1RrhuwtWoFHE9s8',
-    other: {
-      'naver-site-verification': 'cfe75c133903a6b79a29b1988a77274b13df6758',
+  return {
+    metadataBase: new URL('https://railink.app'),
+    title,
+    description,
+    // Static og:image (public/og-image.png) — a fixed, query-less URL that
+    // KakaoTalk's scraper reliably caches, unlike the dynamic next/og route.
+    openGraph: {
+      title,
+      description,
+      url: 'https://railink.app',
+      siteName: 'RaiLink',
+      locale: locale === 'en' ? 'en_US' : 'ko_KR',
+      type: 'website',
+      images: [{ url: '/og-image.png', width: 1200, height: 630, type: 'image/png', alt: 'RaiLink' }],
     },
-  },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: ['/og-image.png'],
+    },
+    // iOS "Add to Home Screen": full-screen standalone + short home-screen label.
+    appleWebApp: {
+      capable: true,
+      title: 'RaiLink',
+      statusBarStyle: 'default',
+      startupImage: ['/apple-splash'],
+    },
+    // Search engine site verification (rendered into <head> as <meta> tags).
+    // Naver 서치어드바이저 + Google Search Console "HTML 태그" method. (Google can
+    // also verify via the DNS TXT record in Vercel DNS — that path doesn't need
+    // this tag.)
+    verification: {
+      google: 'oETvNpqz_tZgbKyUYZ15GbF10AGg1RrhuwtWoFHE9s8',
+      other: {
+        'naver-site-verification': 'cfe75c133903a6b79a29b1988a77274b13df6758',
+      },
+    },
+  }
 }
 
 export const viewport = {
