@@ -1,0 +1,33 @@
+{
+  "common": {
+    "or": "또는"
+  },
+  "settings": {
+    "language": {
+      "title": "언어",
+      "ko": "한국어",
+      "en": "English"
+    }
+  },
+  "login": {
+    "tagline": "내 일정과 함께 보는 사람의 일정을 한 화면에서.",
+    "emailLabel": "이메일",
+    "passwordLabel": "비밀번호",
+    "showPassword": "비밀번호 보기",
+    "hidePassword": "비밀번호 숨기기",
+    "submit": "로그인",
+    "submitLoading": "로그인 중…",
+    "resendConfirmation": "인증 메일 다시 보내기",
+    "googleContinue": "Google로 계속하기",
+    "googleLoading": "연결 중…",
+    "createAccount": "계정 만들기",
+    "anyScheduleNote": "어떤 근무 스케줄이든 함께 맞춰볼 수 있어요.",
+    "findPassword": "비밀번호 찾기",
+    "demoTitle": "데모 계정으로 둘러보기",
+    "demoAutofill": "→ 자동으로 채우기",
+    "missingFields": "이메일 또는 비밀번호를 확인해 주세요.",
+    "googleStartFailed": "Google 로그인을 시작하지 못했어요.",
+    "welcomeToast": "환영합니다, {name} 님!",
+    "resendToast": "인증 메일을 다시 보냈어요. 메일함을 확인해 주세요."
+  }
+}

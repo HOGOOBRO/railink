@@ -1,0 +1,33 @@
+{
+  "common": {
+    "or": "or"
+  },
+  "settings": {
+    "language": {
+      "title": "Language",
+      "ko": "한국어",
+      "en": "English"
+    }
+  },
+  "login": {
+    "tagline": "Your schedule and theirs, on one screen.",
+    "emailLabel": "Email",
+    "passwordLabel": "Password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "submit": "Log in",
+    "submitLoading": "Logging in…",
+    "resendConfirmation": "Resend confirmation email",
+    "googleContinue": "Continue with Google",
+    "googleLoading": "Connecting…",
+    "createAccount": "Create account",
+    "anyScheduleNote": "Works with any work schedule.",
+    "findPassword": "Forgot password",
+    "demoTitle": "Explore with a demo account",
+    "demoAutofill": "→ Auto-fill",
+    "missingFields": "Please check your email or password.",
+    "googleStartFailed": "Couldn't start Google sign-in.",
+    "welcomeToast": "Welcome, {name}!",
+    "resendToast": "We've resent the confirmation email. Please check your inbox."
+  }
+}

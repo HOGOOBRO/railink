@@ -1,3 +1,8 @@
+import createNextIntlPlugin from 'next-intl/plugin'
+
+// 쿠키 기반 i18n. 로케일 설정은 ./i18n/request.ts 에서 읽는다(URL 프리픽스 없음).
+const withNextIntl = createNextIntlPlugin('./i18n/request.ts')
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async redirects() {
@@ -15,4 +20,4 @@ const nextConfig = {
   },
 }
 
-export default nextConfig
+export default withNextIntl(nextConfig)

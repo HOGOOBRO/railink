@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -17,6 +18,8 @@ import { useDelayedFlag } from '@/lib/use-delayed-flag'
 export default function LoginPage() {
   const router = useRouter()
   const { showToast } = useToast()
+  const t = useTranslations('login')
+  const tCommon = useTranslations('common')
 
   const [email, setEmail]       = useState<string>(DEMO_LOGIN.email)
   const [password, setPassword] = useState<string>(DEMO_LOGIN.pw)
@@ -63,7 +66,7 @@ export default function LoginPage() {
     setError(null)
     setUnconfirmed(false)
     if (!email || !password) {
-      setError('이메일 또는 비밀번호를 확인해 주세요.')
+      setError(t('missingFields'))
       return
     }
     setLoading(true)
@@ -76,7 +79,7 @@ export default function LoginPage() {
     }
     const s = await getCurrentSession()
     setLoading(false)
-    showToast(`환영합니다, ${s?.name || 'Theo'} 님!`, 'success')
+    showToast(t('welcomeToast', { name: s?.name || 'Theo' }), 'success')
     // An invite stashed at /signup?invite= is consumed on the calendar mount
     // (single chokepoint that also handles signup + already-logged-in entry).
     router.push('/calendar')
@@ -93,14 +96,14 @@ export default function LoginPage() {
     // On success the browser navigates away; we only land here on failure.
     if (!res.ok) {
       setGoogleLoading(false)
-      setError(res.message ?? 'Google 로그인을 시작하지 못했어요.')
+      setError(res.message ?? t('googleStartFailed'))
     }
   }
 
   async function handleResend() {
     if (!email) return
     await resendConfirmation(email)
-    showToast('인증 메일을 다시 보냈어요. 메일함을 확인해 주세요.', 'success')
+    showToast(t('resendToast'), 'success')
   }
 
   // Hold while we decide login-vs-calendar. A fast resolve (logged-out: no
@@ -146,7 +149,7 @@ export default function LoginPage() {
             <span className="text-brand">together.</span>
           </h1>
           <p className="mt-3.5 pt-3.5 border-t border-line text-[13px] text-ink-700 leading-relaxed">
-            내 일정과 함께 보는 사람의 일정을 한 화면에서.
+            {t('tagline')}
           </p>
         </div>
       </div>
@@ -156,7 +159,7 @@ export default function LoginPage() {
         <div className="flex flex-col gap-3.5">
           <Input
             id="email"
-            label="이메일"
+            label={t('emailLabel')}
             type="email"
             autoComplete="email"
             className="font-en"
@@ -165,7 +168,7 @@ export default function LoginPage() {
           />
           <Input
             id="password"
-            label="비밀번호"
+            label={t('passwordLabel')}
             type={showPw ? 'text' : 'password'}
             autoComplete="current-password"
             className="font-en"
@@ -176,7 +179,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPw(s => !s)}
-                aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'}
+                aria-label={showPw ? t('hidePassword') : t('showPassword')}
                 className="grid place-items-center w-9 h-9"
               >
                 <EyeIcon size={20} off={!showPw} />
@@ -187,7 +190,7 @@ export default function LoginPage() {
 
         <div className="h-1" />
         <Button type="submit" block disabled={loading}>
-          {loading ? '로그인 중…' : '로그인'}
+          {loading ? t('submitLoading') : t('submit')}
         </Button>
         {unconfirmed && (
           <button
@@ -195,14 +198,14 @@ export default function LoginPage() {
             onClick={handleResend}
             className="mt-2 text-caption font-semibold text-brand hover:text-brand-700 transition-colors self-center"
           >
-            인증 메일 다시 보내기
+            {t('resendConfirmation')}
           </button>
         )}
 
         {/* 또는 divider */}
         <div className="flex items-center gap-3 my-4">
           <div className="flex-1 h-px bg-line-2" />
-          <span className="text-[11px] font-semibold tracking-wider text-ink-500">또는</span>
+          <span className="text-[11px] font-semibold tracking-wider text-ink-500">{tCommon('or')}</span>
           <div className="flex-1 h-px bg-line-2" />
         </div>
 
@@ -214,20 +217,20 @@ export default function LoginPage() {
           disabled={googleLoading || loading}
         >
           <GoogleIcon size={18} />
-          {googleLoading ? '연결 중…' : 'Google로 계속하기'}
+          {googleLoading ? t('googleLoading') : t('googleContinue')}
         </Button>
 
         <div className="h-2.5" />
 
         <Link href="/signup" className="w-full">
           <Button type="button" variant="outline-brand" block>
-            계정 만들기
+            {t('createAccount')}
           </Button>
         </Link>
         {/* Positive framing of "non-KTX people can sign up too" — phrased as a
             capability, never "KTX가 아니어도" (negative framing was rejected). */}
         <p className="mt-2.5 text-center text-[12.5px] text-ink-300 leading-relaxed">
-          어떤 근무 스케줄이든 함께 맞춰볼 수 있어요.
+          {t('anyScheduleNote')}
         </p>
 
         <div className="flex items-center justify-center my-3.5 text-[13px]">
@@ -235,13 +238,13 @@ export default function LoginPage() {
             href="/find?mode=pw"
             className="font-kr font-semibold text-ink-700 hover:text-brand transition-colors px-1.5 py-1"
           >
-            비밀번호 찾기
+            {t('findPassword')}
           </Link>
         </div>
 
         {/* Demo account card */}
         <div className="mt-1.5 bg-brand-050 border-2 border-line rounded-md px-4 py-3.5 text-caption text-ink-700 leading-relaxed">
-          <p className="text-[13px] font-bold text-ink-900 mb-1.5">데모 계정으로 둘러보기</p>
+          <p className="text-[13px] font-bold text-ink-900 mb-1.5">{t('demoTitle')}</p>
           <div className="font-en">
             <p><span className="text-ink-500">email&nbsp;&nbsp;</span>{DEMO_LOGIN.email}</p>
             <p><span className="text-ink-500">pw&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>{DEMO_LOGIN.pw}</p>
@@ -251,7 +254,7 @@ export default function LoginPage() {
             onClick={autofillDemo}
             className="mt-2 font-kr font-bold text-[13px] text-brand hover:text-brand-700 transition-colors"
           >
-            → 자동으로 채우기
+            {t('demoAutofill')}
           </button>
         </div>
       </form>

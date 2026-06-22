@@ -26,6 +26,7 @@ import { Switch } from '@/components/ui/Switch'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { DangerConfirm } from '@/components/ui/DangerConfirm'
 import { BottomSheet } from '@/components/ui/BottomSheet'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
 import { CbSelect } from '@/components/ui/CbSelect'
 import { BRANCHES, BRANCH_OTHER } from '@/lib/profile-fields'
@@ -553,6 +554,9 @@ export default function SettingsInfoPage() {
           )}
         </Section>
         </div>
+
+        {/* 언어 / Language */}
+        <LanguageSwitcher />
 
         {/* 기타 */}
         <Section title="기타">

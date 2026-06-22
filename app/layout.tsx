@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import { JetBrains_Mono } from 'next/font/google'
+import { NextIntlClientProvider } from 'next-intl'
+import { getLocale, getMessages } from 'next-intl/server'
 import { ToastProvider } from '@/components/ui/Toast'
 import { AppFrame } from '@/components/AppFrame'
 import { SwRegister } from '@/components/SwRegister'
@@ -67,12 +69,18 @@ export const viewport = {
   colorScheme: 'light',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // 쿠키 기반 언어. 서버에서 현재 로케일과 문구 사전을 읽어 <html lang>과
+  // 클라이언트 프로바이더에 내려준다. URL 프리픽스가 없으므로 언어 전환은
+  // 쿠키 변경 + router.refresh()로 이 서버 렌더를 다시 태워 반영된다.
+  const locale = await getLocale()
+  const messages = await getMessages()
+
   // Inline background on html/body so a cold PWA launch paints the neutral
   // surface immediately — before globals.css loads. Without it the system can
   // flash a black screen (standalone dark mode) until the stylesheet applies.
   return (
-    <html lang="ko" className={jetbrainsMono.variable} style={{ backgroundColor: '#F5F6F8' }}>
+    <html lang={locale} className={jetbrainsMono.variable} style={{ backgroundColor: '#F5F6F8' }}>
       <body style={{ backgroundColor: '#F5F6F8' }}>
         {/* gtag 동기 스텁: gtag.js(afterInteractive + opt-out 체크 뒤 지연 마운트)가
             로드되기 전에 발생한 이벤트(빠른 가입/데모 로그인)가 유실되지 않도록
@@ -84,9 +92,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               'window.dataLayer=window.dataLayer||[];window.gtag=window.gtag||function(){window.dataLayer.push(arguments);};',
           }}
         />
-        <ToastProvider>
-          <AppFrame>{children}</AppFrame>
-        </ToastProvider>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <ToastProvider>
+            <AppFrame>{children}</AppFrame>
+          </ToastProvider>
+        </NextIntlClientProvider>
         <SwRegister />
         <Analytics />
       </body>
