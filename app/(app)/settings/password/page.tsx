@@ -3,13 +3,12 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { ChevronLeftIcon, EyeIcon } from '@/components/ui/icons'
 import { changePassword } from '@/lib/auth'
-
-const PW_LABELS = ['', '약함', '보통', '좋음', '강함']
 
 function pwStrength(pw: string): number {
   if (!pw) return 0
@@ -24,6 +23,8 @@ function pwStrength(pw: string): number {
 export default function PasswordChangePage() {
   const router = useRouter()
   const { showToast } = useToast()
+  const t = useTranslations('settings.password')
+  const PW_LABELS = ['', t('pwWeak'), t('pwFair'), t('pwGood'), t('pwStrong')]
 
   const [cur, setCur] = useState('')
   const [pw, setPw] = useState('')
@@ -37,12 +38,12 @@ export default function PasswordChangePage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     const errs: typeof errors = {}
-    if (!cur) errs.cur = '현재 비밀번호를 입력해 주세요.'
-    if (!pw) errs.pw = '새 비밀번호를 입력해 주세요.'
-    else if (pw.length < 8) errs.pw = '비밀번호는 8자 이상으로 설정해 주세요.'
-    else if (!/[A-Za-z]/.test(pw) || !/\d/.test(pw)) errs.pw = '영문과 숫자를 모두 포함해 주세요.'
-    else if (pw === cur) errs.pw = '현재 비밀번호와 달라야 해요.'
-    if (pwc !== pw) errs.pwc = '비밀번호가 일치하지 않아요.'
+    if (!cur) errs.cur = t('errorCurrentRequired')
+    if (!pw) errs.pw = t('errorNewRequired')
+    else if (pw.length < 8) errs.pw = t('errorTooShort')
+    else if (!/[A-Za-z]/.test(pw) || !/\d/.test(pw)) errs.pw = t('errorComposition')
+    else if (pw === cur) errs.pw = t('errorSameAsCurrent')
+    if (pwc !== pw) errs.pwc = t('errorMismatch')
     setErrors(errs)
     if (Object.keys(errs).length > 0) return
 
@@ -51,10 +52,10 @@ export default function PasswordChangePage() {
     setLoading(false)
     if (!res.ok) {
       if (res.message?.includes('현재 비밀번호')) setErrors({ cur: res.message })
-      else showToast(res.message ?? '비밀번호 변경에 실패했어요.', 'danger')
+      else showToast(res.message ?? t('changeFailed'), 'danger')
       return
     }
-    showToast('비밀번호를 변경했어요.', 'success')
+    showToast(t('changed'), 'success')
     router.push('/settings/info')
   }
 
@@ -62,7 +63,7 @@ export default function PasswordChangePage() {
     <button
       type="button"
       onClick={() => setShowPw(s => !s)}
-      aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'}
+      aria-label={showPw ? t('hidePassword') : t('showPassword')}
       className="grid place-items-center w-9 h-9"
     >
       <EyeIcon size={20} off={!showPw} />
@@ -77,23 +78,23 @@ export default function PasswordChangePage() {
       <header className="h-topbar flex items-center gap-1 px-1.5 border-b border-line bg-surface shrink-0">
         <Link
           href="/settings/info"
-          aria-label="뒤로"
+          aria-label={t('back')}
           className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
         >
           <ChevronLeftIcon size={20} />
         </Link>
-        <h3 className="text-[18px] font-bold tracking-tight text-ink-900">비밀번호 변경</h3>
+        <h3 className="text-[18px] font-bold tracking-tight text-ink-900">{t('title')}</h3>
       </header>
 
       <form onSubmit={submit} className="flex-1 overflow-y-auto px-5 pt-5 pb-8" noValidate>
         <p className="text-callout text-ink-700 leading-relaxed mb-4">
-          현재 비밀번호를 확인한 뒤 새 비밀번호로 변경할 수 있어요.
+          {t('intro')}
         </p>
 
         <div className="flex flex-col gap-3.5">
           <Input
             id="curPw"
-            label="현재 비밀번호"
+            label={t('currentLabel')}
             required
             type={showPw ? 'text' : 'password'}
             autoComplete="current-password"
@@ -106,7 +107,7 @@ export default function PasswordChangePage() {
           <div className="flex flex-col gap-2">
             <Input
               id="newPw"
-              label="새 비밀번호"
+              label={t('newLabel')}
               required
               type={showPw ? 'text' : 'password'}
               autoComplete="new-password"
@@ -116,8 +117,8 @@ export default function PasswordChangePage() {
               error={errors.pw}
               hint={
                 !errors.pw && (pw
-                  ? `강도: ${PW_LABELS[strength]}`
-                  : '8자 이상, 영문과 숫자를 포함해 주세요.')
+                  ? t('strength', { label: PW_LABELS[strength] })
+                  : t('newHint'))
               }
               trailing={eyeBtn}
             />
@@ -140,7 +141,7 @@ export default function PasswordChangePage() {
           </div>
           <Input
             id="confirmPw"
-            label="새 비밀번호 확인"
+            label={t('confirmLabel')}
             required
             type={showPw ? 'text' : 'password'}
             autoComplete="new-password"
@@ -154,14 +155,14 @@ export default function PasswordChangePage() {
 
         <div className="h-2" />
         <Button type="submit" block disabled={loading}>
-          {loading ? '변경 중…' : '비밀번호 변경'}
+          {loading ? t('submitLoading') : t('submit')}
         </Button>
 
         <Link
           href="/find?mode=pw"
           className="block mt-3 text-center text-callout text-ink-500 py-2"
         >
-          현재 비밀번호가 기억나지 않아요
+          {t('forgotCurrent')}
         </Link>
       </form>
     </div>

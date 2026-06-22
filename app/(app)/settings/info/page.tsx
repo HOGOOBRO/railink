@@ -3,6 +3,7 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
@@ -32,11 +33,6 @@ import { CbSelect } from '@/components/ui/CbSelect'
 import { BRANCHES, BRANCH_OTHER } from '@/lib/profile-fields'
 import type { Visibility } from '@/lib/types/schedule'
 
-const VIS_OPTIONS: RadioOption<Visibility>[] = [
-  { value: 'public', title: '공개', desc: '이름·사진이 동료 검색에 떠요. 일정은 따로 수락이 필요해요.' },
-  { value: 'private', title: '비공개', desc: '검색에는 안 떠요. 사번을 정확히 아는 동료만 공유를 요청할 수 있어요.' },
-]
-
 const EMPTY_SHARES: ShareListsWithProfile = { incoming: [], outgoing: [], sharing: [], viewing: [] }
 
 const SCHEDULES_KEY = 'railink_schedules_v3'
@@ -45,6 +41,13 @@ const DEMO_SESSION_KEY = 'railink_demo_session_v3'
 export default function SettingsInfoPage() {
   const router = useRouter()
   const { showToast } = useToast()
+  const t = useTranslations('settings.info')
+  const tFields = useTranslations('fields')
+
+  const VIS_OPTIONS: RadioOption<Visibility>[] = [
+    { value: 'public', title: tFields('visibility.public.title'), desc: tFields('visibility.public.desc') },
+    { value: 'private', title: tFields('visibility.private.title'), desc: tFields('visibility.private.desc') },
+  ]
 
   // 이스터에그: 버전 표기를 1.5초 내 7번 탭하면 이 기기를 GA에서 제외/복귀 토글.
   // PWA(특히 iOS)는 주소창이 없어 `?noga=1`을 입력할 수 없으므로 인앱 진입점으로 둠.
@@ -61,10 +64,10 @@ export default function SettingsInfoPage() {
     try {
       if (localStorage.getItem('ga_optout') === '1') {
         localStorage.removeItem('ga_optout')
-        showToast('이 기기 통계 수집을 다시 켰어요. 새로고침하면 적용돼요.', 'default')
+        showToast(t('gaOptIn'), 'default')
       } else {
         localStorage.setItem('ga_optout', '1')
-        showToast('이 기기를 통계에서 제외했어요. 새로고침하면 적용돼요.', 'success')
+        showToast(t('gaOptOut'), 'success')
       }
     } catch {}
   }
@@ -122,14 +125,14 @@ export default function SettingsInfoPage() {
         try {
           await disablePush()
           setPush('disabled')
-          showToast('약속 초대 알림을 껐어요.', 'default')
+          showToast(t('pushOff'), 'default')
         } catch (e) {
-          showToast(e instanceof Error ? e.message : '알림 해제에 실패했어요.', 'danger')
+          showToast(e instanceof Error ? e.message : t('pushOffFailed'), 'danger')
         }
       } else {
         const res = await enablePush()
         setPush(res.status)
-        if (res.status === 'enabled') showToast('약속 초대 알림을 켰어요.', 'success')
+        if (res.status === 'enabled') showToast(t('pushOn'), 'success')
         else if (res.message) showToast(res.message, 'danger')
       }
     } finally {
@@ -224,11 +227,11 @@ export default function SettingsInfoPage() {
     setMktBusy(false)
     if (!res.ok) {
       setMktConsent(!next)
-      showToast(res.message ?? '수신 동의를 바꾸지 못했어요.', 'danger')
+      showToast(res.message ?? t('marketingToggleFailed'), 'danger')
       return
     }
     showToast(
-      next ? '업데이트·이벤트 알림 수신에 동의했어요.' : '업데이트·이벤트 알림 수신을 껐어요.',
+      next ? t('marketingOn') : t('marketingOff'),
       next ? 'success' : 'default',
     )
   }
@@ -246,10 +249,10 @@ export default function SettingsInfoPage() {
     const res = await saveVisibility(next)
     if (!res.ok) {
       setVis(prev)
-      showToast(res.message ?? '공개 범위를 바꾸지 못했어요.', 'danger')
+      showToast(res.message ?? t('visibilityChangeFailed'), 'danger')
       return
     }
-    showToast('공개 범위를 바꿨어요', 'success')
+    showToast(t('visibilityChanged'), 'success')
   }
 
   // Share-row actions. Each disables the row controls while in flight, then
@@ -259,7 +262,7 @@ export default function SettingsInfoPage() {
     setShareBusy(true)
     const res = await fn()
     setShareBusy(false)
-    if (!res.ok) { showToast(res.message ?? '잠시 후 다시 시도해 주세요.', 'danger'); return }
+    if (!res.ok) { showToast(res.message ?? t('shareActionFailed'), 'danger'); return }
     if (gaEvent) track(gaEvent)
     showToast(okMsg, 'success')
     reloadShares()
@@ -282,7 +285,7 @@ export default function SettingsInfoPage() {
 
   async function handleSave() {
     if (!dirty || saving || !session) return
-    if (!name.trim()) { showToast('이름을 입력해 주세요.', 'danger'); return }
+    if (!name.trim()) { showToast(t('nameRequired'), 'danger'); return }
     setSaving(true)
     const res = await updateProfile({
       name: name.trim(),
@@ -291,7 +294,7 @@ export default function SettingsInfoPage() {
     })
     if (!res.ok) {
       setSaving(false)
-      showToast(res.message ?? '저장에 실패했어요.', 'danger')
+      showToast(res.message ?? t('saveFailed'), 'danger')
       return
     }
     // Birthday lives in its own privacy-gated table — save only when changed.
@@ -299,14 +302,14 @@ export default function SettingsInfoPage() {
       const br = await saveMyBirthday(birthday || null)
       if (!br.ok) {
         setSaving(false)
-        showToast(br.message ?? '생일 저장에 실패했어요.', 'danger')
+        showToast(br.message ?? t('birthdaySaveFailed'), 'danger')
         return
       }
       setInitialBirthday(birthday)
     }
     setSaving(false)
     setSession({ ...session, name: name.trim(), part: branchValue || undefined })
-    showToast('변경 사항을 저장했어요.', 'success')
+    showToast(t('saved'), 'success')
   }
 
   async function handleConfirmDelete() {
@@ -321,7 +324,7 @@ export default function SettingsInfoPage() {
       localStorage.removeItem('railink_demo_photo_v1')
     }
     await logout()
-    showToast('데이터를 모두 삭제했어요.', 'success')
+    showToast(t('deleted'), 'success')
     router.replace('/login')
   }
 
@@ -336,12 +339,12 @@ export default function SettingsInfoPage() {
         <div className="flex items-center gap-1">
           <Link
             href="/calendar"
-            aria-label="뒤로"
+            aria-label={t('back')}
             className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
           >
             <ChevronLeftIcon size={20} />
           </Link>
-          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">내 정보</h3>
+          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">{t('title')}</h3>
         </div>
         <Button
           variant={dirty ? 'primary' : 'outline'}
@@ -350,7 +353,7 @@ export default function SettingsInfoPage() {
           onClick={handleSave}
           className={dirty ? '' : 'opacity-50'}
         >
-          {saving ? '저장 중…' : '저장'}
+          {saving ? t('saving') : t('save')}
         </Button>
       </header>
 
@@ -361,7 +364,7 @@ export default function SettingsInfoPage() {
             <Avatar name={session.name} photo={session.photo} size="xl" color="brand" className="!w-[84px] !h-[84px] text-[28px]" />
             <Link
               href="/settings/photo"
-              aria-label="프로필 사진 변경"
+              aria-label={t('photoEdit')}
               className="absolute -right-1 -bottom-1 w-8 h-8 rounded-full bg-brand text-ink-on-brand border-[3px] border-surface grid place-items-center"
             >
               <EditIcon size={14} />
@@ -370,25 +373,25 @@ export default function SettingsInfoPage() {
           <p className="mt-3 text-[20px] font-bold tracking-tight text-ink-900">{session.name}</p>
           <p className={`mt-0.5 text-caption text-ink-500 ${session.profileType === 'personal' ? 'font-kr' : 'font-en'}`}>
             {session.profileType === 'personal'
-              ? '개인 계정'
+              ? t('accountPersonal')
               : `${session.employeeId}${session.part ? ` · ${session.part}` : ''}`}
           </p>
           <div className="mt-3.5 flex items-stretch gap-5">
-            <Stat label="비교 동료" value={compareCount} />
+            <Stat label={t('statCompare')} value={compareCount} />
             <span className="w-px bg-line" />
-            <Stat label="이번 달 근무" value={workDays} suffix="일" />
+            <Stat label={t('statWork')} value={workDays} suffix={t('dayUnit')} />
             <span className="w-px bg-line" />
-            <Stat label="휴무" value={offDays} suffix="일" />
+            <Stat label={t('statOff')} value={offDays} suffix={t('dayUnit')} />
           </div>
         </section>
 
         {/* 기본 정보 */}
-        <Section title="기본 정보">
-          <FieldRow label="이름" hint={session.profileType === 'personal' ? '친구가 보는 이름이에요.' : undefined}>
+        <Section title={t('sectionBasic')}>
+          <FieldRow label={t('nameLabel')} hint={session.profileType === 'personal' ? t('nameHintPersonal') : undefined}>
             <FlatInput value={name} onChange={setName} />
           </FieldRow>
           <div ref={birthdayRef}>
-            <FieldRow label="생일" hint="일정을 공유한 동료의 캘린더에만 표시돼요. 비우면 표시되지 않아요.">
+            <FieldRow label={t('birthdayLabel')} hint={t('birthdayHint')}>
               {remoteLoading ? (
                 // Saved birthday is still in flight — an empty date input here
                 // would read as "생일 미설정".
@@ -407,36 +410,36 @@ export default function SettingsInfoPage() {
           {/* 사번·소속 지사는 KTX 전용 식별 정보 — personal 계정에는 숨김. */}
           {session.profileType !== 'personal' && (
             <>
-              <FieldRow label="사번" lock>
+              <FieldRow label={t('employeeIdLabel')} lock lockLabel={t('lockNote')}>
                 <FlatInput value={session.employeeId} onChange={() => {}} mono readOnly />
               </FieldRow>
-              <FieldRow label="소속 지사" hint={branch === BRANCH_OTHER ? undefined : '소속 지사를 선택해 주세요.'}>
+              <FieldRow label={t('branchLabel')} hint={branch === BRANCH_OTHER ? undefined : t('branchHint')}>
                 <div className="py-1">
                   <CbSelect
                     value={branch}
-                    placeholder="소속 지사를 선택해 주세요"
-                    options={[...BRANCHES.map(b => ({ v: b, label: b })), { v: BRANCH_OTHER, label: '기타' }]}
+                    placeholder={t('branchPlaceholder')}
+                    options={[...BRANCHES.map(b => ({ v: b, label: b })), { v: BRANCH_OTHER, label: tFields('branchOther') }]}
                     onChange={setBranch}
                   />
                   {branch === BRANCH_OTHER && (
                     <div className="mt-2">
-                      <FlatInput value={branchOther} onChange={setBranchOther} placeholder="소속 지사를 입력해 주세요" />
+                      <FlatInput value={branchOther} onChange={setBranchOther} placeholder={t('branchOtherPlaceholder')} />
                     </div>
                   )}
                 </div>
               </FieldRow>
             </>
           )}
-          <FieldRow label="이메일" lock last>
+          <FieldRow label={t('emailLabel')} lock lockLabel={t('lockNote')} last>
             <FlatInput value={email} onChange={() => {}} mono readOnly />
           </FieldRow>
         </Section>
 
         {/* 보안 */}
-        <Section title="보안">
+        <Section title={t('sectionSecurity')}>
           <LinkRow
             icon={<KeyIcon size={18} />}
-            label="비밀번호 변경"
+            label={t('changePassword')}
             href="/settings/password"
             last
           />
@@ -444,35 +447,35 @@ export default function SettingsInfoPage() {
 
         {/* 공개 범위 (Section A) */}
         <section className="mt-4">
-          <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">공개 범위</p>
+          <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">{t('sectionVisibility')}</p>
           <RadioGroup
             options={VIS_OPTIONS}
             value={vis}
             onChange={onVisibilityChange}
-            ariaLabel="공개 범위"
+            ariaLabel={t('visibilityAriaLabel')}
           />
         </section>
 
         {/* 알림 — 약속 초대 웹 푸시 (지원 기기 + 실계정만) */}
         {!session.isDemo && push !== 'unsupported' && (
           <section className="mt-4">
-            <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">알림</p>
+            <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">{t('sectionNotifications')}</p>
             <div className="bg-surface border border-line rounded-lg px-3.5 py-3 flex items-center gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-callout font-semibold text-ink-900">약속 초대 알림</p>
+                <p className="text-callout font-semibold text-ink-900">{t('appointmentPush')}</p>
                 <p className="text-caption text-ink-500 mt-0.5 leading-relaxed">
                   {push === 'loading'
-                    ? '알림 상태를 확인하는 중…'
+                    ? t('pushLoading')
                     : push === 'denied'
-                      ? '브라우저 설정에서 알림이 차단돼 있어요. 사이트 설정에서 허용으로 바꿔 주세요.'
-                      : '초대를 받으면 이 기기로 바로 알려드려요.'}
+                      ? t('pushDenied')
+                      : t('pushReady')}
                 </p>
               </div>
               <Switch
                 on={push === 'enabled'}
                 onChange={onTogglePush}
                 disabled={push === 'denied' || push === 'loading' || pushBusy}
-                ariaLabel="약속 초대 알림"
+                ariaLabel={t('appointmentPush')}
               />
             </div>
           </section>
@@ -481,15 +484,15 @@ export default function SettingsInfoPage() {
         {/* 알림 — iOS 사파리 탭: 설치해야 알림을 켤 수 있음을 안내(숨기지 않는다) */}
         {!session.isDemo && push === 'unsupported' && iosInstall && (
           <section className="mt-4">
-            <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">알림</p>
+            <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">{t('sectionNotifications')}</p>
             <Link
               href="/install"
               className="flex items-center gap-3 bg-surface border border-line rounded-lg px-3.5 py-3 active:scale-[.99] transition-transform"
             >
               <div className="flex-1 min-w-0">
-                <p className="text-callout font-semibold text-ink-900">약속 초대 알림</p>
+                <p className="text-callout font-semibold text-ink-900">{t('appointmentPush')}</p>
                 <p className="text-caption text-ink-500 mt-0.5 leading-relaxed">
-                  아이폰은 <span className="font-semibold text-ink-700">홈 화면에 추가</span>하면 약속 초대 알림을 받을 수 있어요. 설치 방법 보기
+                  {t.rich('iosInstallHint', { b: (c) => <span className="font-semibold text-ink-700">{c}</span> })}
                 </p>
               </div>
               <ChevronRightIcon size={16} className="shrink-0 text-ink-300" />
@@ -501,19 +504,19 @@ export default function SettingsInfoPage() {
             가입 폼의 선택 체크박스와 같은 동의를 여기서 언제든 바꿀 수 있다. */}
         {!session.isDemo && (
           <section className="mt-4">
-            <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">수신 동의</p>
+            <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">{t('sectionConsent')}</p>
             <div className="bg-surface border border-line rounded-lg px-3.5 py-3 flex items-center gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-callout font-semibold text-ink-900">업데이트·이벤트 알림</p>
+                <p className="text-callout font-semibold text-ink-900">{t('marketingTitle')}</p>
                 <p className="text-caption text-ink-500 mt-0.5 leading-relaxed">
-                  신규 기능과 이벤트 소식을 받아요. 언제든 끌 수 있어요.
+                  {t('marketingDesc')}
                 </p>
               </div>
               <Switch
                 on={mktConsent}
                 onChange={onToggleMarketing}
                 disabled={mktBusy || remoteLoading}
-                ariaLabel="업데이트·이벤트 알림 수신 동의"
+                ariaLabel={t('marketingAriaLabel')}
               />
             </div>
           </section>
@@ -521,7 +524,7 @@ export default function SettingsInfoPage() {
 
         {/* 공유 중인 동료 (Section B) */}
         <div ref={sharesRef} style={{ scrollMarginTop: 12 }}>
-        <Section title="공유 중인 동료">
+        <Section title={t('sectionShares')}>
           {remoteLoading ? (
             // Shimmer rows mirroring ShareRow's layout — the empty-state copy
             // must never flash while the list is still being fetched.
@@ -536,7 +539,7 @@ export default function SettingsInfoPage() {
             ))
           ) : shareRows.length === 0 ? (
             <p className="px-3.5 py-5 text-caption text-ink-500 leading-relaxed text-center">
-              아직 공유 중인 동료가 없어요. 캘린더에서 동료를 비교에 추가하면 공유 요청이 시작돼요.
+              {t('sharesEmpty')}
             </p>
           ) : (
             shareRows.map((r, i) => (
@@ -546,9 +549,13 @@ export default function SettingsInfoPage() {
                 share={r.s}
                 busy={shareBusy}
                 last={i === shareRows.length - 1}
-                onAccept={() => runShareAction(() => respondShare(r.s.viewerId, true), `${r.s.counterpart.name}님과 일정을 공유해요`, 'share_accept')}
-                onDecline={() => runShareAction(() => respondShare(r.s.viewerId, false), '요청을 거절했어요')}
-                onStop={() => runShareAction(() => respondShare(r.s.viewerId, false), `${r.s.counterpart.name}님과의 공유를 중지했어요`)}
+                caption={r.kind === 'incoming' ? t('shareCaptionIncoming') : t('shareCaptionSharing')}
+                acceptLabel={t('accept')}
+                declineLabel={t('decline')}
+                stopLabel={t('stop')}
+                onAccept={() => runShareAction(() => respondShare(r.s.viewerId, true), t('shareAccepted', { name: r.s.counterpart.name }), 'share_accept')}
+                onDecline={() => runShareAction(() => respondShare(r.s.viewerId, false), t('shareDeclined'))}
+                onStop={() => runShareAction(() => respondShare(r.s.viewerId, false), t('shareStopped', { name: r.s.counterpart.name }))}
               />
             ))
           )}
@@ -559,17 +566,17 @@ export default function SettingsInfoPage() {
         <LanguageSwitcher />
 
         {/* 기타 */}
-        <Section title="기타">
+        <Section title={t('sectionOther')}>
           <LinkRow
             icon={<UploadIcon size={18} />}
-            label="내 근무표 다시 등록"
+            label={t('reuploadSchedule')}
             onClick={() => router.push('/calendar')}
           />
           <button
             onClick={() => setConfirmOpen(true)}
             className="w-full flex items-center justify-between px-3.5 py-3.5 text-left"
           >
-            <span className="text-callout font-semibold text-danger">데이터 모두 삭제</span>
+            <span className="text-callout font-semibold text-danger">{t('deleteAll')}</span>
             <span className="text-danger"><ChevronRightIcon size={16} /></span>
           </button>
         </Section>
@@ -585,14 +592,14 @@ export default function SettingsInfoPage() {
       {/* 비공개 전환 확인 시트 (spec §3) */}
       <BottomSheet open={pendingPrivate} onClose={() => setPendingPrivate(false)}>
         <div className="px-5 pt-2 pb-8">
-          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">비공개로 바꿀까요?</h3>
+          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">{t('privateConfirmTitle')}</h3>
           <p className="mt-2 text-callout text-ink-700 leading-relaxed">
-            이미 일정을 공유 중인 동료는 영향 없어요. 새로 나를 찾는 동료는 사번을 알아야 해요.
+            {t('privateConfirmBody')}
           </p>
           <div className="flex gap-2.5 mt-4">
-            <Button variant="outline" className="flex-1" onClick={() => setPendingPrivate(false)}>취소</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setPendingPrivate(false)}>{t('cancel')}</Button>
             <Button className="flex-1" onClick={() => { setPendingPrivate(false); commitVisibility('private') }}>
-              비공개로 바꾸기
+              {t('switchToPrivate')}
             </Button>
           </div>
         </div>
@@ -600,13 +607,8 @@ export default function SettingsInfoPage() {
 
       {confirmOpen && (
         <DangerConfirm
-          title="데이터를 모두 삭제할까요?"
-          body={
-            <>
-              등록한 근무표·비교 동료·설정이 모두 사라져요.
-              <br />이 작업은 되돌릴 수 없어요.
-            </>
-          }
+          title={t('deleteConfirmTitle')}
+          body={t.rich('deleteConfirmBody', { br: () => <br /> })}
           onCancel={() => setConfirmOpen(false)}
           onConfirm={handleConfirmDelete}
         />
@@ -642,13 +644,13 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
 }
 
 function FieldRow({
-  label, hint, lock, last, children,
-}: { label: string; hint?: string; lock?: boolean; last?: boolean; children: ReactNode }) {
+  label, hint, lock, lockLabel, last, children,
+}: { label: string; hint?: string; lock?: boolean; lockLabel?: string; last?: boolean; children: ReactNode }) {
   return (
     <div className={`px-3.5 py-2.5 ${last ? '' : 'border-b border-line'}`}>
       <p className="flex items-center gap-1 text-[11px] font-semibold tracking-wide text-ink-500 mb-1">
         {label}
-        {lock && <span className="text-ink-300 font-normal">· 변경 불가</span>}
+        {lock && <span className="text-ink-300 font-normal">· {lockLabel}</span>}
       </p>
       {children}
       {hint && <p className="mt-1 text-[11px] text-ink-300">{hint}</p>}
@@ -700,18 +702,21 @@ function LinkRow({
 }
 
 function ShareRow({
-  kind, share, busy, last, onAccept, onDecline, onStop,
+  kind, share, busy, last, caption, acceptLabel, declineLabel, stopLabel, onAccept, onDecline, onStop,
 }: {
   kind: 'incoming' | 'sharing'
   share: ShareWithProfile
   busy: boolean
   last: boolean
+  caption: string
+  acceptLabel: string
+  declineLabel: string
+  stopLabel: string
   onAccept?: () => void
   onDecline?: () => void
   onStop?: () => void
 }) {
   const p = share.counterpart
-  const caption = kind === 'incoming' ? '공유 요청을 받았어요' : '내 일정을 공유 중'
   return (
     <div className={`flex items-center gap-3 px-3.5 py-3 ${last ? '' : 'border-b border-line'}`}>
       <Avatar name={p.name} photo={p.photo ?? undefined} size="lg" color="brand" />
@@ -725,11 +730,11 @@ function ShareRow({
       <div className="flex items-center gap-1.5 shrink-0">
         {kind === 'incoming' ? (
           <>
-            <PillBtn tone="brand" disabled={busy} onClick={onAccept}>수락</PillBtn>
-            <PillBtn tone="danger" disabled={busy} onClick={onDecline}>거절</PillBtn>
+            <PillBtn tone="brand" disabled={busy} onClick={onAccept}>{acceptLabel}</PillBtn>
+            <PillBtn tone="danger" disabled={busy} onClick={onDecline}>{declineLabel}</PillBtn>
           </>
         ) : (
-          <PillBtn tone="danger" disabled={busy} onClick={onStop}>중지</PillBtn>
+          <PillBtn tone="danger" disabled={busy} onClick={onStop}>{stopLabel}</PillBtn>
         )}
       </div>
     </div>

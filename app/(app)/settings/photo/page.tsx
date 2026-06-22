@@ -3,6 +3,7 @@
 import { ChangeEvent, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Avatar, toInitials } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
@@ -48,6 +49,7 @@ async function imageFileToSquareDataURL(file: File, size = 256): Promise<string>
 export default function PhotoEditPage() {
   const router = useRouter()
   const { showToast } = useToast()
+  const t = useTranslations('settings.photo')
 
   const [session, setSession] = useState<Session | null>(null)
   const [selected, setSelected] = useState<Selection>(NONE)
@@ -82,7 +84,7 @@ export default function PhotoEditPage() {
       const dataUrl = await imageFileToSquareDataURL(file)
       setSelected(dataUrl)
     } catch {
-      showToast('이미지를 읽지 못했어요.', 'danger')
+      showToast(t('imageReadFailed'), 'danger')
     } finally {
       setBusy(false)
     }
@@ -95,10 +97,10 @@ export default function PhotoEditPage() {
     const res = await updatePhoto(next)
     setBusy(false)
     if (!res.ok) {
-      showToast(res.message ?? '사진 저장 중 문제가 생겼어요.', 'danger')
+      showToast(res.message ?? t('photoSaveFailed'), 'danger')
       return
     }
-    showToast('프로필 사진을 저장했어요.', 'success')
+    showToast(t('photoSaved'), 'success')
     router.push('/settings/info')
   }
 
@@ -118,12 +120,12 @@ export default function PhotoEditPage() {
         <div className="flex items-center gap-1">
           <Link
             href="/settings/info"
-            aria-label="뒤로"
+            aria-label={t('back')}
             className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
           >
             <ChevronLeftIcon size={20} />
           </Link>
-          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">프로필 사진</h3>
+          <h3 className="text-[18px] font-bold tracking-tight text-ink-900">{t('title')}</h3>
         </div>
         <Button
           variant={dirty ? 'primary' : 'outline'}
@@ -132,7 +134,7 @@ export default function PhotoEditPage() {
           onClick={handleSave}
           className={dirty ? '' : 'opacity-50'}
         >
-          {busy ? '저장 중…' : '저장'}
+          {busy ? t('saving') : t('save')}
         </Button>
       </header>
 
@@ -157,8 +159,11 @@ export default function PhotoEditPage() {
             </div>
           </div>
           <p className="mt-3.5 text-callout text-ink-700 leading-relaxed text-center">
-            <strong className="text-ink-900">{session.name}</strong> 님의 프로필 사진은
-            <br />동료가 비교 추가할 때 검색 결과에 표시돼요.
+            {t.rich('heroDesc', {
+              name: session.name,
+              b: (c) => <strong className="text-ink-900">{c}</strong>,
+              br: () => <br />,
+            })}
           </p>
         </section>
 
@@ -170,7 +175,7 @@ export default function PhotoEditPage() {
             className="h-14 flex items-center justify-center gap-2.5 rounded-xl border-[1.5px] border-brand-100 bg-brand-050 text-brand text-callout font-semibold"
           >
             <ImageIcon size={20} />
-            카메라 / 앨범
+            {t('cameraAlbum')}
           </button>
           <button
             onClick={() => fileRef.current?.click()}
@@ -178,7 +183,7 @@ export default function PhotoEditPage() {
             className="h-14 flex items-center justify-center gap-2.5 rounded-xl border-[1.5px] border-line bg-surface text-ink-900 text-callout font-semibold"
           >
             <UploadIcon size={20} />
-            파일 올리기
+            {t('uploadFile')}
           </button>
         </div>
 
@@ -186,9 +191,9 @@ export default function PhotoEditPage() {
         <div className="mt-5">
           <div className="px-1 pb-2 flex items-baseline justify-between">
             <span className="text-[11px] font-bold tracking-wider uppercase text-ink-500">
-              기본 이미지에서 고르기
+              {t('presetTitle')}
             </span>
-            <span className="font-en text-[11px] text-ink-300">{PRESETS.length}가지</span>
+            <span className="font-en text-[11px] text-ink-300">{t('presetCount', { count: PRESETS.length })}</span>
           </div>
           <div className="bg-surface border border-line rounded-xl p-3.5 grid grid-cols-5 gap-3">
             <PresetButton
@@ -211,7 +216,7 @@ export default function PhotoEditPage() {
             ))}
           </div>
           <p className="px-2 pt-2 text-[11px] text-ink-500 leading-relaxed">
-            첫 번째 항목을 고르면 사진 없이 이름의 첫 두 글자로 표시돼요.
+            {t('presetHint')}
           </p>
         </div>
       </div>
