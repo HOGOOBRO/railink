@@ -15,6 +15,7 @@
  * never covered; the skin is identical in every column, only the lane width moves.
  * No × on the card — tapping it opens the detail/delete dialog (handled upstream). */
 import { useEffect, useRef, useState } from 'react'
+import { useTranslations, useLocale } from 'next-intl'
 import { fmtClock } from '@/lib/schedule-utils'
 import { toInitials } from '@/components/ui/Avatar'
 import { PinIcon } from '@/components/ui/icons'
@@ -96,6 +97,8 @@ const MIN_COL = 116
 const MIN_CARD_H = 80
 const MIN_APPT_H = 22
 const DOW = ['일', '월', '화', '수', '목', '금', '토']
+// 표시용 영어 요일. DOW는 요일 인덱스 로직, 화면엔 로케일 라벨만 보여준다.
+const DOW_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const HOUR_TICKS = [0, 3, 6, 9, 12, 15, 18, 21]   // a time mark every 3 hours
 
 interface Placed { a: ApptCard; top: number; height: number; pending: boolean }
@@ -140,6 +143,9 @@ export function MonthTimeline({
   onTapAppt?: (a: ApptCard) => void
   onTapShift?: (s: ShiftDetail) => void
 }) {
+  const t = useTranslations('timeline')
+  const locale = useLocale()
+  const dowLabels = locale === 'en' ? DOW_EN : DOW
   const dim = new Date(year, month, 0).getDate()
   const monthH = dim * DAY_PX
   const yOf = (absHour: number) => absHour * PXH
@@ -191,7 +197,7 @@ export function MonthTimeline({
             style={{ width: LABEL_W, top: top - 9 }}
           >
             <span className="text-[13px] font-bold">{d}</span>
-            <span className="text-[10px] font-semibold">{DOW[new Date(year, month - 1, d).getDay()]}</span>
+            <span className="text-[10px] font-semibold">{dowLabels[new Date(year, month - 1, d).getDay()]}</span>
           </div>
         ) : (
           <span
@@ -279,12 +285,12 @@ export function MonthTimeline({
             const lane = base === 0 && n === 1
               ? { left: 0, right: 0 }
               : { left: `calc(${leftPct}% + ${leftPct > 0 ? 1 : 0}px)`, width: `calc(${laneW}% - 2px)` }
-            const startTxt = a.untimed ? '미정' : fmtClock(a.start)
+            const startTxt = a.untimed ? t('untimedShort') : fmtClock(a.start)
             apptEls.push(
               <button
                 key={a.id}
                 onClick={() => onTapAppt?.(a)}
-                aria-label={`약속 ${a.title}`}
+                aria-label={t('apptAria', { title: a.title })}
                 className="absolute flex overflow-hidden text-left rounded-[10px]"
                 style={{
                   top: pl.top, height: h, zIndex: 5, ...lane,
@@ -310,7 +316,7 @@ export function MonthTimeline({
                       <span className="text-brand shrink-0 leading-none" style={{ marginTop: 1 }}><PinIcon size={10} /></span>
                       <span className={titleCls}>{a.title}</span>
                     </div>
-                    <span className={timeCls}>{a.untimed ? '시간 미정' : startTxt}</span>
+                    <span className={timeCls}>{a.untimed ? t('untimed') : startTxt}</span>
                   </>
                 ) : (
                   <>
@@ -319,7 +325,7 @@ export function MonthTimeline({
                         <span className="text-brand shrink-0 leading-none" style={{ marginTop: 1 }}><PinIcon size={11} /></span>
                         <span className={titleCls}>{a.title}</span>
                       </div>
-                      <span className={timeCls}>{a.untimed ? '시간 미정' : startTxt}</span>
+                      <span className={timeCls}>{a.untimed ? t('untimed') : startTxt}</span>
                     </div>
                     {!a.untimed && a.hasEnd && <span className={timeCls}>↓ {fmtClock(a.end)}</span>}
                   </>
@@ -341,7 +347,7 @@ export function MonthTimeline({
                   <span className="font-bold text-[11px] text-ink-500 truncate">{p.name}</span>
                 </div>
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-pill text-ink-500 self-start whitespace-nowrap" style={{ background: 'white', boxShadow: 'inset 0 0 0 1px var(--line-2)' }}>
-                  수락 대기 중
+                  {t('pending')}
                 </span>
               </div>
             )}
@@ -379,7 +385,7 @@ export function MonthTimeline({
                       {p.tag && <span className="text-[9px] font-bold px-1 rounded-pill bg-brand-050 text-brand shrink-0">{p.tag}</span>}
                     </div>
                     <span className="font-en text-[12px] font-bold text-ink-900">{s.dia}</span>
-                    <span className="text-[10px] font-semibold text-ink-500">종일 대기</span>
+                    <span className="text-[10px] font-semibold text-ink-500">{t('allDayStandby')}</span>
                   </button>
                 )
               }
@@ -402,7 +408,7 @@ export function MonthTimeline({
                       {s.trainNr && <span className="font-en text-[11px] font-bold text-ink-700 truncate">{prettyTrain(s.trainNr)}</span>}
                       {/* 의도된 코드(대기·훈련 등)는 깔끔히 코드만. 진짜 시간 누락만 경고 배지. */}
                       {!s.codeOnly && (
-                        <span className="text-[9px] font-bold px-1 rounded-pill text-ink-700 shrink-0 whitespace-nowrap" style={{ background: 'color-mix(in oklab, var(--warn) 38%, white)' }}>시간 미입력</span>
+                        <span className="text-[9px] font-bold px-1 rounded-pill text-ink-700 shrink-0 whitespace-nowrap" style={{ background: 'color-mix(in oklab, var(--warn) 38%, white)' }}>{t('noTimeBadge')}</span>
                       )}
                     </div>
                     {s.route && <span className="font-en text-[10px] font-bold text-ink-700 truncate">{s.route}</span>}
@@ -413,8 +419,8 @@ export function MonthTimeline({
               const h = Math.max(MIN_CARD_H, yOf((s.day - 1) * 24 + s.end) - top)
               // 블록이 짧으면 내용이 잘리므로 압축 레이아웃(출발→도착 한 줄). 길면 펼침.
               const compact = h < 104
-              const depTxt = s.depLabel ?? (s.cont === 'end' ? '전날부터' : fmtClock(s.start))
-              const arrTxt = s.arrLabel ?? (s.cont === 'start' ? '익일 계속' : fmtClock(s.end))
+              const depTxt = s.depLabel ?? (s.cont === 'end' ? t('fromPrevDay') : fmtClock(s.start))
+              const arrTxt = s.arrLabel ?? (s.cont === 'start' ? t('continuesNextDay') : fmtClock(s.end))
               return (
                 <button
                   type="button"

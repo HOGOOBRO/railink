@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useMemo, useState, type ReactNode } from 'react'
+import { useTranslations } from 'next-intl'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -41,6 +42,7 @@ export function SearchOverlay({
   activeGroupName, onOpenManage, onClose, onToggle,
   shareGated, shareStatus, lookupSabun, lookupEmail, onInvite,
 }: SearchOverlayProps) {
+  const t = useTranslations('search')
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { inputRef.current?.focus() }, [])
   useEffect(() => {
@@ -127,7 +129,7 @@ export function SearchOverlay({
             ref={inputRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="사번·이메일, 또는 이름"
+            placeholder={t('placeholder')}
             className={`w-full h-10 pl-9 pr-3.5 rounded-pill text-callout text-ink-900 font-kr outline-none ${
               query ? 'bg-surface border border-line-2' : 'bg-bg border border-transparent'
             }`}
@@ -137,7 +139,7 @@ export function SearchOverlay({
           onClick={onClose}
           className="h-btn-sm px-3 text-callout font-semibold text-ink-700 rounded-sm"
         >
-          닫기
+          {t('close')}
         </button>
       </div>
 
@@ -148,7 +150,7 @@ export function SearchOverlay({
             onClick={onOpenManage}
             className="inline-flex items-center text-[12px] font-semibold text-brand bg-brand-050 px-2.5 py-1 rounded-xs"
           >
-            {activeGroupName} 그룹에 추가
+            {t('addToGroup', { name: activeGroupName })}
           </button>
         </div>
       )}
@@ -157,10 +159,15 @@ export function SearchOverlay({
       <div className="flex-1 overflow-y-auto px-3 pt-2 pb-6">
         <p className="px-2 py-2.5 text-caption font-semibold text-ink-500">
           {loading ? (
-            '동료 목록 불러오는 중'
+            t('loadingList')
           ) : q ? (
-            <>‘<span className="text-ink-900">{q}</span>’ 검색 결과 <span className="font-en">{filtered.length}</span>건</>
-          ) : '추천 동료 · 이름 가나다순'}
+            t.rich('resultsFor', {
+              q,
+              quoted: (chunks) => <span className="text-ink-900">{chunks}</span>,
+              count: (chunks) => <span className="font-en">{chunks}</span>,
+              n: filtered.length,
+            })
+          ) : t('recommended')}
         </p>
 
         {loading ? (
@@ -176,17 +183,19 @@ export function SearchOverlay({
           // 공개 범위 = 비공개라 RLS가 가린 경우. (옛 share_schedule=false 사용자가
           // 마이그레이션으로 자동 private이 된 케이스가 흔함.)
           <div className="py-12 px-4 text-center text-callout text-ink-500 leading-relaxed">
-            <p>아직 검색할 수 있는 동료가 없어요.</p>
+            <p>{t('emptyDir.title')}</p>
             <p className="mt-2 text-caption text-ink-300">
-              동료가 RaiLink에 가입한 뒤<br />
-              <span className="text-ink-500">내 메뉴 → 내 정보 → 공개 범위</span>에서<br />
-              <span className="text-ink-500 font-semibold">‘공개’</span>로 설정해야 검색에 나타나요.
+              {t.rich('emptyDir.body', {
+                br: () => <br />,
+                path: (chunks) => <span className="text-ink-500">{chunks}</span>,
+                em: (chunks) => <span className="text-ink-500 font-semibold">{chunks}</span>,
+              })}
             </p>
-            <InviteMissButton onInvite={onInvite} label="동료 초대하기" />
+            <InviteMissButton onInvite={onInvite} label={t('inviteColleague')} />
           </div>
         ) : filtered.length === 0 && !showSabun && !showEmail ? (
           <p className="py-16 px-4 text-center text-callout text-ink-500">
-            검색 결과가 없어요. 사번·이메일·이름을 다시 확인해 주세요.
+            {t('noResults')}
           </p>
         ) : (
           filtered.map(u => (
@@ -204,10 +213,10 @@ export function SearchOverlay({
         {showSabun && (
           <>
             <p className="px-2 pt-3 pb-1.5 text-caption font-semibold text-ink-500 border-t border-line mt-2">
-              사번으로 찾음
+              {t('foundBySabun')}
             </p>
             {sabunLoading ? (
-              <p className="py-6 px-4 text-center text-caption text-ink-500">사번으로 찾는 중…</p>
+              <p className="py-6 px-4 text-center text-caption text-ink-500">{t('searchingSabun')}</p>
             ) : sabunResult && !sabunDup ? (
               <ResultRow
                 u={sabunResult}
@@ -218,9 +227,9 @@ export function SearchOverlay({
               />
             ) : sabunResult ? null : (
               <div className="py-6 px-4 text-center text-caption text-ink-500 leading-relaxed">
-                <p>그 사번으로 등록된 동료가 없어요.</p>
+                <p>{t('noSabunMatch')}</p>
                 <p className="mt-1.5 text-[11px] text-ink-300">
-                  아직 RaiLink에 가입하지 않았을 수 있어요.
+                  {t('maybeNotSignedUp')}
                 </p>
                 <InviteMissButton onInvite={onInvite} />
               </div>
@@ -232,10 +241,10 @@ export function SearchOverlay({
         {showEmail && (
           <>
             <p className="px-2 pt-3 pb-1.5 text-caption font-semibold text-ink-500 border-t border-line mt-2">
-              이메일로 찾음
+              {t('foundByEmail')}
             </p>
             {emailLoading ? (
-              <p className="py-6 px-4 text-center text-caption text-ink-500">이메일로 찾는 중…</p>
+              <p className="py-6 px-4 text-center text-caption text-ink-500">{t('searchingEmail')}</p>
             ) : emailResult && !emailDup ? (
               <ResultRow
                 u={emailResult}
@@ -246,9 +255,9 @@ export function SearchOverlay({
               />
             ) : emailResult ? null : (
               <div className="py-6 px-4 text-center text-caption text-ink-500 leading-relaxed">
-                <p>그 이메일로 등록된 사람이 없어요.</p>
+                <p>{t('noEmailMatch')}</p>
                 <p className="mt-1.5 text-[11px] text-ink-300">
-                  아직 RaiLink에 가입하지 않았을 수 있어요.
+                  {t('maybeNotSignedUp')}
                 </p>
                 <InviteMissButton onInvite={onInvite} prefillEmail={raw} />
               </div>
@@ -268,14 +277,13 @@ export function SearchOverlay({
             onClick={onClose}
             className="w-full h-btn rounded-sm bg-brand text-ink-on-brand font-semibold text-callout inline-flex items-center justify-center gap-1.5"
           >
-            비교 <span className="font-en">{count}</span>명 추가됨 · 캘린더에서 보기
+            {t.rich('footerAdded', { count, n: (chunks) => <span className="font-en">{chunks}</span> })}
             <ArrowRightIcon size={14} />
           </button>
         ) : (
           <div className="flex items-center justify-between text-caption text-ink-500">
             <span>
-              추가된 동료 <span className="font-en">{count}</span>명{' '}
-              <span className="text-ink-300">(최대 10명)</span>
+              {t.rich('footerCount', { count, max: 10, n: (chunks) => <span className="font-en">{chunks}</span>, muted: (chunks) => <span className="text-ink-300">{chunks}</span> })}
             </span>
             <span className="font-en px-1.5 py-0.5 rounded-xs bg-surface border border-line-2">esc</span>
           </div>
@@ -287,21 +295,21 @@ export function SearchOverlay({
         <ConfirmDialog
           title={
             confirmAdding
-              ? `${confirmTarget.name}님을 비교에 추가할까요?`
-              : `${confirmTarget.name}님을 비교에서 뺄까요?`
+              ? t('confirm.addTitle', { name: confirmTarget.name })
+              : t('confirm.removeTitle', { name: confirmTarget.name })
           }
           body={
             confirmAdding
               ? shareGated
                 ? confirmStatus === 'accepted'
-                  ? '이미 일정을 공유 중인 동료예요. 이 그룹에도 추가합니다 (새 요청 없음).'
+                  ? t('confirm.bodyAccepted')
                   : confirmStatus === 'pending'
-                    ? '이미 공유 요청을 보낸 상태예요. 그룹에만 추가하고 요청은 다시 보내지 않아요.'
-                    : '추가하면 상대에게 일정 공유 신청이 전송돼요.'
-                : '비교 목록에 추가합니다.'
-              : '비교 목록에서 제거합니다.'
+                    ? t('confirm.bodyPending')
+                    : t('confirm.bodyShareRequest')
+                : t('confirm.bodyAddLocal')
+              : t('confirm.bodyRemove')
           }
-          confirmLabel={confirmAdding ? '추가' : '빼기'}
+          confirmLabel={confirmAdding ? t('confirm.add') : t('confirm.remove')}
           onCancel={() => setConfirmTarget(null)}
           onConfirm={() => { onToggle(confirmTarget.uid, confirmTarget); setConfirmTarget(null) }}
         />
@@ -319,10 +327,11 @@ function ConfirmDialog({
   onCancel: () => void
   onConfirm: () => void
 }) {
+  const t = useTranslations('search')
   return (
     <div className="fixed inset-0 z-modal flex items-center justify-center px-4">
       <button
-        aria-label="배경 닫기"
+        aria-label={t('closeBackdrop')}
         onClick={onCancel}
         className="absolute inset-0"
         style={{ background: 'rgba(13,30,55,0.55)' }}
@@ -331,7 +340,7 @@ function ConfirmDialog({
         <h3 className="text-center text-[16px] font-bold tracking-tight text-ink-900">{title}</h3>
         {body && <p className="mt-1.5 text-center text-caption text-ink-500 leading-relaxed">{body}</p>}
         <div className="flex gap-2.5 mt-4">
-          <Button variant="outline" className="flex-1" onClick={onCancel}>취소</Button>
+          <Button variant="outline" className="flex-1" onClick={onCancel}>{t('confirm.cancel')}</Button>
           <Button variant="brand" className="flex-1" onClick={onConfirm}>{confirmLabel}</Button>
         </div>
       </div>
@@ -378,10 +387,11 @@ function ResultRow({
   pending: boolean
   onPick: (u: Colleague) => void
 }) {
+  const t = useTranslations('search')
   const isPrivate = visibility === 'private'
   // KTX 식별 배지. personal은 칩·사번 없이 이름만 — 위계 어휘는 쓰지 않는다.
   const isKtx = u.profileType !== 'personal'
-  const label = added ? '✓ 비교 중' : '+ 추가'
+  const label = added ? t('row.comparing') : t('row.add')
   const tone: 'brand' | 'muted' = added ? 'muted' : 'brand'
   return (
     <button
@@ -396,15 +406,15 @@ function ResultRow({
           {isKtx ? (
             <>
               {u.employeeId && <span className="font-en text-caption text-ink-500">{u.employeeId}</span>}
-              <span className="shrink-0 text-[10px] font-bold text-brand bg-brand-050 px-1.5 py-0.5 rounded-xs">KTX 승무원</span>
+              <span className="shrink-0 text-[10px] font-bold text-brand bg-brand-050 px-1.5 py-0.5 rounded-xs">{t('row.ktxBadge')}</span>
             </>
           ) : null}
         </div>
         {isPrivate ? (
-          <p className="text-[11px] text-ink-500 mt-0.5">비공개 계정 · 사번이 정확히 일치해야 추가할 수 있어요</p>
+          <p className="text-[11px] text-ink-500 mt-0.5">{t('row.privateNote')}</p>
         ) : pending ? (
           <p className="text-[11px] text-ink-500 mt-px">
-            <span className="font-semibold">수락 대기 중</span>
+            <span className="font-semibold">{t('row.pending')}</span>
             {u.office ? <span className="text-ink-300"> · {u.office}</span> : null}
           </p>
         ) : (
@@ -419,15 +429,16 @@ function ResultRow({
 /* Search-miss escape hatch — turns a "not found" dead end into an invite.
  * Renders nothing when no handler is wired (e.g. a context without invites). */
 function InviteMissButton({
-  onInvite, prefillEmail, label = '초대 메시지 보내기',
+  onInvite, prefillEmail, label,
 }: { onInvite?: (prefillEmail?: string | null) => void; prefillEmail?: string | null; label?: string }) {
+  const t = useTranslations('search')
   if (!onInvite) return null
   return (
     <button
       onClick={() => onInvite(prefillEmail ?? null)}
       className="mt-3.5 inline-flex items-center gap-1.5 px-4 h-10 rounded-pill bg-brand-050 text-brand text-caption font-bold"
     >
-      <UserPlusIcon size={15} /> {label}
+      <UserPlusIcon size={15} /> {label ?? t('inviteMessage')}
     </button>
   )
 }

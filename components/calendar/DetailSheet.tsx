@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslations, useLocale } from 'next-intl'
 import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
 import { CloseIcon, PlusIcon, EditIcon, CakeIcon, PlaceIcon } from '@/components/ui/icons'
@@ -10,13 +11,17 @@ import { routeForFlights } from '@/lib/airline-routes'
 import { holidayNameFor } from '@/lib/holidays-kr'
 import type { CompareColor } from '@/lib/types/schedule'
 
+// 표시용 영어 요일. DOW_KR은 요일 인덱스 로직에 쓰고, 화면에는 로케일 라벨만 보여준다.
+const DOW_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
 /** 소요/비행 시간(시작~끝 decimal hour 차)을 "N시간 M분"으로. 인천 기준 출·도착의
- *  차이 = 실제 비행시간이라, 이걸 명시하면 시차 혼동이 사라진다. */
-function fmtDuration(hours: number): string {
+ *  차이 = 실제 비행시간이라, 이걸 명시하면 시차 혼동이 사라진다. 단위 라벨은
+ *  호출부에서 현지화한 t()를 받아 조립한다(이 모듈 레벨 함수엔 훅이 없으므로). */
+function fmtDuration(hours: number, t: (key: string, vars?: Record<string, string | number>) => string): string {
   const total = Math.max(0, Math.round(hours * 60))
   const h = Math.floor(total / 60)
   const m = total % 60
-  return m ? `${h}시간 ${m}분` : `${h}시간`
+  return m ? t('durationHm', { h, m }) : t('durationH', { h })
 }
 
 interface DetailSheetProps {
@@ -44,6 +49,8 @@ interface DetailSheetProps {
 export function DetailSheet({
   date, year, month, today, people, birthdaysByDay, appointments = [], apptsLoading = false, selfUid, airline, onDeleteAppt, onRespond, onClose, onAddCompare, onEdit,
 }: DetailSheetProps) {
+  const t = useTranslations('detail')
+  const locale = useLocale()
   const scrollRef = useRef<HTMLDivElement>(null)
   const dim = new Date(year, month, 0).getDate()
   const [topDay, setTopDay] = useState(date.getDate())
@@ -94,27 +101,27 @@ export function DetailSheet({
   const bdayIsToday =
     today.getFullYear() === year && today.getMonth() + 1 === month && today.getDate() === topDay
   const bdayLabel = bdayNames.length <= 2
-    ? `${bdayNames.join(' · ')} 님`
-    : `${bdayNames[0]} 외 ${bdayNames.length - 1}명`
+    ? t('bdayNames', { names: bdayNames.join(' · ') })
+    : t('bdayNamesMore', { first: bdayNames[0], count: bdayNames.length - 1 })
 
   return (
     <div className="relative flex flex-col" style={{ height: '88dvh' }}>
       <div className="flex items-start justify-between px-5 pt-2 pb-2 shrink-0 border-b border-line">
         <div>
           <h3 className="text-title font-bold tracking-tighter text-ink-900">
-            {month}월 {topDay}일{' '}
-            <span className={`font-medium ${dowClass}`}>{DOW_KR[dow]}</span>
+            {t('headerDate', { month, day: topDay })}{' '}
+            <span className={`font-medium ${dowClass}`}>{locale === 'en' ? DOW_EN[dow] : DOW_KR[dow]}</span>
             {holiday && (
               <span className="align-middle ml-2 text-[12px] font-bold text-danger bg-danger-soft px-2 py-0.5 rounded-pill">
                 {holiday}
               </span>
             )}
           </h3>
-          <p className="text-caption text-ink-500 mt-0.5">근무 {workN}명{apptsLoading ? ' · 약속 확인 중' : apptN ? ` · 약속 ${apptN}` : ''} · 위아래로 넘겨 다른 날</p>
+          <p className="text-caption text-ink-500 mt-0.5">{t('workCount', { count: workN })}{apptsLoading ? t('apptChecking') : apptN ? t('apptCount', { count: apptN }) : ''}{t('swipeHint')}</p>
         </div>
         <button
           onClick={onClose}
-          aria-label="닫기"
+          aria-label={t('close')}
           className="w-icon-btn h-icon-btn grid place-items-center rounded-full text-ink-700"
         >
           <CloseIcon size={18} />
@@ -140,7 +147,7 @@ export function DetailSheet({
               className="text-[10.5px] font-extrabold tracking-[0.06em] uppercase"
               style={{ color: '#C24B82' }}
             >
-              {bdayIsToday ? '오늘 생일' : '생일'}
+              {bdayIsToday ? t('bdayToday') : t('bday')}
             </p>
             <p className="text-[15px] font-bold mt-0.5 truncate" style={{ color: '#7E2A52' }}>
               {bdayLabel}
@@ -177,7 +184,7 @@ export function DetailSheet({
       <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-auto overscroll-contain">
         {shownPeople.length > 0
           ? <MonthTimeline people={shownPeople} year={year} month={month} today={today} appointments={appointments} onTapAppt={setConfirm} onTapShift={setShiftDetail} />
-          : <p className="px-5 py-12 text-center text-callout text-ink-500">비교 중인 일정이 없어요.</p>}
+          : <p className="px-5 py-12 text-center text-callout text-ink-500">{t('noCompareSchedule')}</p>}
       </div>
 
       {/* Sticky action bar */}
@@ -186,11 +193,11 @@ export function DetailSheet({
         style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}
       >
         <Button variant="outline" size="sm" onClick={onEdit}>
-          <EditIcon size={14} /> 일정 수정
+          <EditIcon size={14} /> {t('editSchedule')}
         </Button>
         <div className="flex-1" />
         <Button variant="soft" size="sm" onClick={onAddCompare}>
-          <PlusIcon size={14} /> 동료 비교 추가
+          <PlusIcon size={14} /> {t('addCompare')}
         </Button>
       </div>
 
@@ -202,7 +209,7 @@ export function DetailSheet({
           <div className="absolute left-6 right-6 bg-surface rounded-[18px] shadow-sh4 px-5 pt-5 pb-4 animate-fade-in" style={{ top: '38%' }}>
             <div className="text-[17px] font-extrabold tracking-tight text-ink-900">{confirm.title}</div>
             <div className="text-callout text-ink-700 mt-[5px]">
-              {month}월 {confirm.day}일 {DOW_KR[new Date(year, month - 1, confirm.day).getDay()]}요일
+              {t('apptDate', { month, day: confirm.day, dow: (locale === 'en' ? DOW_EN : DOW_KR)[new Date(year, month - 1, confirm.day).getDay()] })}
               {!confirm.untimed && (
                 <span className="font-en"> · {fmtClock(confirm.start)}{confirm.hasEnd ? ` – ${fmtClock(confirm.end)}` : ''}</span>
               )}
@@ -222,24 +229,24 @@ export function DetailSheet({
               return (
                 <>
                   {isOwner && confirm.participants.length > 1 && (
-                    <div className="text-caption text-ink-500 mt-2">참여자 {confirm.participants.length}명에게도 삭제 알림이 가요.</div>
+                    <div className="text-caption text-ink-500 mt-2">{t('apptDeleteNotice', { count: confirm.participants.length })}</div>
                   )}
                   {isPendingInvitee && (
-                    <div className="text-caption text-ink-500 mt-2">초대받은 약속이에요. 수락하면 내 캘린더에 함께 표시돼요.</div>
+                    <div className="text-caption text-ink-500 mt-2">{t('apptInviteNote')}</div>
                   )}
                   <div className="flex gap-2 mt-4">
                     {isPendingInvitee ? (
                       <>
-                        <button onClick={() => { onRespond?.(confirm.id, false); setConfirm(null) }} className="flex-1 h-11 rounded-md border border-line-2 bg-surface text-ink-700 text-callout font-bold">거절</button>
-                        <button onClick={() => { onRespond?.(confirm.id, true); setConfirm(null) }} className="flex-1 h-11 rounded-md bg-brand text-ink-on-brand text-callout font-bold">수락</button>
+                        <button onClick={() => { onRespond?.(confirm.id, false); setConfirm(null) }} className="flex-1 h-11 rounded-md border border-line-2 bg-surface text-ink-700 text-callout font-bold">{t('decline')}</button>
+                        <button onClick={() => { onRespond?.(confirm.id, true); setConfirm(null) }} className="flex-1 h-11 rounded-md bg-brand text-ink-on-brand text-callout font-bold">{t('accept')}</button>
                       </>
                     ) : isOwner ? (
                       <>
-                        <button onClick={() => setConfirm(null)} className="flex-1 h-11 rounded-md border border-line-2 bg-surface text-ink-700 text-callout font-bold">취소</button>
-                        <button onClick={() => { onDeleteAppt?.(confirm.id); setConfirm(null) }} className="flex-1 h-11 rounded-md bg-danger-soft text-danger text-callout font-bold">삭제</button>
+                        <button onClick={() => setConfirm(null)} className="flex-1 h-11 rounded-md border border-line-2 bg-surface text-ink-700 text-callout font-bold">{t('cancel')}</button>
+                        <button onClick={() => { onDeleteAppt?.(confirm.id); setConfirm(null) }} className="flex-1 h-11 rounded-md bg-danger-soft text-danger text-callout font-bold">{t('delete')}</button>
                       </>
                     ) : (
-                      <button onClick={() => setConfirm(null)} className="w-full h-11 rounded-md bg-brand-050 text-brand text-callout font-bold">확인</button>
+                      <button onClick={() => setConfirm(null)} className="w-full h-11 rounded-md bg-brand-050 text-brand text-callout font-bold">{t('ok')}</button>
                     )}
                   </div>
                 </>
@@ -257,7 +264,7 @@ export function DetailSheet({
           <div className="absolute left-6 right-6 bg-surface rounded-[18px] shadow-sh4 px-5 pt-5 pb-4 animate-fade-in" style={{ top: '38%' }}>
             <div className="flex items-center gap-2">
               <div className="text-[17px] font-extrabold tracking-tight text-ink-900">
-                {shiftDetail.name} <span className="text-ink-500 font-bold">· 근무</span>
+                {shiftDetail.name} <span className="text-ink-500 font-bold">{t('shiftSuffix')}</span>
               </div>
               {shiftDetail.dir && (
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-pill bg-brand-050 text-brand">{shiftDetail.dir}</span>
@@ -266,25 +273,25 @@ export function DetailSheet({
             {shiftDetail.standby ? (
               /* STBY — 시각 미상, 하루 종일 대기. */
               <div className="mt-2.5 flex items-center gap-2">
-                <span className="text-caption text-ink-500 w-12 shrink-0">{airline ? '근무코드' : '구분'}</span>
+                <span className="text-caption text-ink-500 w-12 shrink-0">{airline ? t('codeLabelAirline') : t('codeLabelGeneral')}</span>
                 <span className="font-bold text-callout text-ink-900 font-en">{shiftDetail.dia}</span>
-                <span className="text-caption text-ink-500">· 하루 종일 대기</span>
+                <span className="text-caption text-ink-500">{t('allDayStandby')}</span>
               </div>
             ) : shiftDetail.noTime ? (
               shiftDetail.codeOnly ? (
                 /* 대기·훈련 등 원래 시간이 없는 코드 — 코드만 깔끔히. */
                 <div className="mt-2.5 flex items-center gap-2">
-                  <span className="text-caption text-ink-500 w-12 shrink-0">{airline ? '근무코드' : '구분'}</span>
+                  <span className="text-caption text-ink-500 w-12 shrink-0">{airline ? t('codeLabelAirline') : t('codeLabelGeneral')}</span>
                   <span className="font-bold text-callout text-ink-900">{shiftDetail.dia}</span>
                 </div>
               ) : (
-                <div className="text-callout text-ink-700 mt-2">출퇴근 시간이 입력되지 않은 근무예요.</div>
+                <div className="text-callout text-ink-700 mt-2">{t('noTimeNote')}</div>
               )
             ) : (
               <div className="mt-2.5 flex flex-col gap-1.5">
                 {shiftDetail.dia && (
                   <div className="flex items-center gap-2">
-                    <span className="text-caption text-ink-500 w-12 shrink-0">{airline ? '근무코드' : '다이아'}</span>
+                    <span className="text-caption text-ink-500 w-12 shrink-0">{airline ? t('codeLabelAirline') : t('diaLabel')}</span>
                     <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.dia}</span>
                   </div>
                 )}
@@ -293,7 +300,7 @@ export function DetailSheet({
                   <div className="flex flex-col">
                     {shiftDetail.legs.map((lg, i) => (
                       <div key={i} className="flex items-start gap-2 py-1.5 border-t border-line first:border-t-0 first:pt-0">
-                        <span className="font-en text-caption font-bold shrink-0 mt-0.5 px-1.5 py-0.5 rounded-xs bg-brand-050 text-brand whitespace-nowrap">{lg.flight || lg.route || '구간'}</span>
+                        <span className="font-en text-caption font-bold shrink-0 mt-0.5 px-1.5 py-0.5 rounded-xs bg-brand-050 text-brand whitespace-nowrap">{lg.flight || lg.route || t('legFallback')}</span>
                         <span className="flex flex-col min-w-0 gap-0.5">
                           {lg.depLabel && <span className="font-en text-callout font-bold text-ink-900">{lg.depLabel}</span>}
                           {lg.arrLabel && <span className="font-en text-caption font-bold text-ink-700">↓ {lg.arrLabel}</span>}
@@ -305,42 +312,42 @@ export function DetailSheet({
                   /* 국제선: 각 공항을 그 공항 현지시각으로(항공권식) + 비행시간 별도. */
                   <>
                     <div className="flex items-center gap-2">
-                      <span className="text-caption text-ink-500 w-12 shrink-0">출발</span>
+                      <span className="text-caption text-ink-500 w-12 shrink-0">{t('departure')}</span>
                       <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.depLabel}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-caption text-ink-500 w-12 shrink-0">도착</span>
+                      <span className="text-caption text-ink-500 w-12 shrink-0">{t('arrival')}</span>
                       <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.arrLabel}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-caption text-ink-500 w-12 shrink-0">비행</span>
-                      <span className="text-callout font-bold text-ink-900">{fmtDuration(shiftDetail.end - shiftDetail.start)}</span>
+                      <span className="text-caption text-ink-500 w-12 shrink-0">{t('flight')}</span>
+                      <span className="text-callout font-bold text-ink-900">{fmtDuration(shiftDetail.end - shiftDetail.start, t)}</span>
                     </div>
                   </>
                 ) : (
                   <div className="flex items-start gap-2">
-                    <span className="text-caption text-ink-500 w-12 shrink-0 mt-0.5">시간</span>
+                    <span className="text-caption text-ink-500 w-12 shrink-0 mt-0.5">{t('time')}</span>
                     <span className="flex flex-col min-w-0">
                       <span className="font-en text-callout font-bold text-ink-900">{fmtClock(shiftDetail.start)} – {fmtClock(shiftDetail.end)}</span>
-                      <span className="text-caption text-ink-500 mt-0.5">{fmtDuration(shiftDetail.end - shiftDetail.start)}</span>
+                      <span className="text-caption text-ink-500 mt-0.5">{fmtDuration(shiftDetail.end - shiftDetail.start, t)}</span>
                     </span>
                   </div>
                 )}
                 {!shiftDetail.legs?.length && shiftDetail.trainNr && (
                   <div className="flex items-start gap-2">
-                    <span className="text-caption text-ink-500 w-12 shrink-0 mt-0.5">{airline ? '편명' : '열번'}</span>
+                    <span className="text-caption text-ink-500 w-12 shrink-0 mt-0.5">{airline ? t('flightNoLabel') : t('trainNoLabel')}</span>
                     <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.trainNr.split(/\s*[·,]\s*|\s+/).filter(Boolean).join(' · ')}</span>
                   </div>
                 )}
                 {(shiftDetail.route ?? routeForFlights(airline, shiftDetail.trainNr)) && (
                   <div className="flex items-center gap-2">
-                    <span className="text-caption text-ink-500 w-12 shrink-0">노선</span>
+                    <span className="text-caption text-ink-500 w-12 shrink-0">{t('route')}</span>
                     <span className="font-en text-callout font-bold text-ink-900">{shiftDetail.route ?? routeForFlights(airline, shiftDetail.trainNr)}</span>
                   </div>
                 )}
               </div>
             )}
-            <button onClick={() => setShiftDetail(null)} className="w-full h-11 mt-4 rounded-md bg-brand-050 text-brand text-callout font-bold">확인</button>
+            <button onClick={() => setShiftDetail(null)} className="w-full h-11 mt-4 rounded-md bg-brand-050 text-brand text-callout font-bold">{t('ok')}</button>
           </div>
         </div>
       )}
