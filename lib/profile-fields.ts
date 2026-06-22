@@ -1,6 +1,8 @@
 // 가입·설정에서 공유하는 프로필 선택지. 한 곳에서만 정의해 두 화면이 어긋나지
 // 않게 한다.
 
+import type { Locale } from '@/i18n/config'
+
 /** KTX 소속 지사(드롭다운). 목록에 없으면 '기타'(BRANCH_OTHER)로 직접 입력.
  *  값은 profiles.part 컬럼에 그대로 저장(파트 → 지사로 의미 교체). */
 export const BRANCHES = [
@@ -35,17 +37,17 @@ export const CATEGORY_OPTIONS: { value: SignupCategory; title: string; desc: str
 /** 항공사 목록. `code`는 data-airline 슬러그(테마 스왑 키) 겸 profiles.airline 저장값.
  *  `active`만 가입에서 선택 가능, 나머지는 '준비중'으로 보여주되 선택 차단.
  *  활성 항공사부터, 그 뒤 준비중을 노출 순서대로. */
-export type Airline = { code: string; label: string; active: boolean }
+export type Airline = { code: string; label: string; labelEn: string; active: boolean }
 
 export const AIRLINES: Airline[] = [
-  { code: 'air-premia',  label: '에어프레미아', active: true },
-  { code: 'asiana',      label: '아시아나',     active: true },
-  { code: 'korean-air',  label: '대한항공',     active: false },
-  { code: 'jin-air',     label: '진에어',       active: false },
-  { code: 'jeju-air',    label: '제주항공',     active: false },
-  { code: 'tway',        label: '티웨이항공',   active: false },
-  { code: 'air-busan',   label: '에어부산',     active: false },
-  { code: 'eastar',      label: '이스타항공',   active: false },
+  { code: 'air-premia',  label: '에어프레미아', labelEn: 'Air Premia',  active: true },
+  { code: 'asiana',      label: '아시아나',     labelEn: 'Asiana',      active: true },
+  { code: 'korean-air',  label: '대한항공',     labelEn: 'Korean Air',  active: false },
+  { code: 'jin-air',     label: '진에어',       labelEn: 'Jin Air',     active: false },
+  { code: 'jeju-air',    label: '제주항공',     labelEn: 'Jeju Air',    active: false },
+  { code: 'tway',        label: '티웨이항공',   labelEn: "T'way Air",   active: false },
+  { code: 'air-busan',   label: '에어부산',     labelEn: 'Air Busan',   active: false },
+  { code: 'eastar',      label: '이스타항공',   labelEn: 'Eastar Jet',  active: false },
 ]
 
 export function findAirline(code: string | undefined | null): Airline | undefined {
@@ -67,17 +69,24 @@ export function koTopicParticle(word: string): '은' | '는' {
  *  재가입·마이그레이션 없이 전용 경험으로 자동 승격된다. CbOption과 구조가 같다. */
 export type AirlineOption = { v: string; label: string; badge?: string; muted?: boolean; header?: boolean }
 
-export function airlineSelectOptions(): AirlineOption[] {
+export function airlineSelectOptions(
+  locale: Locale = 'ko',
+  labels?: { active: string; pending: string; badge: string },
+): AirlineOption[] {
+  const name = (a: Airline) => (locale === 'en' ? a.labelEn : a.label)
+  const activeHdr = labels?.active ?? '지금 이용 가능'
+  const pendingHdr = labels?.pending ?? '7월 중 추가 예정'
+  const pendingBadge = labels?.badge ?? '준비중'
   const active = AIRLINES.filter(a => a.active)
   const pending = AIRLINES.filter(a => !a.active)
   const opts: AirlineOption[] = []
   if (active.length) {
-    opts.push({ v: '__hdr_active', label: '지금 이용 가능', header: true })
-    for (const a of active) opts.push({ v: a.code, label: a.label })
+    opts.push({ v: '__hdr_active', label: activeHdr, header: true })
+    for (const a of active) opts.push({ v: a.code, label: name(a) })
   }
   if (pending.length) {
-    opts.push({ v: '__hdr_pending', label: '7월 중 추가 예정', header: true })
-    for (const a of pending) opts.push({ v: a.code, label: a.label, badge: '준비중', muted: true })
+    opts.push({ v: '__hdr_pending', label: pendingHdr, header: true })
+    for (const a of pending) opts.push({ v: a.code, label: name(a), badge: pendingBadge, muted: true })
   }
   return opts
 }

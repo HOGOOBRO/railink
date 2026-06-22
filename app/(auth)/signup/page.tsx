@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations, useLocale } from 'next-intl'
 import Link from 'next/link'
 import { Input } from '@/components/ui/Input'
 import { CbSelect } from '@/components/ui/CbSelect'
@@ -13,13 +14,8 @@ import { signup, getCurrentSession, resendConfirmation, signInWithGoogle } from 
 import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
 import type { Visibility } from '@/lib/types/schedule'
 import { savePendingInvite, peekInvite } from '@/lib/store/invites'
-import { BRANCHES, BRANCH_OTHER, JOB_OPTIONS, CATEGORY_OPTIONS, findAirline, airlineSelectOptions, koTopicParticle, type SignupCategory } from '@/lib/profile-fields'
-
-const VIS_OPTIONS: RadioOption<Visibility>[] = [
-  { value: 'public', title: '공개', desc: '이름·사진이 동료 검색에 떠요. 일정은 따로 수락이 필요해요.' },
-  { value: 'private', title: '비공개', desc: '검색에는 안 떠요. 사번을 정확히 아는 동료만 공유를 요청할 수 있어요.' },
-]
-
+import { BRANCHES, BRANCH_OTHER, JOB_OPTIONS, findAirline, airlineSelectOptions, koTopicParticle, type SignupCategory } from '@/lib/profile-fields'
+import type { Locale } from '@/i18n/config'
 
 interface FormErrors {
   email?: string
@@ -33,8 +29,6 @@ interface FormErrors {
   terms?: string
 }
 
-const PW_LABELS = ['', '약함', '보통', '좋음', '강함']
-
 // Required-agreement row: checkbox + label + "보기" link to the full document.
 // We don't use <Checkbox> here because a nested <Link> inside its <label> would
 // also toggle the checkbox on click. The label stays inside its own <label>
@@ -44,11 +38,15 @@ function AgreementRow({
   checked,
   onChange,
   href,
+  requiredLabel,
+  viewLabel,
 }: {
   label: string
   checked: boolean
   onChange: () => void
   href: string
+  requiredLabel: string
+  viewLabel: string
 }) {
   return (
     <div className="flex items-center gap-2.5 py-2 text-callout text-ink-900">
@@ -61,14 +59,14 @@ function AgreementRow({
         />
         <span className="flex-1">{label}</span>
       </label>
-      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-xs bg-brand-050 text-brand">필수</span>
+      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-xs bg-brand-050 text-brand">{requiredLabel}</span>
       <Link
         href={href}
         target="_blank"
         rel="noreferrer"
         className="text-caption text-ink-500 underline underline-offset-2 hover:text-ink-700"
       >
-        보기
+        {viewLabel}
       </Link>
     </div>
   )
@@ -87,6 +85,21 @@ function pwStrength(pw: string): number {
 export default function SignupPage() {
   const router = useRouter()
   const { showToast } = useToast()
+  const t = useTranslations('signup')
+  const tFields = useTranslations('fields')
+  const locale = useLocale() as Locale
+
+  const VIS_OPTIONS: RadioOption<Visibility>[] = [
+    { value: 'public', title: tFields('visibility.public.title'), desc: tFields('visibility.public.desc') },
+    { value: 'private', title: tFields('visibility.private.title'), desc: tFields('visibility.private.desc') },
+  ]
+  const CATEGORY_OPTIONS: { value: SignupCategory; title: string; desc: string }[] = [
+    { value: 'ktx', title: tFields('category.ktx.title'), desc: tFields('category.ktx.desc') },
+    { value: 'airline', title: tFields('category.airline.title'), desc: tFields('category.airline.desc') },
+    { value: 'other', title: tFields('category.other.title'), desc: tFields('category.other.desc') },
+  ]
+  const jobOptions = JOB_OPTIONS.map(opt => ({ value: opt.value, label: tFields('job.' + opt.value) }))
+  const PW_LABELS = ['', t('pwWeak'), t('pwFair'), t('pwGood'), t('pwStrong')]
 
   // 가입 첫 질문(직무 카테고리). KTX 중심 분기를 대체. airline은 '항공 승무원'일 때 소속.
   const [category, setCategory] = useState<SignupCategory>('ktx')
@@ -167,29 +180,29 @@ export default function SignupPage() {
 
   function validate(): FormErrors {
     const e: FormErrors = {}
-    if (!form.email) e.email = '이메일을 입력해 주세요.'
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = '이메일 형식을 확인해 주세요.'
+    if (!form.email) e.email = t('errors.emailRequired')
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = t('errors.emailInvalid')
     // 사번 is KTX-only.
     if (isKtx) {
-      if (!form.employeeId) e.employeeId = '사번을 입력해 주세요.'
-      else if (!/^\d{4,8}$/.test(form.employeeId)) e.employeeId = '사번은 숫자 4~8자리로 입력해 주세요.'
+      if (!form.employeeId) e.employeeId = t('errors.employeeIdRequired')
+      else if (!/^\d{4,8}$/.test(form.employeeId)) e.employeeId = t('errors.employeeIdFormat')
     }
-    if (!form.name) e.name = '이름을 입력해 주세요.'
-    else if (!isKtx && form.name.length > 30) e.name = '이름은 30자 이내로 입력해 주세요.'
+    if (!form.name) e.name = t('errors.nameRequired')
+    else if (!isKtx && form.name.length > 30) e.name = t('errors.nameTooLong')
     // 지사·직무는 둘 다 선택(optional) — 가입 전환을 막지 않는다. 단 '기타'를
     // 골랐으면 텍스트를 받아야 데이터로 의미가 있어 그때만 필수.
     if (isKtx) {
-      if (branch === BRANCH_OTHER && !branchOther.trim()) e.branch = '소속 지사를 입력해 주세요.'
+      if (branch === BRANCH_OTHER && !branchOther.trim()) e.branch = t('errors.branchRequired')
     } else if (isAirline) {
-      if (!airline) e.airline = '항공사를 선택해 주세요.'
+      if (!airline) e.airline = t('errors.airlineRequired')
     } else if (jobCategory === 'other' && !jobOther.trim()) {
-      e.job = '직무를 입력해 주세요.'
+      e.job = t('errors.jobRequired')
     }
-    if (!form.password) e.password = '비밀번호를 입력해 주세요.'
-    else if (form.password.length < 8) e.password = '비밀번호는 8자 이상으로 설정해 주세요.'
-    else if (!/[A-Za-z]/.test(form.password) || !/\d/.test(form.password)) e.password = '영문과 숫자를 모두 포함해 주세요.'
-    if (form.passwordConfirm !== form.password) e.passwordConfirm = '비밀번호가 일치하지 않아요.'
-    if (!allRequired) e.terms = '필수 약관에 모두 동의해 주세요.'
+    if (!form.password) e.password = t('errors.passwordRequired')
+    else if (form.password.length < 8) e.password = t('errors.passwordTooShort')
+    else if (!/[A-Za-z]/.test(form.password) || !/\d/.test(form.password)) e.password = t('errors.passwordComposition')
+    if (form.passwordConfirm !== form.password) e.passwordConfirm = t('errors.passwordMismatch')
+    if (!allRequired) e.terms = t('errors.termsRequired')
     return e
   }
 
@@ -235,7 +248,7 @@ export default function SignupPage() {
     // Immediate session (email confirm disabled). The stashed invite token is
     // consumed on the calendar mount (single chokepoint for all entry paths).
     setLoading(false)
-    showToast(`환영합니다, ${form.name} 님!`, 'success')
+    showToast(t('welcomeToast', { name: form.name }), 'success')
     router.push('/calendar')
   }
 
@@ -246,14 +259,14 @@ export default function SignupPage() {
     const res = await signInWithGoogle(inviteToken)
     if (!res.ok) {
       setGoogleLoading(false)
-      showToast(res.message ?? 'Google 로그인을 시작하지 못했어요.', 'danger')
+      showToast(res.message ?? t('googleStartFailed'), 'danger')
     }
   }
 
   async function handleResend() {
     if (!sentTo) return
     await resendConfirmation(sentTo)
-    showToast('인증 메일을 다시 보냈어요.', 'success')
+    showToast(t('resendToast'), 'success')
   }
 
   if (sentTo) {
@@ -265,21 +278,21 @@ export default function SignupPage() {
         <div className="w-14 h-14 rounded-lg bg-brand-050 text-brand grid place-items-center mb-5">
           <BrandMark size={26} />
         </div>
-        <h1 className="text-[22px] font-bold tracking-tighter text-ink-900">메일을 확인해 주세요</h1>
+        <h1 className="text-[22px] font-bold tracking-tighter text-ink-900">{t('confirmTitle')}</h1>
         <p className="mt-3 text-callout text-ink-700 leading-relaxed">
-          <span className="font-en text-ink-900">{sentTo}</span> 으로<br />
-          인증 메일을 보냈어요. 메일의 링크를 누르면<br />가입이 완료되고 로그인할 수 있어요.
+          {t.rich('confirmBodyLine1', { email: sentTo, em: (chunks) => <span className="font-en text-ink-900">{chunks}</span> })}<br />
+          {t('confirmBodyLine2')}<br />{t('confirmBodyLine3')}
         </p>
         <div className="h-7" />
         <Link href="/login" className="w-full max-w-[360px]">
-          <Button block>로그인 화면으로</Button>
+          <Button block>{t('confirmToLogin')}</Button>
         </Link>
         <button
           type="button"
           onClick={handleResend}
           className="mt-3.5 text-caption font-semibold text-brand hover:text-brand-700 transition-colors"
         >
-          메일을 못 받으셨나요? 다시 보내기
+          {t('confirmResend')}
         </button>
       </div>
     )
@@ -292,7 +305,7 @@ export default function SignupPage() {
     >
       <Link
         href="/login"
-        aria-label="뒤로"
+        aria-label={t('back')}
         className="absolute top-2 left-2 w-10 h-10 grid place-items-center rounded-full text-ink-700 z-10"
       >
         <ChevronLeftIcon size={20} />
@@ -309,22 +322,22 @@ export default function SignupPage() {
              from peek_invite (anon); until it resolves / if the token is unusable
              we use name-agnostic copy. */
           <>
-            <h1 className="sr-only">계정 만들기</h1>
+            <h1 className="sr-only">{t('title')}</h1>
             <div className="mt-4 mb-5 bg-brand-050 border border-brand-100 rounded-lg px-4 py-5 flex flex-col items-center text-center">
               <div className="w-11 h-11 rounded-full bg-brand text-ink-on-brand grid place-items-center mb-3">
                 <BrandMark size={20} />
               </div>
               <p className="text-callout text-ink-700 leading-relaxed">
                 {inviterName
-                  ? <><span className="font-bold text-ink-900">{inviterName} 님</span>이 RaiLink로 초대했어요.</>
-                  : 'RaiLink로 초대받았어요.'}
-                <br />가입하면 서로의 근무 일정을 한 화면에서 맞춰볼 수 있어요.
+                  ? t.rich('inviterHeader', { name: inviterName, b: (chunks) => <span className="font-bold text-ink-900">{chunks}</span> })
+                  : t('inviterHeaderGeneric')}
+                <br />{t('inviteBody')}
               </p>
             </div>
           </>
         ) : (
           <h1 className="text-center mt-3.5 mb-5 text-[26px] leading-tight font-bold tracking-tighter text-ink-900">
-            계정 만들기
+            {t('title')}
           </h1>
         )}
 
@@ -339,35 +352,39 @@ export default function SignupPage() {
           disabled={googleLoading || loading}
         >
           <GoogleIcon size={18} />
-          {googleLoading ? '연결 중…' : 'Google로 계속하기'}
+          {googleLoading ? t('googleLoading') : t('googleContinue')}
         </Button>
 
         <div className="flex items-center gap-3 my-4">
           <div className="flex-1 h-px bg-line-2" />
-          <span className="text-[11px] font-semibold tracking-wider text-ink-500">또는 이메일로 가입</span>
+          <span className="text-[11px] font-semibold tracking-wider text-ink-500">{t('dividerEmail')}</span>
           <div className="flex-1 h-px bg-line-2" />
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3.5" noValidate>
           {/* The first question — 직무 카테고리(KTX / 항공 / 기타) */}
           <div className="border-b border-line pb-3.5 mb-1">
-            <p className="text-[15px] font-bold text-ink-900">어떤 일을 하세요?</p>
+            <p className="text-[15px] font-bold text-ink-900">{t('categoryQuestion')}</p>
             <RadioGroup
               options={CATEGORY_OPTIONS}
               value={category}
               onChange={setCategory}
-              ariaLabel="직무 선택"
+              ariaLabel={t('categoryAriaLabel')}
               className="flex flex-col gap-2 mt-3"
             />
             {isAirline && (
               /* 소속 항공사 — CbSelect 재사용. 활성/준비중을 섹션으로 나눠 보여주고
                  준비중도 선택 가능(태그만 저장 → 활성화 시 자동 승격). */
               <div className="mt-3 flex flex-col gap-1">
-                <span className="text-caption font-semibold tracking-wide text-ink-900">항공사</span>
+                <span className="text-caption font-semibold tracking-wide text-ink-900">{t('airlineLabel')}</span>
                 <CbSelect
                   value={airline}
-                  placeholder="항공사를 선택해 주세요"
-                  options={airlineSelectOptions()}
+                  placeholder={t('airlinePlaceholder')}
+                  options={airlineSelectOptions(locale, {
+                    active: tFields('airline.headerActive'),
+                    pending: tFields('airline.headerPending'),
+                    badge: tFields('airline.badgePending'),
+                  })}
                   onChange={code => {
                     setAirline(code)
                     setErrors(p => ({ ...p, airline: undefined }))
@@ -381,56 +398,63 @@ export default function SignupPage() {
                 )}
                 <p className="text-caption font-normal tracking-normal text-ink-300">
                   {!selectedAirline
-                    ? '준비 중인 항공사도 미리 고를 수 있어요.'
+                    ? t('airlineHintDefault')
                     : selectedAirline.active
-                      ? `${selectedAirline.label} 근무표를 사진으로 올리면 자동으로 읽어서 채워드려요.`
-                      : `${selectedAirline.label}${koTopicParticle(selectedAirline.label)} 7월 중 추가될 예정이에요. 그때까지는 근무를 직접 입력해서 쓰다가, 사진 자동 인식이 준비되면 바로 켜져요.`}
+                      ? t('airlineHintActive', { airline: locale === 'en' ? selectedAirline.labelEn : selectedAirline.label })
+                      : t('airlineHintPending', {
+                          airline: locale === 'en' ? selectedAirline.labelEn : selectedAirline.label,
+                          particle: koTopicParticle(selectedAirline.label),
+                        })}
                 </p>
               </div>
             )}
             {inviteToken && (
               <p className="mt-2.5 flex items-start gap-1 text-[11px] text-ink-300 leading-relaxed">
                 <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-ink-300 text-ink-on-brand text-[9px] font-bold grid place-items-center mt-px">i</span>
-                어떤 직무를 고르든 {inviterName ? `${inviterName} 님` : '초대한 분'}과 자동으로 연결돼요.
+                {t('inviteConnectNote', {
+                  who: inviterName
+                    ? t('inviteConnectWhoName', { name: inviterName })
+                    : t('inviteConnectWhoGeneric'),
+                })}
               </p>
             )}
           </div>
 
           <Input
-            id="email" label="이메일" required type="email" autoComplete="email"
-            className="font-en" placeholder="이메일을 입력해 주세요"
+            id="email" label={t('emailLabel')} required type="email" autoComplete="email"
+            className="font-en" placeholder={t('emailPlaceholder')}
             value={form.email} onChange={set('email')} error={errors.email}
           />
           {isKtx && (
             <Input
-              id="employeeId" label="사번" required inputMode="numeric"
-              className="font-en" placeholder="숫자 4~8자리"
+              id="employeeId" label={t('employeeIdLabel')} required inputMode="numeric"
+              className="font-en" placeholder={t('employeeIdPlaceholder')}
               value={form.employeeId} onChange={set('employeeId')} error={errors.employeeId}
             />
           )}
           <Input
-            id="name" label="이름" required autoComplete="name"
+            id="name" label={t('nameLabel')} required autoComplete="name"
             maxLength={isKtx ? undefined : 30}
-            hint={isKtx ? undefined : '친구가 보는 이름이에요.'}
-            placeholder="이름을 입력해 주세요"
+            hint={isKtx ? undefined : t('nameHint')}
+            placeholder={t('namePlaceholder')}
             value={form.name} onChange={set('name')} error={errors.name}
           />
           {isKtx && (
             /* 소속 지사 — 정해진 6개 드롭다운(약속 잡기 시간 선택과 동일한 CbSelect
                디자인) + '기타' 선택 시 직접 입력. 선택은 optional. */
             <div className="flex flex-col gap-1">
-              <span className="text-caption font-semibold tracking-wide text-ink-900">소속 지사</span>
+              <span className="text-caption font-semibold tracking-wide text-ink-900">{t('branchLabel')}</span>
               <CbSelect
                 value={branch}
-                placeholder="소속 지사를 선택해 주세요"
-                options={[...BRANCHES.map(b => ({ v: b, label: b })), { v: BRANCH_OTHER, label: '기타' }]}
+                placeholder={t('branchPlaceholder')}
+                options={[...BRANCHES.map(b => ({ v: b, label: b })), { v: BRANCH_OTHER, label: tFields('branchOther') }]}
                 onChange={v => { setBranch(v); setErrors(p => ({ ...p, branch: undefined })) }}
               />
               {branch === BRANCH_OTHER && (
                 <div className="mt-1.5">
                   <Input
-                    id="branchOther" aria-label="소속 지사 직접 입력"
-                    placeholder="소속 지사를 입력해 주세요"
+                    id="branchOther" aria-label={t('branchOtherAriaLabel')}
+                    placeholder={t('branchOtherPlaceholder')}
                     value={branchOther}
                     onChange={e => { setBranchOther(e.target.value); setErrors(p => ({ ...p, branch: undefined })) }}
                     error={errors.branch}
@@ -450,9 +474,9 @@ export default function SignupPage() {
             /* 직무 — 단일선택 칩. 확장 우선순위 판단용(개인화 아님). 선택은
                optional이라 가입 전환을 막지 않는다. '기타' 선택 시 직접 입력. */
             <div className="flex flex-col gap-1">
-              <span className="text-caption font-semibold tracking-wide text-ink-900">직무</span>
-              <div className="flex flex-wrap gap-2 mt-0.5" role="group" aria-label="직무 선택">
-                {JOB_OPTIONS.map(opt => {
+              <span className="text-caption font-semibold tracking-wide text-ink-900">{t('jobLabel')}</span>
+              <div className="flex flex-wrap gap-2 mt-0.5" role="group" aria-label={t('jobAriaLabel')}>
+                {jobOptions.map(opt => {
                   const active = jobCategory === opt.value
                   return (
                     <button
@@ -475,8 +499,8 @@ export default function SignupPage() {
               {jobCategory === 'other' && (
                 <div className="mt-1.5">
                   <Input
-                    id="jobOther" aria-label="직무 직접 입력"
-                    placeholder="어떤 일을 하시나요?"
+                    id="jobOther" aria-label={t('jobOtherAriaLabel')}
+                    placeholder={t('jobOtherPlaceholder')}
                     value={jobOther}
                     onChange={e => { setJobOther(e.target.value); setErrors(p => ({ ...p, job: undefined })) }}
                     error={errors.job}
@@ -491,27 +515,27 @@ export default function SignupPage() {
                       {errors.job}
                     </p>
                   )
-                  : <p className="text-caption font-normal tracking-normal text-ink-300">선택은 안 해도 괜찮아요.</p>
+                  : <p className="text-caption font-normal tracking-normal text-ink-300">{t('jobOptionalHint')}</p>
               )}
             </div>
           )}
 
           <div className="flex flex-col gap-2">
             <Input
-              id="password" label="비밀번호" required
+              id="password" label={t('passwordLabel')} required
               type={showPw ? 'text' : 'password'} autoComplete="new-password"
               className="font-en"
               value={form.password} onChange={set('password')}
               error={errors.password}
               hint={
                 form.password
-                  ? `강도: ${PW_LABELS[strength]}`
-                  : '8자 이상, 영문과 숫자를 포함해 주세요.'
+                  ? t('passwordStrength', { label: PW_LABELS[strength] })
+                  : t('passwordHint')
               }
               trailing={
                 <button
                   type="button" onClick={() => setShowPw(s => !s)}
-                  aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'}
+                  aria-label={showPw ? t('hidePassword') : t('showPassword')}
                   className="grid place-items-center w-9 h-9"
                 >
                   <EyeIcon size={20} off={!showPw} />
@@ -537,7 +561,7 @@ export default function SignupPage() {
           </div>
 
           <Input
-            id="passwordConfirm" label="비밀번호 확인" required
+            id="passwordConfirm" label={t('passwordConfirmLabel')} required
             type={showPw ? 'text' : 'password'} autoComplete="new-password"
             className="font-en"
             value={form.passwordConfirm} onChange={set('passwordConfirm')}
@@ -545,7 +569,7 @@ export default function SignupPage() {
             trailing={
               <button
                 type="button" onClick={() => setShowPw(s => !s)}
-                aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'}
+                aria-label={showPw ? t('hidePassword') : t('showPassword')}
                 className="grid place-items-center w-9 h-9"
               >
                 <EyeIcon size={20} off={!showPw} />
@@ -556,25 +580,29 @@ export default function SignupPage() {
           {/* Agreements */}
           <div className="border-t border-line pt-3.5 mt-1">
             <Checkbox
-              label="전체 동의"
+              label={t('agreeAll')}
               className="font-bold border-b border-line mb-1"
               checked={allAgrees}
               onChange={e => setAll(e.target.checked)}
             />
             <AgreementRow
-              label="이용약관에 동의합니다."
+              label={t('agreeTos')}
               checked={terms.tos}
               onChange={() => toggle('tos')}
               href="/legal/terms"
+              requiredLabel={t('required')}
+              viewLabel={t('view')}
             />
             <AgreementRow
-              label="개인정보 수집·이용에 동의합니다."
+              label={t('agreePrivacy')}
               checked={terms.privacy}
               onChange={() => toggle('privacy')}
               href="/legal/privacy"
+              requiredLabel={t('required')}
+              viewLabel={t('view')}
             />
             <Checkbox
-              label="업데이트·이벤트 알림 수신에 동의합니다." badge="optional"
+              label={t('agreeMarketing')} badge="optional"
               checked={terms.marketing} onChange={() => toggle('marketing')}
             />
             {errors.terms && (
@@ -589,45 +617,44 @@ export default function SignupPage() {
             /* Visibility — search exposure only; separate from schedule sharing.
                KTX-only: personal accounts always start private (settable later). */
             <div className="border-t border-line pt-3.5 mt-1">
-              <p className="text-[15px] font-bold text-ink-900">내 계정을 동료가 검색할 수 있게 할까요?</p>
+              <p className="text-[15px] font-bold text-ink-900">{t('visibilityQuestion')}</p>
               <p className="mt-1 text-caption text-ink-500 leading-relaxed">
-                이건 일정 공유와는 별개예요. 일정은 나중에 동료가 요청하고 내가 수락할 때만 공개돼요.
+                {t('visibilityDesc')}
               </p>
               <RadioGroup
                 options={VIS_OPTIONS}
                 value={visibility}
                 onChange={setVisibility}
-                ariaLabel="공개 범위"
+                ariaLabel={t('visibilityAriaLabel')}
                 className="flex flex-col gap-2 mt-3"
               />
-              <p className="mt-2 text-[11px] text-ink-300">설정 → 공개 범위에서 언제든 바꿀 수 있어요.</p>
+              <p className="mt-2 text-[11px] text-ink-300">{t('visibilityChangeNote')}</p>
             </div>
           ) : (
             <div className="border-t border-line pt-3.5 mt-1 bg-brand-050 -mx-5 px-5 py-3.5">
               <p className="text-caption text-ink-700 leading-relaxed">
-                가입 시 내 일정은 <span className="font-bold text-ink-900">비공개로 시작</span>해요.
-                공개 범위는 설정에서 언제든 바꿀 수 있어요.
+                {t.rich('privacyStartsNote', { b: (chunks) => <span className="font-bold text-ink-900">{chunks}</span> })}
               </p>
             </div>
           )}
 
           <div className="h-1" />
           <Button type="submit" block disabled={loading || (isKtx && !visibility)}>
-            {loading ? '가입 중…' : isKtx ? '가입하기' : '가입하고 시작하기'}
+            {loading ? t('submitLoading') : isKtx ? t('submitKtx') : t('submitOther')}
           </Button>
 
           <p className="text-center text-callout text-ink-700 mt-2">
-            이미 계정이 있으신가요?{' '}
+            {t('haveAccount')}{' '}
             <Link href="/login" className="text-brand font-bold hover:text-brand-700 transition-colors">
-              로그인
+              {t('loginLink')}
             </Link>
           </p>
         </form>
 
         {!inviteToken && (
           <div className="mt-4 bg-brand-050 border-2 border-line rounded-sm px-4 py-3.5 text-caption text-ink-700 leading-relaxed">
-            <p className="text-[13px] font-bold text-ink-900 mb-1">가입 후 바로 시작할 수 있어요</p>
-            내 근무표를 등록하고 동료와 일정을 공유할 수 있어요.
+            <p className="text-[13px] font-bold text-ink-900 mb-1">{t('bottomCardTitle')}</p>
+            {t('bottomCardBody')}
           </div>
         )}
       </div>
