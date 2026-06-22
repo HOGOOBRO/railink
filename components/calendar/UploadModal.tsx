@@ -31,6 +31,11 @@ export type UploadMethod = 'file' | 'image' | 'manual'
 type Step = 'pick' | 'preview' | 'manual'
 type ManualCategory = 'ktx' | 'general'
 
+// AI 인식 신뢰도가 이 값 미만일 때만 'AI 인식 원문 확인'(raw 텍스트)을 노출한다.
+// 잘 읽힌 경우(happy path)엔 미리보기표만 보여 깔끔하게, 의심스러울 때만 원문
+// 대조 수단을 제공. 90%는 명확히 잘 읽힌 선 — 그 아래는 확인 가치가 있다.
+const LOW_CONFIDENCE_PCT = 90
+
 // Inline glyphs from the upload handoff — kept local to this file because
 // they only appear here. SparkleGlyph signals AI assist, CameraGlyph drives
 // the primary hero tile.
@@ -229,6 +234,9 @@ export function UploadModal({
   const [busy, setBusy] = useState<'file' | 'image' | null>(null)
   const [ocr, setOcr] = useState<OcrProgress | null>(null)
   const [ocrText, setOcrText] = useState('')
+  // AI 이미지 인식 신뢰도(%). ocrText와 같은 생애주기로 묶어, 낮을 때만 원문
+  // 토글을 노출하는 데 쓴다. null = 인식 결과 없음(파일/엑셀 경로 등).
+  const [confidence, setConfidence] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -347,6 +355,7 @@ export function UploadModal({
     setBusy('file')
     setOcr(null)
     setOcrText('')
+    setConfidence(null)
     setError(null)
     setNotice(null)
     setRows([])
@@ -384,6 +393,7 @@ export function UploadModal({
       progress: 0.02,
     })
     setOcrText('')
+    setConfidence(null)
     setError(null)
     setNotice(null)
     setRows([])
@@ -401,6 +411,7 @@ export function UploadModal({
         : { rows: result.rows, stripped: false }
       setRows(displayPreviewRows(display.rows))
       setOcrText(result.text)
+      setConfidence(result.confidence)
       const usageText = result.usage
         ? ` 이번 달 ${result.usage.used}/${result.usage.limit}회 사용.`
         : ''
@@ -835,7 +846,9 @@ export function UploadModal({
                 <span>{notice}</span>
               </StatusBox>
             )}
-            {ocrText && (
+            {/* 신뢰도가 낮을 때만 원문 대조 수단을 노출 — 잘 읽힌 경우엔 미리보기표만
+                보여 깔끔하게 둔다. confidence가 null이면(인식 결과 없음) 숨김. */}
+            {ocrText && confidence !== null && confidence < LOW_CONFIDENCE_PCT && (
               <details className="mt-3 rounded-md border border-line bg-bg px-3 py-2">
                 <summary className="cursor-pointer text-caption font-semibold text-ink-700">
                   AI 인식 원문 확인
