@@ -28,7 +28,7 @@ import { BootSplash } from '@/components/loading/BootSplash'
 import { Spinner } from '@/components/ui/Spinner'
 import { useDelayedFlag } from '@/lib/use-delayed-flag'
 import type { MonthPerson, MonthShift } from '@/components/calendar/MonthTimeline'
-import { getCurrentSession, getCachedSession, logout, getMarketingConsent, setMarketingConsent, getJobCategory, setJobCategory, type Session } from '@/lib/auth'
+import { getCurrentSession, getCachedSession, hasPersistedSession, getPersistedIdentity, logout, getMarketingConsent, setMarketingConsent, getJobCategory, setJobCategory, type Session, type PersistedIdentity } from '@/lib/auth'
 import { JOB_OPTIONS, findAirline } from '@/lib/profile-fields'
 import { builtinCode } from '@/lib/roster-codes'
 import { track } from '@/lib/analytics'
@@ -285,6 +285,20 @@ export default function CalendarPage() {
   // Seed from the SPA-lifetime session cache so client-side navigation back to
   // calendar doesn't flash the boot gate (session would otherwise start null).
   const [session, setSession] = useState<Session | null>(() => getCachedSession())
+  // 콜드 부팅 즉시-렌더: 폰에 지속 세션 흔적이 있으면(재방문 사용자) 세션 해석을
+  // 기다리지 않고 저장된 신원으로 캘린더 스켈레톤을 곧장 띄운다. localStorage는
+  // 서버 렌더엔 없으므로 hydration 불일치를 피하려 첫 렌더는 false로 두고 마운트
+  // 직후 effect에서 채운다(세션 대기 수초 대비 무시할 1프레임 지연).
+  const [likelyAuthed, setLikelyAuthed] = useState(false)
+  const [bootIdentity, setBootIdentity] = useState<PersistedIdentity | null>(null)
+  useEffect(() => {
+    // 클라이언트 전용 저장소를 마운트 후 1회 읽는 의도된 단발 갱신(lazy initializer로
+    // 첫 렌더에 읽으면 서버엔 localStorage가 없어 hydration이 깨진다). 캐스케이드
+    // 렌더가 아니므로 set-state-in-effect 경고는 이 한 줄만 예외 처리한다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLikelyAuthed(hasPersistedSession())
+    setBootIdentity(getPersistedIdentity())
+  }, [])
   const [groupsState, setGroupsState] = useState<GroupsState>({ groups: [], activeGroupId: null })
   const [mySched, setMySched] = useState<ScheduleEntry[]>([])
   const [colSched, setColSched] = useState<Record<string, ScheduleEntry[]>>({})
@@ -1292,6 +1306,13 @@ export default function CalendarPage() {
   const showBoot = useDelayedFlag(!session, 200)
   const showSkeleton = useDelayedFlag(!!session && booting, 150)
   if (!session) {
+    // 재방문 사용자: 세션(토큰 갱신+profiles) 해석을 기다리지 않고 캘린더 스켈레톤을
+    // 저장된 이름·사진으로 즉시 띄운다 — 항공사 색은 AirlineTheme이 같은 저장값으로
+    // 첫 프레임에 입힌다. 토큰이 만료/무효라 위 로더의 getCurrentSession이 끝내
+    // null을 내면 그쪽에서 /login으로 보낸다(스켈레톤이 잠깐 보였다 이동).
+    if (likelyAuthed) {
+      return <CalendarSkeleton name={bootIdentity?.name ?? ''} photo={bootIdentity?.photo} year={year} month={month} />
+    }
     return showBoot ? <BootSplash /> : <div className="min-h-[100dvh] bg-surface" />
   }
   // Cold boot only: nothing has rendered yet, so the full skeleton (⑤) is right.
