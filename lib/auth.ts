@@ -33,6 +33,51 @@ export interface Session {
 const DEMO_SESSION_KEY = 'railink_demo_session_v3'
 const DEMO_PHOTO_KEY = 'railink_demo_photo_v1'
 
+/* ── 콜드 부팅 폴백-렌더용 경량 신원 스냅샷 ──────────────────────────────────
+ * getCurrentSession이 성공할 때마다 이름·사진·소속 항공사를 localStorage에 남긴다.
+ * 다음 PWA 콜드 런치에서 세션(토큰 갱신 + profiles 조회)이 *오래* 지연되면(락 교착·
+ * proxy 콜드스타트), BootSplash에 무한히 묶이는 대신 이 스냅샷으로 캘린더 스켈레톤을
+ * 그려 탈출구를 준다. AirlineTheme도 같은 스냅샷으로 첫 프레임 색을 입힌다. 절대
+ * 권한 판정엔 쓰지 않는다 — 실제 인증은 늘 supabase 세션이 진실. */
+const IDENTITY_KEY = 'railink_identity_v1'
+
+export interface PersistedIdentity { name: string; photo?: string; airline?: string }
+
+/** 동기 읽기: 마지막으로 알려진 신원(이름·사진·항공사). 없으면 null. */
+export function getPersistedIdentity(): PersistedIdentity | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(IDENTITY_KEY)
+    return raw ? (JSON.parse(raw) as PersistedIdentity) : null
+  } catch { return null }
+}
+
+function writePersistedIdentity(id: PersistedIdentity): void {
+  if (typeof window === 'undefined') return
+  try { localStorage.setItem(IDENTITY_KEY, JSON.stringify(id)) } catch { /* 저장 차단 — 무시 */ }
+}
+
+function clearPersistedIdentity(): void {
+  if (typeof window === 'undefined') return
+  try { localStorage.removeItem(IDENTITY_KEY) } catch { /* 무시 */ }
+}
+
+/** 동기 best-effort: localStorage에 지속 세션(데모 플래그 또는 supabase 토큰)이
+ *  있는가? 콜드 부팅에서 '재방문 사용자'를 추정해, 세션 해석이 오래 지연될 때
+ *  BootSplash 대신 캘린더 스켈레톤으로 폴백하는 데 쓴다. 오탐(만료 토큰)은 스켈레톤이
+ *  잠깐 보였다 getCurrentSession이 null을 반환하면 호출부가 /login으로 보낸다. */
+export function hasPersistedSession(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    if (localStorage.getItem(DEMO_SESSION_KEY)) return true
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith('sb-') && k.includes('auth-token')) return true
+    }
+  } catch { /* private mode 등 — 흔적 없음으로 취급 */ }
+  return false
+}
+
 export function isDemoCreds(email: string, pw: string): boolean {
   return email === DEMO_LOGIN.email && pw === DEMO_LOGIN.pw
 }
@@ -105,7 +150,12 @@ export function getCurrentSession(): Promise<Session | null> {
 async function resolveCurrentSession(): Promise<Session | null> {
   const { data } = await supabase.auth.getSession()
   const u = data.session?.user
-  if (!u) { const demo = getDemoSession(); lastSession = demo; return demo }
+  if (!u) {
+    const demo = getDemoSession()
+    lastSession = demo
+    if (demo) writePersistedIdentity({ name: demo.name, photo: demo.photo, airline: demo.airline })
+    return demo
+  }
   if (typeof window !== 'undefined') localStorage.removeItem(DEMO_SESSION_KEY)
   const m = (u.user_metadata ?? {}) as Record<string, string>
   // profile_type: user_metadata is a LEGACY FALLBACK only. The source of truth is
@@ -170,6 +220,7 @@ async function resolveCurrentSession(): Promise<Session | null> {
     isDemo: false,
   }
   lastSession = session
+  writePersistedIdentity({ name: session.name, photo: session.photo, airline: session.airline })
   return session
 }
 
@@ -418,6 +469,7 @@ export async function logout(): Promise<void> {
   } catch { /* 미지원/실패 — 로그아웃은 계속 */ }
   if (typeof window !== 'undefined') {
     localStorage.removeItem(DEMO_SESSION_KEY)
+    clearPersistedIdentity() // 신원 스냅샷도 폐기 — 로그아웃 후 콜드 부팅은 BootSplash→/login
     // Defensive wipe: supabase-js usually stores the session under
     // `sb-<projectRef>-auth-token`, but on some builds we observed signOut
     // leaving stray sb-* keys behind. Anything that survives makes
