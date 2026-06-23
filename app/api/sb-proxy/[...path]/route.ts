@@ -7,13 +7,20 @@
 
 import type { NextRequest } from 'next/server'
 
-export const runtime = 'nodejs'
+// Edge 런타임 + 서울(icn1) 고정. nodejs 서버리스는 저트래픽이라 부팅 시 동시 호출이
+// 각자 콜드 스타트(~1초)를 물어 첫 진입이 6초+ 걸렸다(함수가 식어 있다가 깨어남).
+// Edge는 콜드 스타트가 거의 없고 서울 엣지에서 실행돼 서울 Supabase와 같은 리전 →
+// 호출당 ~100ms. 단 edge는 nodejs와 동작이 달라 forward에서 세 가지를 맞춰줘야 한다:
+//  ① Next.js가 catch-all 세그먼트를 `path=` 쿼리로 덧붙임 → 제거
+//  ② edge fetch가 gzip 응답을 자동 해제 안 함 → accept-encoding: identity로 평문 수신
+//  ③ 204/304 등 본문 금지 상태에 버퍼를 넣으면 Response 생성이 throw → 본문 null 처리
+export const runtime = 'edge'
 export const dynamic = 'force-dynamic'
-// 함수를 서울(icn1)에 고정. Supabase 프로젝트가 서울(ap-northeast-2)이고 주 사용자도
-// 한국인데, 리전 미설정 시 Vercel 기본값(US East, iad1)에서 실행돼 모든 DB 호출이
-// 미국을 경유(브라우저→서울엣지→US함수→서울DB→US→한국)하며 1개당 1초+ 걸렸다.
-// 함수·DB·사용자를 같은 리전에 모으면 호출당 ~100ms로 떨어져 부팅이 대폭 빨라진다.
 export const preferredRegion = 'icn1'
+
+// 본문을 가질 수 없는 응답 상태(여기에 ArrayBuffer를 넘기면 Response가 throw → 500).
+// supabase 쓰기(PATCH/DELETE, Prefer: return=minimal)가 204를 반환한다.
+const NULL_BODY_STATUS = new Set([101, 204, 205, 304])
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 
@@ -52,30 +59,34 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
   }
 
   const incoming = new URL(req.url)
+  // ① edge에선 Next.js가 catch-all([...path]) 세그먼트를 `path=rest&path=v1&...`로
+  // 쿼리에 덧붙인다. 그대로 두면 PostgREST가 `path`를 필터로 해석해 400(빈 데이터).
+  incoming.searchParams.delete('path')
   const targetUrl = `${SUPABASE_URL}/${path.join('/')}${incoming.search}`
 
   const headers = new Headers()
   req.headers.forEach((value, key) => {
     if (ALLOWED_REQ_HEADERS.has(key.toLowerCase())) headers.set(key, value)
   })
+  // ② edge fetch는 gzip 응답을 자동 해제하지 않으므로 압축을 끄고 평문으로 받는다.
+  headers.set('accept-encoding', 'identity')
 
   const hasBody = !['GET', 'HEAD'].includes(req.method)
-  const init: RequestInit & { duplex?: 'half' } = {
+  const upstream = await fetch(targetUrl, {
     method: req.method,
     headers,
-    body: hasBody ? req.body : undefined,
+    body: hasBody ? await req.arrayBuffer() : undefined,
     redirect: 'manual',
-  }
-  if (hasBody) init.duplex = 'half'
-
-  const upstream = await fetch(targetUrl, init)
+  })
 
   const resHeaders = new Headers()
   upstream.headers.forEach((value, key) => {
     if (!STRIPPED_RES_HEADERS.has(key.toLowerCase())) resHeaders.set(key, value)
   })
 
-  return new Response(upstream.body, {
+  // ③ 204/304 등은 본문이 없어야 한다(버퍼를 넘기면 Response가 throw → 500).
+  const body = NULL_BODY_STATUS.has(upstream.status) ? null : await upstream.arrayBuffer()
+  return new Response(body, {
     status: upstream.status,
     statusText: upstream.statusText,
     headers: resHeaders,
