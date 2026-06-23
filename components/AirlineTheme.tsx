@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
-import { getCurrentSession, getCachedSession, getPersistedIdentity } from '@/lib/auth'
+import { getCurrentSession, getCachedSession } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 
 /** 로그인 사용자의 소속 항공사(session.airline)에 맞춰 <html data-airline>를 세팅한다.
@@ -28,10 +28,7 @@ export function AirlineTheme() {
       if (airline) el.dataset.airline = airline
       else delete el.dataset.airline
     }
-    // 콜드 부팅엔 in-memory 캐시(getCachedSession)가 비어 있으므로, 지속 신원
-    // 스냅샷의 항공사로 폴백해 세션 해석 전에 첫 프레임부터 색을 입힌다. 직후
-    // resolve()가 서버 최신값으로 재적용하므로 항공사가 바뀌었어도 자동 정정된다.
-    apply(getCachedSession()?.airline ?? getPersistedIdentity()?.airline)
+    apply(getCachedSession()?.airline)
     const resolve = () => getCurrentSession().then(s => apply(s?.airline)).catch(() => {})
     resolve()
     const { data: sub } = supabase.auth.onAuthStateChange(() => resolve())
