@@ -9,6 +9,11 @@ import type { NextRequest } from 'next/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+// 함수를 서울(icn1)에 고정. Supabase 프로젝트가 서울(ap-northeast-2)이고 주 사용자도
+// 한국인데, 리전 미설정 시 Vercel 기본값(US East, iad1)에서 실행돼 모든 DB 호출이
+// 미국을 경유(브라우저→서울엣지→US함수→서울DB→US→한국)하며 1개당 1초+ 걸렸다.
+// 함수·DB·사용자를 같은 리전에 모으면 호출당 ~100ms로 떨어져 부팅이 대폭 빨라진다.
+export const preferredRegion = 'icn1'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 
