@@ -402,11 +402,20 @@ export default function CalendarPage() {
       // 복원). 1회만 — 이후 부팅은 로컬을 권위로 두고 서버엔 push만 한다.
       if (s.isDemo) {
         disableRemoteGroupSync()
-      } else if (!groupsHydrated.current) {
+      } else {
         enableRemoteGroupSync(s.uid)
-        await hydrateGroupsFromRemote(s.uid)
-        if (!alive) return
-        groupsHydrated.current = true
+        if (!groupsHydrated.current) {
+          groupsHydrated.current = true
+          // 서버 그룹 동기화는 부팅을 막지 않는다. 첫 페인트는 로컬 그룹으로
+          // 즉시 그리고, 재설치 복원처럼 서버에 더 최신 그룹이 있으면 hydrate가
+          // 로컬에 써넣은 뒤 reload를 한 번 튕겨 다시 읽어 반영한다. 이렇게 해야
+          // 스플래시가 그룹 네트워크 왕복만큼 길어지지 않는다.
+          const before = JSON.stringify(getGroupsState(s.uid))
+          void hydrateGroupsFromRemote(s.uid).then(next => {
+            if (!alive) return
+            if (JSON.stringify(next) !== before) setReload(n => n + 1)
+          })
+        }
       }
       // Groups + members. Demo colleagues are hidden from real accounts — filter
       // each group's members (same isolation rule the compare store had).
