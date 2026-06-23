@@ -7,12 +7,12 @@
 
 import type { NextRequest } from 'next/server'
 
-export const runtime = 'nodejs'
+// Edge 런타임 + 서울(icn1) 고정. 이 프록시는 fetch/URL/Headers/Response만 쓰는
+// Web 표준 코드라 Edge 호환이다. nodejs 서버리스일 때는 부팅 시 ~8개 호출이 동시에
+// 터지며 각자 콜드 스타트(~1초)를 물어 첫 진입이 6초+ 걸렸다. Edge는 콜드 스타트가
+// 거의 없고 서울 엣지에서 실행돼 서울 Supabase와 같은 리전 → 호출당 왕복이 대폭 준다.
+export const runtime = 'edge'
 export const dynamic = 'force-dynamic'
-// 함수를 서울(icn1)에 고정. Supabase 프로젝트가 서울(ap-northeast-2)이고 주 사용자도
-// 한국인데, 리전 미설정 시 Vercel 기본값(US East, iad1)에서 실행돼 모든 DB 호출이
-// 미국을 경유(브라우저→서울엣지→US함수→서울DB→US→한국)하며 1개당 1초+ 걸렸다.
-// 함수·DB·사용자를 같은 리전에 모으면 호출당 ~100ms로 떨어져 부팅이 대폭 빨라진다.
 export const preferredRegion = 'icn1'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -59,16 +59,15 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
     if (ALLOWED_REQ_HEADERS.has(key.toLowerCase())) headers.set(key, value)
   })
 
+  // Edge 런타임에선 요청 본문을 버퍼링해 보낸다(스트리밍 duplex 대신 — 본문은 작은
+  // JSON이라 무해하고, edge 환경 간 호환성이 더 안전하다). GET/HEAD는 본문 없음.
   const hasBody = !['GET', 'HEAD'].includes(req.method)
-  const init: RequestInit & { duplex?: 'half' } = {
+  const upstream = await fetch(targetUrl, {
     method: req.method,
     headers,
-    body: hasBody ? req.body : undefined,
+    body: hasBody ? await req.arrayBuffer() : undefined,
     redirect: 'manual',
-  }
-  if (hasBody) init.duplex = 'half'
-
-  const upstream = await fetch(targetUrl, init)
+  })
 
   const resHeaders = new Headers()
   upstream.headers.forEach((value, key) => {
