@@ -448,12 +448,21 @@ export default function SettingsInfoPage() {
         {/* 공개 범위 (Section A) */}
         <section className="mt-4">
           <p className="px-1 pb-2 text-[11px] font-bold tracking-wider uppercase text-ink-500">{t('sectionVisibility')}</p>
-          <RadioGroup
-            options={VIS_OPTIONS}
-            value={vis}
-            onChange={onVisibilityChange}
-            ariaLabel={t('visibilityAriaLabel')}
-          />
+          {remoteLoading ? (
+            // 실제 공개범위가 로딩 중일 땐 라디오를 기본값('공개')으로 그리지 않는다 —
+            // 비공개 계정이 잠깐 "공개"로 보여 프라이버시상 오해를 준다. 값이 올 때까지 스켈레톤.
+            <div className="bg-surface border border-line rounded-lg overflow-hidden">
+              <div className="px-3.5 py-3"><Skeleton className="w-40 h-4 rounded-md" /></div>
+              <div className="px-3.5 py-3 border-t border-line"><Skeleton className="w-44 h-4 rounded-md" /></div>
+            </div>
+          ) : (
+            <RadioGroup
+              options={VIS_OPTIONS}
+              value={vis}
+              onChange={onVisibilityChange}
+              ariaLabel={t('visibilityAriaLabel')}
+            />
+          )}
         </section>
 
         {/* 알림 — 약속 초대 웹 푸시 (지원 기기 + 실계정만) */}
