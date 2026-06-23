@@ -82,6 +82,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const locale = await getLocale()
   const messages = await getMessages()
 
+  // 클라이언트 프로바이더로 내려보내는 사전에서 서버 전용 대용량 본문을 뺀다.
+  // legal.privacy/terms/oss(전체 약관·개인정보 본문, ko 기준 ~27KB로 메시지의 36%)는
+  // /legal/* '서버' 컴포넌트가 getTranslations로 직접 읽으므로 클라이언트엔 불필요 —
+  // 빼면 매 페이지 HTML에 인라인되는 바이트와 클라이언트 JSON 파싱이 그만큼 준다.
+  // legal.common(공통 크롬)은 LegalPage 클라이언트 컴포넌트가 useTranslations로 쓰므로 남긴다.
+  const legal = (messages as Record<string, unknown>).legal as { common?: unknown } | undefined
+  const clientMessages = (legal
+    ? { ...messages, legal: { common: legal.common } }
+    : messages) as typeof messages
+
   // Inline background on html/body so a cold PWA launch paints the neutral
   // surface immediately — before globals.css loads. Without it the system can
   // flash a black screen (standalone dark mode) until the stylesheet applies.
@@ -98,7 +108,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               'window.dataLayer=window.dataLayer||[];window.gtag=window.gtag||function(){window.dataLayer.push(arguments);};',
           }}
         />
-        <NextIntlClientProvider locale={locale} messages={messages}>
+        <NextIntlClientProvider locale={locale} messages={clientMessages}>
           <ToastProvider>
             <AppFrame>{children}</AppFrame>
           </ToastProvider>
