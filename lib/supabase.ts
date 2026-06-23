@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, processLock } from '@supabase/supabase-js'
 
 // The anon/publishable key is public by design; data access is enforced by
 // Row Level Security, not key secrecy.
@@ -31,6 +31,12 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      // 인메모리 락(navigator.locks 미사용). 기본 navigatorLock은 풀 페이지 로드 때
+      // getSession()이 락 획득에서 교착돼 영영 resolve되지 않는 일이 있었다 — 콜드
+      // 스타트/새로고침/딥링크에서 캘린더가 BootSplash에, 내정보가 빈 화면에 무한히
+      // 묶이던 원인. processLock은 문서별 인메모리라 이런 교착이 없다. 트레이드오프는
+      // 멀티탭 간 토큰 갱신 비조율 정도로, 설치형 PWA(주로 단일 인스턴스)엔 무해하다.
+      lock: processLock,
     },
   },
 )
