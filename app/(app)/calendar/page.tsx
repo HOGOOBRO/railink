@@ -531,9 +531,11 @@ export default function CalendarPage() {
         setColSched({ ...cols })
         setColsSyncing(false)
 
-        const birthdays = await birthdaysPromise
-        if (!alive) return
-        if (birthdays) {
+        // 생일(케이크 마커·넛지)은 부가 정보라 첫 화면을 막지 않는다 — await 대신
+        // 백그라운드로 받아 마커만 나중에 채워, 부팅 임계경로에서 콜드 네트워크 호출
+        // 하나(생일)를 뺀다. 화면은 근무표가 뜨는 즉시 그려지고 케이크는 잠시 뒤 붙는다.
+        birthdaysPromise.then(birthdays => {
+          if (!alive || !birthdays) return
           const [memberB, myB] = birthdays
           setColBirthdays(memberB)
           setMyBirthday(myB)
@@ -541,7 +543,7 @@ export default function CalendarPage() {
             myB !== null ||
             (typeof window !== 'undefined' && localStorage.getItem(`railink_bday_nudge_${s.uid}`) === '1'),
           )
-        }
+        })
       }
 
       // Primary month data is on screen now — drop the first-load skeleton (⑤)
