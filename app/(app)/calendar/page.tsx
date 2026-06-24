@@ -28,7 +28,7 @@ import { BootSplash } from '@/components/loading/BootSplash'
 import { Spinner } from '@/components/ui/Spinner'
 import { useDelayedFlag } from '@/lib/use-delayed-flag'
 import type { MonthPerson, MonthShift } from '@/components/calendar/MonthTimeline'
-import { getCurrentSession, getCachedSession, logout, getMarketingConsent, setMarketingConsent, getJobCategory, setJobCategory, type Session } from '@/lib/auth'
+import { getCurrentSession, getCachedSession, hasPersistedSession, getPersistedIdentity, logout, getMarketingConsent, setMarketingConsent, getJobCategory, setJobCategory, type Session, type PersistedIdentity } from '@/lib/auth'
 import { JOB_OPTIONS, findAirline } from '@/lib/profile-fields'
 import { builtinCode } from '@/lib/roster-codes'
 import { track } from '@/lib/analytics'
@@ -285,6 +285,20 @@ export default function CalendarPage() {
   // Seed from the SPA-lifetime session cache so client-side navigation back to
   // calendar doesn't flash the boot gate (session would otherwise start null).
   const [session, setSession] = useState<Session | null>(() => getCachedSession())
+  // 콜드 부팅 폴백-렌더: 폰에 지속 세션 흔적이 있으면(재방문 사용자) 저장된 신원을
+  // 읽어둔다. 세션 해석이 너무 오래 걸리면(아래 게이트의 bootStuck) BootSplash에
+  // 무한히 묶이는 대신 이 신원으로 캘린더 스켈레톤을 띄워 탈출구를 준다. localStorage는
+  // 서버 렌더엔 없으므로 hydration 불일치를 피하려 첫 렌더는 false로 두고 마운트
+  // 직후 effect에서 채운다.
+  const [likelyAuthed, setLikelyAuthed] = useState(false)
+  const [bootIdentity, setBootIdentity] = useState<PersistedIdentity | null>(null)
+  useEffect(() => {
+    // 클라이언트 전용 저장소를 마운트 후 1회 읽는 의도된 단발 갱신(lazy initializer로
+    // 첫 렌더에 읽으면 서버엔 localStorage가 없어 hydration이 깨진다).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLikelyAuthed(hasPersistedSession())
+    setBootIdentity(getPersistedIdentity())
+  }, [])
   const [groupsState, setGroupsState] = useState<GroupsState>({ groups: [], activeGroupId: null })
   const [mySched, setMySched] = useState<ScheduleEntry[]>([])
   const [colSched, setColSched] = useState<Record<string, ScheduleEntry[]>>({})
@@ -404,9 +418,17 @@ export default function CalendarPage() {
         disableRemoteGroupSync()
       } else if (!groupsHydrated.current) {
         enableRemoteGroupSync(s.uid)
-        await hydrateGroupsFromRemote(s.uid)
-        if (!alive) return
         groupsHydrated.current = true
+        // 서버 그룹 동기화는 부팅(스플래시 해제)을 막지 않는다. setSession을 이 네트워크
+        // 왕복 뒤로 미루면, proxy 콜드스타트/락 지연이 그대로 스플래시 시간이 된다(무한
+        // 스플래시의 두 경로 중 하나였다). 첫 페인트는 로컬 그룹으로 즉시 그리고, 재설치
+        // 복원처럼 서버에 더 최신 그룹이 있으면 hydrate가 로컬에 써넣은 뒤 reload를 한 번
+        // 튕겨 다시 읽어 반영한다.
+        const before = JSON.stringify(getGroupsState(s.uid))
+        void hydrateGroupsFromRemote(s.uid).then(next => {
+          if (!alive) return
+          if (JSON.stringify(next) !== before) setReload(n => n + 1)
+        })
       }
       // Groups + members. Demo colleagues are hidden from real accounts — filter
       // each group's members (same isolation rule the compare store had).
@@ -1284,7 +1306,15 @@ export default function CalendarPage() {
   // Only a genuinely slow resolve reveals the splash (①) / skeleton (⑤).
   const showBoot = useDelayedFlag(!session, 200)
   const showSkeleton = useDelayedFlag(!!session && booting, 150)
+  // 세션 해석이 비정상적으로 오래(>4s) 걸리면(락 교착·proxy 콜드스타트) BootSplash에
+  // 무한히 묶이는 대신, 재방문 사용자에겐 저장된 신원으로 캘린더 스켈레톤을 띄워
+  // 탈출구를 준다. 정상(빠른) 부팅은 이 분기에 닿기 전 session이 채워져 영향이 없다.
+  // 토큰이 만료/무효라 위 로더의 getCurrentSession이 끝내 null을 내면 그쪽에서 /login으로 보낸다.
+  const bootStuck = useDelayedFlag(!session, 4000)
   if (!session) {
+    if (bootStuck && likelyAuthed) {
+      return <CalendarSkeleton name={bootIdentity?.name ?? ''} photo={bootIdentity?.photo} year={year} month={month} />
+    }
     return showBoot ? <BootSplash /> : <div className="min-h-[100dvh] bg-surface" />
   }
   // Cold boot only: nothing has rendered yet, so the full skeleton (⑤) is right.
