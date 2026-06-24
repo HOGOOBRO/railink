@@ -40,6 +40,11 @@ const BUILTIN: Record<string, { category: RosterCategory; label: string }> = {
   STBY:              { category: 'standby', label: 'STBY' },
   대기:              { category: 'standby', label: 'STBY' },
   REST:              { category: 'other', label: '체류' },
+  // 제주항공 코드(canonCode 형태: TR_OPR→TROPR)
+  LAYOV:             { category: 'other', label: '체류' },
+  CHECKIN:           { category: 'other', label: '체류' },
+  TROPR:             { category: 'training', label: '훈련' },
+  TRC:               { category: 'training', label: '훈련' },
 }
 
 export function builtinCode(raw: string | undefined | null): { category: RosterCategory; label: string } | undefined {

@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/Toast'
 import { RadioGroup } from '@/components/ui/RadioGroup'
 import { getCurrentSession, completeOnboarding, logout } from '@/lib/auth'
 import {
-  findAirline, airlineSelectOptions, koTopicParticle, JOB_OPTIONS, type SignupCategory,
+  findAirline, airlineSelectOptions, airlineBases, koTopicParticle, JOB_OPTIONS, type SignupCategory,
 } from '@/lib/profile-fields'
 import type { Locale } from '@/i18n/config'
 
@@ -35,19 +35,23 @@ export default function WelcomePage() {
   const [name, setName] = useState('')
   const [category, setCategory] = useState<SignupCategory>('ktx')
   const [airline, setAirline] = useState('')
+  const [base, setBase] = useState('')
   const [jobCategory, setJobCategory] = useState<string | null>(null)
   const [jobOther, setJobOther] = useState('')
-  const [errors, setErrors] = useState<{ airline?: string; job?: string }>({})
+  const [errors, setErrors] = useState<{ airline?: string; base?: string; job?: string }>({})
   const [saving, setSaving] = useState(false)
 
   const isAirline = category === 'airline'
   const isOther = category === 'other'
   const selectedAirline = findAirline(airline)
+  // 다중베이스 항공사(제주항공)면 베이스 필수.
+  const baseOptions = airlineBases(airline)
 
   // 선택이 덜 끝났으면 '시작하기'를 비활성화한다(눌러서 에러 띄우기 전에 버튼으로 막음).
   // 항공 승무원=항공사 필수, 기타=직무 필수(직접입력 선택 시 내용까지), KTX=추가 입력 없음.
   const incomplete =
     (isAirline && !airline) ||
+    (isAirline && baseOptions.length > 0 && !base) ||
     (isOther && !jobCategory) ||
     (isOther && jobCategory === 'other' && !jobOther.trim())
 
@@ -67,6 +71,7 @@ export default function WelcomePage() {
   function validate(): boolean {
     const e: typeof errors = {}
     if (isAirline && !airline) e.airline = t('errors.airlineRequired')
+    if (isAirline && airlineBases(airline).length > 0 && !base) e.base = '소속 베이스를 선택해 주세요.'
     if (isOther && !jobCategory) e.job = t('errors.jobSelectRequired')
     if (isOther && jobCategory === 'other' && !jobOther.trim()) e.job = t('errors.jobRequired')
     setErrors(e)
@@ -79,6 +84,7 @@ export default function WelcomePage() {
     const res = await completeOnboarding({
       category,
       airline: isAirline ? airline : undefined,
+      base: isAirline ? (base || undefined) : undefined,
       jobCategory: isOther ? (jobCategory ?? undefined) : undefined,
       jobOther: isOther && jobCategory === 'other' ? (jobOther.trim() || undefined) : undefined,
     })
@@ -133,7 +139,8 @@ export default function WelcomePage() {
                 })}
                 onChange={code => {
                   setAirline(code)
-                  setErrors(p => ({ ...p, airline: undefined }))
+                  setBase('')  // 항공사 바뀌면 베이스 초기화
+                  setErrors(p => ({ ...p, airline: undefined, base: undefined }))
                 }}
               />
               {errors.airline && (
@@ -152,6 +159,27 @@ export default function WelcomePage() {
                         particle: koTopicParticle(selectedAirline.label),
                       })}
               </p>
+              {/* 베이스(home base) — 다중베이스 항공사(제주항공)만 노출, 필수 */}
+              {baseOptions.length > 0 && (
+                <div className="mt-3 flex flex-col gap-1">
+                  <span className="text-caption font-semibold tracking-wide text-ink-900">소속 베이스</span>
+                  <CbSelect
+                    value={base}
+                    placeholder="베이스를 선택하세요"
+                    options={baseOptions.map(b => ({ v: b.value, label: b.label }))}
+                    onChange={v => {
+                      setBase(v)
+                      setErrors(p => ({ ...p, base: undefined }))
+                    }}
+                  />
+                  {errors.base && (
+                    <p className="flex items-start gap-1 text-caption text-danger mt-0.5">
+                      <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-danger text-ink-on-brand text-[10px] font-bold grid place-items-center mt-px">!</span>
+                      {errors.base}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
