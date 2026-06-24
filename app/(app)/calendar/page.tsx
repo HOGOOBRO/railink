@@ -1523,7 +1523,7 @@ export default function CalendarPage() {
           are comparing someone but haven't set their own birthday yet. */}
       {!session.isDemo && compares.length > 0 && myBirthday === null && !bdayNudgeDismissed && (
         <div className="w-full flex items-center gap-2 px-4 py-2.5 bg-surface border-b border-line">
-          <span className="shrink-0" style={{ color: '#E8669B' }}><CakeIcon size={16} /></span>
+          <span className="shrink-0" style={{ color: 'var(--birthday)' }}><CakeIcon size={16} /></span>
           <button
             onClick={() => router.push('/settings/info?focus=birthday')}
             className="flex-1 text-caption font-semibold text-ink-700 text-left"
@@ -2016,7 +2016,7 @@ function CalendarLegend() {
         <LegendItem label={t('birthday')}>
           <span
             className="w-[7px] h-[7px] rounded-full inline-block"
-            style={{ background: '#E8669B', boxShadow: '0 0 0 1.5px #fff' }}
+            style={{ background: 'var(--birthday)', boxShadow: '0 0 0 1.5px #fff' }}
           />
         </LegendItem>
       </div>

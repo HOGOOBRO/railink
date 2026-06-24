@@ -68,12 +68,24 @@
   --c8: #65A30D;  --c8-soft: #E1F1C7;
   --c9: #0F766E;  --c9-soft: #CCFBF1;
   --c10: #BE185D; --c10-soft: #FCE7F3;
+
+  /* 생일 마커(셀 점·케이크 아이콘)·생일 배너 기본색 = 핑크. 항공사 테마에서 덮을 수 있다. */
+  --birthday: #E8669B;
+  --birthday-bg: #FBEEF4;          /* DetailSheet 생일 배너 배경 */
+  --birthday-ink: #C24B82;         /* 배너 '생일' 아이브로·+N 텍스트 */
+  --birthday-ink-strong: #7E2A52;  /* 배너 이름 텍스트 */
+
+  /* 데스크톱(≥600px) 프레임 바깥 배경 워시의 우하단 코너색. 테마에서 덮을 수 있다. */
+  --bg-wash: #EAF2F8;
 }
 
 /* ─── 항공사별 브랜드 테마 ───
    data-airline 슬러그를 <html>에 걸면(AirlineTheme) --brand/--accent 스케일이
    통째로 바뀐다. Tailwind brand-* 유틸이 전부 var(--brand-*)를 참조하므로
-   컴포넌트 수정 없이 색이 갈아끼워진다. 활성 항공사만 정의(준비중은 추후).
+   컴포넌트 수정 없이 색이 갈아끼워진다. AirlineTheme은 active 여부와 무관하게
+   session.airline로 data-airline를 걸므로, 준비중 항공사라도 여기 테마를 정의해
+   두면 그 태그로 가입한 사용자에게 바로 색이 입혀진다(파서가 붙어 active로
+   승격될 때 그대로 사용).
 
    Air Premia: 네이비 #002554(primary) + 코랄레드 #E34027(point).
    (참고: Airhex 로고색 #EC542C — 거의 동일한 코랄레드) */
@@ -115,6 +127,43 @@
   --c8:  #7B9A2E; --c8-soft:  #E6ECCC;  /* 유록 olive */
   --c9:  #3D6BB5; --c9-soft:  #DBE5F3;  /* 청  cobalt */
   --c10: #B23A5E; --c10-soft: #F4D7DF;  /* 자주 wine */
+}
+
+/* Jeju Air: 공식 팔레트 = JEJUair Orange #ff5000(primary) + Orange Sub #ff8300 + Blue #00a7e1.
+   오렌지를 지배색으로(이미지 그대로), 강조는 블루 accent. 단 primary 버튼은
+   bg-brand-700 + 흰 글씨라 -700 끝을 흰글씨 대비 4.5:1 넘는 딥 오렌지(#D43A00 = 4.77:1)로
+   깊게 받친다. 공식 #ff5000은 흰글씨 대비 ~3.3:1이라 버튼 본색으론 약해서 hero/hover/틴트로
+   유지. 토스트는 brand 틴트(--brand-050)를 참조해 이 테마를 따라간다(소프트 톤). */
+[data-airline="jeju-air"] {
+  --brand:     #FF6A33;     /* 공식 #ff5000을 한 단계 연하게 — 큰 채움이 쨍하지 않게 */
+  --brand-700: #D43A00;     /* primary 버튼(흰 글씨) 대비 4.5:1+ 유지 */
+  --brand-500: #FF8A5A;
+  --brand-300: #FFB596;
+  --brand-100: #FFDCCB;
+  --brand-050: #FFF3EC;
+  --accent:      #00A7E1;   /* JEJUair Blue (포인트) */
+  --accent-soft: #CCEEF8;
+  --scan-color:  #00A7E1;   /* AI 스캔선 = 블루(오렌지 brand와 분리해 스캔이 또렷하게) */
+  --birthday:    #ff8300;   /* 생일 = 공식 Orange Sub(brand 주황과 구분되는 밝은 주황) */
+  --birthday-bg: #FFF1E6;            /* 생일 배너 배경 = 연한 오렌지 */
+  --birthday-ink: #C2540A;          /* 아이브로·+N = 딥 오렌지(연한 배경 대비) */
+  --birthday-ink-strong: #7A3A06;   /* 이름 = 더 딥한 오렌지브라운 */
+  --bg-wash:     #FBE7DB;   /* 바깥 배경 워시 = 따뜻한 톤(파랑 제거, 오렌지와 조화) */
+  --bg:          #F7F5F2;   /* 앱 전체 배경 = 중립회색을 아주 살짝 웜으로(오렌지와 조화) */
+
+  /* 동료 비교 색 — 진한 오렌지 brand와 어울리게 재구성. brand의 빨강-주황 영역(c4 기본
+     주황 등)은 피하고, 시원한 색(블루·시안·틸·그린·바이올렛·핑크) 위주 + 따뜻한 쪽은
+     brand와 확실히 구분되는 골드/올리브만. 색상환을 고루 띄워 사람 구분은 유지. */
+  --c1:  #00A7E1; --c1-soft:  #CCEEF8;  /* JEJUair Blue (첫 비교대상) */
+  --c2:  #2F6FE0; --c2-soft:  #DCE7FA;  /* 블루(c1과 구분되는 진한 쪽) */
+  --c3:  #129B86; --c3-soft:  #CFEBE5;  /* 틸 */
+  --c4:  #2EA25C; --c4-soft:  #D5EDDF;  /* 그린 */
+  --c5:  #7E9E20; --c5-soft:  #E6EECB;  /* 올리브 */
+  --c6:  #E2A019; --c6-soft:  #FAEBC5;  /* 골드 (brand 주황과 구분되는 노랑쪽) */
+  --c7:  #E15B9E; --c7-soft:  #F8DEEC;  /* 핑크 */
+  --c8:  #C353C0; --c8-soft:  #F2DBF1;  /* 마젠타 */
+  --c9:  #8056D6; --c9-soft:  #E6DCF8;  /* 바이올렛 */
+  --c10: #4757C6; --c10-soft: #DCE0F6;  /* 인디고 */
 }
 
 @layer base {
@@ -190,7 +239,7 @@
   body {
     background:
       radial-gradient(1200px 700px at 30% 0%, var(--brand-050) 0%, transparent 60%),
-      radial-gradient(900px 500px at 100% 100%, #EAF2F8 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 100%, var(--bg-wash) 0%, transparent 60%),
       var(--bg);
   }
   .app-frame {
