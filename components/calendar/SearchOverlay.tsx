@@ -403,11 +403,8 @@ function ResultRow({
         <div className="flex items-center gap-1.5">
           <span className="font-semibold text-callout text-ink-900 truncate">{u.name}</span>
           {isPrivate && <LockIcon className="text-ink-300 shrink-0" />}
-          {isKtx ? (
-            <>
-              {u.employeeId && <span className="font-en text-caption text-ink-500">{u.employeeId}</span>}
-              <span className="shrink-0 text-[10px] font-bold text-brand bg-brand-050 px-1.5 py-0.5 rounded-xs">{t('row.ktxBadge')}</span>
-            </>
+          {isKtx && u.employeeId ? (
+            <span className="font-en text-caption text-ink-500">{u.employeeId}</span>
           ) : null}
         </div>
         {isPrivate ? (
