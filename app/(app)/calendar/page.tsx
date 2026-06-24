@@ -178,9 +178,10 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
     if (skip.has(d)) continue
     const e = at(d)
     if (!e || e.isOff || (e.diaNr && e.diaNr.startsWith('~('))) continue
-    // 레이오버(휴식) 마커 — 항공 승무원의 시각·편명 없는 순수 REST만 스킵(체류 블록이 대체).
-    // KTX/일반 계정은 영향 없게 airline일 때만.
-    if (airline && e.diaNr === 'REST' && !e.startTime && !e.endTime && !e.trainNr) continue
+    // 레이오버(체류) 마커 — 시각·편명 없는 순수 체류 코드(REST·LAYOV·CHECKIN·
+    // LAYOVCHECKIN)는 별도 카드로 안 그린다. 체류 band(아래 후처리)가 대체하므로
+    // 카드까지 그리면 중복으로 보인다. KTX/일반 계정 영향 없게 airline일 때만.
+    if (airline && builtinCode(e.diaNr)?.category === 'other' && !e.startTime && !e.endTime && !e.trainNr) continue
     // 노선 명시 항공사(아시아나 등): 저장된 레그로 노선·시차·레그별 상세를 만든다.
     // 편명 룩업표 대신 SECTOR를 그대로 쓰므로 노선 수에 제약이 없다.
     if (airline && e.flights?.length) {
@@ -239,7 +240,11 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
     if (hasStart) {
       const nx = at(d + 1)
       if (nx && !nx.isOff && nx.endTime && !nx.startTime) {
-        const trainNr = e.trainNr || nx.trainNr
+        // 두 날의 편명을 합친다(중복 제거). 퀵턴은 복편(예: 2504)이 다음날 칸에만
+        // 적혀 있어, 첫날 편명만 취하면 "가서 안 돌아오는" 편도로 보였다.
+        const trainNr = [...new Set(
+          [e.trainNr, nx.trainNr].flatMap(s => (s ? s.split(/\s*·\s*/) : [])).map(t => t.trim()).filter(Boolean),
+        )].join(' · ') || undefined
         const ep = flightEndpoints(airline, trainNr)
         const p = placeShift(year, month, d, e.startTime as string, ep.from, d + 1, nx.endTime, ep.to)
         out.push({ day: p.day, dia: flightDia(e.diaNr || nx.diaNr), trainNr, start: p.start, end: p.end, route: rt(trainNr), depLabel: p.depLabel, arrLabel: p.arrLabel, dir: flightDir(ep.from, ep.to), fromAirport: ep.from, toAirport: ep.to })
