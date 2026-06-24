@@ -40,6 +40,7 @@ import {
   replaceUserScheduleMonths,
   replaceUsersMonthCache,
 } from '@/lib/store/schedules'
+import { retryWithTimeout } from '@/lib/async-retry'
 import {
   getGroupsState, saveGroupsState, activeGroupOf, allMemberUids,
   addToActiveGroup, removeFromActiveGroup, setActiveGroup,
@@ -530,10 +531,18 @@ export default function CalendarPage() {
         ]).catch(() => null) // best-effort; leave markers/nudge off
 
         try {
-          const [remoteMine, remoteCols] = await Promise.all([
-            getRemoteMonthSchedules(s.uid, year, month),
-            getRemoteMonthSchedulesForUsers(memberUids, year, month),
-          ])
+          // 부팅 데이터 fetch에 타임아웃+재시도. 타임아웃이 없으면 콜드스타트·일시 stuck·
+          // 네트워크 흔들림에 이 await가 무한 pending → setColsSyncing(false)(아래)에 못
+          // 닿아 "이번 달 일정 불러오는 중" 바가 영영 안 사라진다. 8초 내 응답 없으면 끊고
+          // 한 번 더 시도(콜드스타트였다면 다음엔 warm). 끝내 실패하면 catch로 떨어져
+          // 캐시 prefill을 유지한 채 로딩 표시만 해제한다(무한 대신 캐시 화면).
+          const [remoteMine, remoteCols] = await retryWithTimeout(
+            () => Promise.all([
+              getRemoteMonthSchedules(s.uid, year, month),
+              getRemoteMonthSchedulesForUsers(memberUids, year, month),
+            ]),
+            { tries: 2, timeoutMs: 8000, backoffMs: 800 },
+          )
           if (!alive) return
           if (!remoteMine.length && mine.length) {
             await replaceRemoteUserScheduleMonths(s.uid, mine)

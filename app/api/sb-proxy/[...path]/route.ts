@@ -72,25 +72,43 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
   headers.set('accept-encoding', 'identity')
 
   const hasBody = !['GET', 'HEAD'].includes(req.method)
-  const upstream = await fetch(targetUrl, {
-    method: req.method,
-    headers,
-    body: hasBody ? await req.arrayBuffer() : undefined,
-    redirect: 'manual',
-  })
+  const body = hasBody ? await req.arrayBuffer() : undefined
 
-  const resHeaders = new Headers()
-  upstream.headers.forEach((value, key) => {
-    if (!STRIPPED_RES_HEADERS.has(key.toLowerCase())) resHeaders.set(key, value)
-  })
+  // 업스트림 hang 방어: edge fetch엔 기본 타임아웃이 없어, 콜드스타트·네트워크 단절로
+  // Supabase 응답이 영영 안 오면 이 fetch가 무한 pending → 클라 supabase-js fetch도
+  // 무한 pending이 되어 캘린더 데이터 로딩바·세션 해석이 안 풀린다(관측된 증상). 10초
+  // 상한을 둬 hang을 504로 끊어, 클라가 무한 대기 대신 즉시 실패를 받아 재시도하거나
+  // 호출부 catch로 떨어지게 한다. 정상(빠른) 응답엔 영향이 없다.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 10_000)
+  try {
+    const upstream = await fetch(targetUrl, {
+      method: req.method,
+      headers,
+      body,
+      redirect: 'manual',
+      signal: controller.signal,
+    })
 
-  // ③ 204/304 등은 본문이 없어야 한다(버퍼를 넘기면 Response가 throw → 500).
-  const body = NULL_BODY_STATUS.has(upstream.status) ? null : await upstream.arrayBuffer()
-  return new Response(body, {
-    status: upstream.status,
-    statusText: upstream.statusText,
-    headers: resHeaders,
-  })
+    const resHeaders = new Headers()
+    upstream.headers.forEach((value, key) => {
+      if (!STRIPPED_RES_HEADERS.has(key.toLowerCase())) resHeaders.set(key, value)
+    })
+
+    // ③ 204/304 등은 본문이 없어야 한다(버퍼를 넘기면 Response가 throw → 500).
+    const resBody = NULL_BODY_STATUS.has(upstream.status) ? null : await upstream.arrayBuffer()
+    return new Response(resBody, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers: resHeaders,
+    })
+  } catch (err) {
+    // abort(타임아웃) 또는 네트워크 오류 → 504. 무한 pending보다 즉시 실패가 낫다.
+    const aborted = err instanceof Error && err.name === 'AbortError'
+    return new Response(aborted ? 'Upstream timeout' : 'Upstream fetch error', { status: 504 })
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 type Ctx = { params: { path: string[] } }
