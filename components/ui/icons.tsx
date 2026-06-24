@@ -241,8 +241,10 @@ export function GoogleIcon({ size = 18, className }: IconProps) {
 }
 
 export function BrandMark({ size = 18, className }: IconProps) {
-  const FILL = '#D6E2EC'
-  const LINE = '#0C3C60'
+  // 기본은 RaiLink 네이비 마크. 항공사 테마에서 --brandmark-fill/line을 덮으면
+  // 그 색으로 바뀐다(제주=오렌지). 변수 미설정 시 폴백으로 기존 색 유지(랜딩·KTX 등).
+  const FILL = 'var(--brandmark-fill, #D6E2EC)'
+  const LINE = 'var(--brandmark-line, #0C3C60)'
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className} aria-hidden>
       <path d="M10.7395 8.0099C12.2536 8.0099 13.481 6.78245 13.481 5.26832C13.481 3.7542 12.2536 2.52676 10.7395 2.52676C9.22534 2.52676 7.9979 3.7542 7.9979 5.26832C7.9979 6.78245 9.22534 8.0099 10.7395 8.0099Z" fill={FILL} />
