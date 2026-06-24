@@ -59,9 +59,14 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
   }
 
   const incoming = new URL(req.url)
-  // ① edge에선 Next.js가 catch-all([...path]) 세그먼트를 `path=rest&path=v1&...`로
-  // 쿼리에 덧붙인다. 그대로 두면 PostgREST가 `path`를 필터로 해석해 400(빈 데이터).
-  incoming.searchParams.delete('path')
+  // ① 이 빌드의 Next.js는 catch-all([...path]) 세그먼트를 라우팅용 내부 쿼리로 덧붙인다.
+  // 프로덕션 로그상 실제로는 `nxtPpath=auth/v1/token`(nxtP + 파라미터명) 형태로 들어오며,
+  // 빌드/버전에 따라 `path`로 나타나기도 한다. 그대로 두면 PostgREST가 이를 컬럼 필터로
+  // 해석해 400(빈 데이터)이 날 수 있으므로, 업스트림 전달 전에 내부 라우팅 키(nxtP*, path)를
+  // 모두 제거한다. 실제 쿼리(grant_type·select·eq 등)는 그대로 보존된다.
+  for (const key of [...incoming.searchParams.keys()]) {
+    if (key === 'path' || key.startsWith('nxtP')) incoming.searchParams.delete(key)
+  }
   const targetUrl = `${SUPABASE_URL}/${path.join('/')}${incoming.search}`
 
   const headers = new Headers()
