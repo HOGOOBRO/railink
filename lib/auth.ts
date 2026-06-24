@@ -1,4 +1,6 @@
-import { supabase } from './supabase'
+import type { User } from '@supabase/supabase-js'
+import { supabase, AUTH_STORAGE_KEY } from './supabase'
+import { withTimeout } from './async-retry'
 import { DEMO_ME, DEMO_LOGIN } from './demo-data'
 import { seedDemo } from './demo-seed'
 import type { Visibility, ProfileType } from './types/schedule'
@@ -150,9 +152,47 @@ export function getCurrentSession(): Promise<Session | null> {
   return inflightSession
 }
 
+/* 콜드 부팅 시 세션 해석에 두는 데드라인. supabase.auth.getSession()은 토큰이
+ * 만료에 가까우면 내부적으로 /auth/v1/token refresh를 호출하는데, 콜드 edge 프록시·
+ * 네트워크 흔들림에서 이 refresh가 길게(때론 504 재시도 루프로) 늘어진다. getSession이
+ * 안 끝나면 부팅의 첫 await가 막혀 session이 영영 null → 4초 폴백 스켈레톤에 묶인 채
+ * 강제종료 전엔 안 풀렸다(관측된 증상의 근본). 3초 안에 안 끝나면 저장된 세션으로
+ * 즉시 진행한다(아래 resolveAuthUser). Theo 기준 "5초도 길다" → 3초. */
+const SESSION_DEADLINE_MS = 3000
+
+/* localStorage에 supabase-js가 저장해 둔 세션에서 인증 유저를 직접 읽는다. getSession이
+ * 데드라인을 넘겼을 때의 폴백 — 네트워크 없이 즉시 반환한다. 토큰이 만료 직전이어도
+ * 캘린더를 캐시로 띄우는 데는 충분하고, 백그라운드에서 계속 도는 원래 getSession이
+ * 토큰을 정상화하면 이후 라이브 쿼리가 갱신된 토큰을 쓴다. 키 형식은 supabase-js와
+ * 동일(AUTH_STORAGE_KEY, 같은 url에서 파생). 저장 포맷 버전차를 대비해 래핑도 처리. */
+function readStoredUser(): User | null {
+  if (typeof window === 'undefined' || !AUTH_STORAGE_KEY) return null
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    const session = parsed?.user ? parsed : (parsed?.currentSession ?? parsed?.session ?? null)
+    return (session?.user as User) ?? null
+  } catch {
+    return null
+  }
+}
+
+/* getSession을 데드라인과 함께 호출하고, 넘기면 저장된 세션으로 폴백한다. 정상 세션이
+ * 없으면(로그아웃) null을 반환해 호출부의 demo/login 분기로 떨어진다. 데드라인을 넘긴
+ * 원래 getSession Promise는 취소되지 않고 백그라운드로 계속 진행한다(JS Promise는 취소
+ * 불가, 무해 — lib/async-retry 주석 참고). */
+async function resolveAuthUser(): Promise<User | null> {
+  try {
+    const { data } = await withTimeout(supabase.auth.getSession(), SESSION_DEADLINE_MS, 'getSession')
+    return data.session?.user ?? null
+  } catch {
+    return readStoredUser()
+  }
+}
+
 async function resolveCurrentSession(): Promise<Session | null> {
-  const { data } = await supabase.auth.getSession()
-  const u = data.session?.user
+  const u = await resolveAuthUser()
   if (!u) {
     const demo = getDemoSession()
     lastSession = demo
@@ -187,8 +227,16 @@ async function resolveCurrentSession(): Promise<Session | null> {
     cleanFetch = true
   } else {
     try {
-      const { data: prof } = await supabase
-        .from('profiles').select('photo, profile_type, airline, base, job_category').eq('id', u.id).maybeSingle()
+      // 데드라인: getSession이 폴백된 콜드 부팅에선 프록시가 식어 이 조회도 늘어질 수 있다.
+      // 상한을 둬 두 번째 stall을 막는다. 넘기면 catch로 떨어져 metadata 폴백(+캐시 안 함
+      // → 다음 호출이 진실 재조회)으로 진행하므로 부팅이 막히지 않는다.
+      const { data: prof } = await withTimeout(
+        Promise.resolve(
+          supabase.from('profiles').select('photo, profile_type, airline, base, job_category').eq('id', u.id).maybeSingle(),
+        ),
+        SESSION_DEADLINE_MS,
+        'profiles',
+      )
       // No profiles row (shouldn't happen post-trigger) → fall back to metadata.
       profileType = prof
         ? (prof.profile_type === 'personal' ? 'personal' : 'ktx_attendant')

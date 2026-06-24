@@ -23,6 +23,13 @@ const url = typeof window !== 'undefined'
   ? `${window.location.origin}/api/sb-proxy`
   : (directUrl || 'https://placeholder.supabase.co')
 
+// supabase-js가 createClient(url, ...)에서 파생하는 것과 동일한 auth 저장 키
+// (SupabaseClient: `sb-${hostname.split('.')[0]}-auth-token`). 콜드 부팅 시 세션
+// 해석(getSession)이 데드라인을 넘기면 lib/auth.ts가 이 키로 저장된 세션을 직접 읽어
+// 즉시 폴백한다 — 같은 url에서 파생하므로 클라이언트가 실제로 쓰는 키와 항상 일치한다.
+export const AUTH_STORAGE_KEY =
+  typeof window !== 'undefined' ? `sb-${new URL(url).hostname.split('.')[0]}-auth-token` : ''
+
 // 락 획득에 상한(2초)을 둔 processLock 래퍼. supabase는 getSession/initialize 등을
 // acquireTimeout=-1(무한 대기)로 호출하는데, 콜드 부팅 때 initialize의 토큰 갱신이
 // 락을 쥔 채 끝나지 않으면 이후 모든 getSession(데이터 토큰 획득 포함)이 그 뒤에

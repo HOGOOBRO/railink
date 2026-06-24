@@ -54,6 +54,15 @@ const STRIPPED_RES_HEADERS = new Set([
 ])
 
 async function forward(req: NextRequest, path: string[]): Promise<Response> {
+  // keep-warm 핑(GET /api/sb-proxy/__warm). 업스트림(Supabase)을 건드리지 않고 이 edge
+  // 함수만 깨워 둔다 — 저트래픽이라 함수가 식으면 아침 첫 진입이 콜드 스타트(~3s)를 물고,
+  // 그 위에서 세션 토큰 refresh가 늘어진다. 현재 자동 핑은 안 붙여 둠(무료 플랜은 Vercel
+  // 크론이 1일 1회뿐) — 외부 무료 핑(cron-job.org 등)으로 5분 주기 호출하면 콜드스타트
+  // 자체가 사라진다. 핑이 없어도 세션 3초 데드라인(lib/auth.ts)이 무한 로딩은 막는다.
+  if (path.length === 1 && path[0] === '__warm') {
+    return new Response('warm', { status: 200, headers: { 'cache-control': 'no-store' } })
+  }
+
   if (!SUPABASE_URL) {
     return new Response('Supabase URL not configured', { status: 500 })
   }
