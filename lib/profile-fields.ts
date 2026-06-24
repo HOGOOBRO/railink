@@ -37,18 +37,31 @@ export const CATEGORY_OPTIONS: { value: SignupCategory; title: string; desc: str
 /** 항공사 목록. `code`는 data-airline 슬러그(테마 스왑 키) 겸 profiles.airline 저장값.
  *  `active`만 가입에서 선택 가능, 나머지는 '준비중'으로 보여주되 선택 차단.
  *  활성 항공사부터, 그 뒤 준비중을 노출 순서대로. */
-export type Airline = { code: string; label: string; labelEn: string; active: boolean }
+/** 항공사 베이스(home base) 선택지. 지방 베이스가 있는 항공사만 `bases`를 둔다.
+ *  value는 안정 코드(profiles.base 저장값), label만 화면 표시. 비우면(undefined)
+ *  단일 베이스(서울)라 가입에서 베이스를 묻지 않고 null(=서울 기본)로 둔다. */
+export type AirlineBase = { value: string; label: string }
+export type Airline = {
+  code: string; label: string; labelEn: string; active: boolean
+  bases?: AirlineBase[]
+}
 
 export const AIRLINES: Airline[] = [
   { code: 'air-premia',  label: '에어프레미아', labelEn: 'Air Premia',  active: true },
   { code: 'asiana',      label: '아시아나',     labelEn: 'Asiana',      active: true },
   { code: 'korean-air',  label: '대한항공',     labelEn: 'Korean Air',  active: false },
   { code: 'jin-air',     label: '진에어',       labelEn: 'Jin Air',     active: false },
-  { code: 'jeju-air',    label: '제주항공',     labelEn: 'Jeju Air',    active: false },
+  { code: 'jeju-air',    label: '제주항공',     labelEn: 'Jeju Air',    active: true,
+    bases: [{ value: 'seoul', label: '서울 (인천·김포)' }, { value: 'busan', label: '부산 (김해)' }] },
   { code: 'tway',        label: '티웨이항공',   labelEn: "T'way Air",   active: false },
   { code: 'air-busan',   label: '에어부산',     labelEn: 'Air Busan',   active: false },
   { code: 'eastar',      label: '이스타항공',   labelEn: 'Eastar Jet',  active: false },
 ]
+
+/** 해당 항공사가 가입 시 베이스 선택을 요구하는지 + 선택지. 다중베이스만 non-empty. */
+export function airlineBases(code: string | undefined | null): AirlineBase[] {
+  return findAirline(code)?.bases ?? []
+}
 
 export function findAirline(code: string | undefined | null): Airline | undefined {
   if (!code) return undefined

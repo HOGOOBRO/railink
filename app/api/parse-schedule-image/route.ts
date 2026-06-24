@@ -517,6 +517,43 @@ function buildPrompt(defaultYear: number, defaultMonth: number, imageCount: numb
     return ap.join('\n')
   }
 
+  // 제주항공(7C): 에어프레미아와 같은 단일 근무창 그리드. 차이 = 편명이 prefix 없는
+  // 숫자, 하루 레그가 더 많음(최대 ~6), 코드 어휘(OFF/LAYOV/CHECKIN/TR_OPR/TRC),
+  // 시각 표기 (B). 노선은 lib/airline-routes JEJU_ROUTES가 편명으로 붙인다.
+  if (airline === 'jeju-air') {
+    const jj: string[] = [
+      "You are extracting ONE Jeju Air (제주항공, IATA 7C) cabin-crew member's MONTHLY schedule from a screenshot.",
+      'Layout: a 7-column calendar grid, columns Sun..Sat (일 월 화 수 목 금 토). Each day cell shows, top to bottom:',
+      "  - a DAY label in the cell's top (e.g. 01Jul, 17Jul),",
+      '  - zero to ~SIX FLIGHT NUMBERS, each a BARE 3-4 digit number with NO letter prefix (e.g. 2201, 1107, 129, 8503), stacked top to bottom,',
+      '  - ONE clock-time range like "1240(B)~2220(B)" — the duty window. "(B)" is a time marker; DROP it.',
+      '  - an optional activity CODE: OFF, LAYOV, CHECKIN, TR_OPR, TRC.',
+      'Cell background color is only a hint (red≈OFF, green≈LAYOV, yellow≈training) — always read the printed TEXT, not the color.',
+      imageCount > 1
+        ? `There are ${imageCount} screenshots of the same month; merge by date and keep the clearest cell.`
+        : 'There is one screenshot.',
+      'Read EVERY non-empty cell, left to right and top to bottom. Return JSON only per the schema.',
+      '',
+      '## Date — use the printed period + day number',
+      'The period is printed near the top as "Period: 01Jul26 to 31Jul26" (DDMmmYY). Read the YEAR (26 -> 2026) and MONTH (Jul -> 07); set periodSource "image".',
+      "For EACH cell, take the day number printed in that cell and combine with the period year/month to make the date (YYYY-MM-DD). ALWAYS use the printed number — never infer from grid position.",
+      `If no period label is visible, fall back to ${defaultYear}-${String(defaultMonth).padStart(2, '0')} and set periodSource "fallback".`,
+      '',
+      '## Per-cell mapping (one row per non-empty cell)',
+      '- trainNr: EVERY flight number in the cell, in printed order, joined with " · " (e.g. "107 · 214 · 213 · 506"). BARE digits, NO prefix. REQUIRED whenever any flight number is visible — never leave empty on a flight day.',
+      '- diaNr: the activity code if the cell shows one (OFF / LAYOV / CHECKIN / TR_OPR / TRC). A cell may have BOTH flights AND a code (e.g. flights + "LAYOV", or "~0205" + "LAYOV") — put the flights in trainNr AND the code in diaNr. If multiple codes (e.g. "LAYOV CHECKIN"), join them with a space. If the cell has only flights+times, leave diaNr empty.',
+      '- startTime / endTime: from the time range. startTime = FIRST time, endTime = LAST time. Drop the "(B)". Format HH:MM.',
+      '- OVERNIGHT: a trailing "HHMM~" with no second time = the duty continues next day (endTime empty). A leading "~HHMM" = a continuation that ENDS on this date (startTime empty). If endTime is earlier than startTime, leave the printed clock value as-is (server adds +24h).',
+      '- isOff = true ONLY for OFF (no times). isOff = false for LAYOV, CHECKIN, TR_OPR, TRC, and ANY cell that has flight numbers or times.',
+      '',
+      '## Rules',
+      'Never return a date as only a day number — always full YYYY-MM-DD.',
+      'Do NOT hallucinate codes/flights/times that are not visible; leave unclear fields as empty strings, but DO capture everything that IS printed (especially every flight number and code).',
+      'Ignore the bottom "Sum / Total Turn / Total BLH / Total Fdp Time" box — those are totals, not daily cells.',
+    ]
+    return jj.join('\n')
+  }
+
   if (airline === 'asiana') {
     const oz: string[] = [
       "You are extracting ONE Asiana Airlines (아시아나항공) cabin-crew member's MONTHLY roster from a screenshot.",

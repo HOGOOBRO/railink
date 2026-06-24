@@ -14,7 +14,7 @@ import { signup, getCurrentSession, resendConfirmation, signInWithGoogle } from 
 import { RadioGroup, type RadioOption } from '@/components/ui/RadioGroup'
 import type { Visibility } from '@/lib/types/schedule'
 import { savePendingInvite, peekInvite } from '@/lib/store/invites'
-import { BRANCHES, BRANCH_OTHER, JOB_OPTIONS, findAirline, airlineSelectOptions, koTopicParticle, type SignupCategory } from '@/lib/profile-fields'
+import { BRANCHES, BRANCH_OTHER, JOB_OPTIONS, findAirline, airlineSelectOptions, airlineBases, koTopicParticle, type SignupCategory } from '@/lib/profile-fields'
 import type { Locale } from '@/i18n/config'
 
 interface FormErrors {
@@ -24,6 +24,7 @@ interface FormErrors {
   branch?: string
   job?: string
   airline?: string
+  base?: string
   password?: string
   passwordConfirm?: string
   terms?: string
@@ -104,6 +105,7 @@ export default function SignupPage() {
   // 가입 첫 질문(직무 카테고리). KTX 중심 분기를 대체. airline은 '항공 승무원'일 때 소속.
   const [category, setCategory] = useState<SignupCategory>('ktx')
   const [airline, setAirline] = useState('')
+  const [base, setBase] = useState('')
   const [inviteToken, setInviteToken] = useState<string | null>(null)
   const [inviterName, setInviterName] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -131,6 +133,8 @@ export default function SignupPage() {
   // 저장용 profile_type: KTX는 ktx_attendant, 항공/기타는 personal(+airline 태그).
   const profileType = isKtx ? 'ktx_attendant' : 'personal'
   const selectedAirline = findAirline(airline)
+  // 다중베이스 항공사(제주항공)면 베이스 선택을 필수로 받는다. 단일베이스는 빈 배열.
+  const baseOptions = airlineBases(airline)
 
   useEffect(() => {
     let alive = true
@@ -195,6 +199,7 @@ export default function SignupPage() {
       if (branch === BRANCH_OTHER && !branchOther.trim()) e.branch = t('errors.branchRequired')
     } else if (isAirline) {
       if (!airline) e.airline = t('errors.airlineRequired')
+      else if (airlineBases(airline).length > 0 && !base) e.base = '소속 베이스를 선택해 주세요.'
     } else if (jobCategory === 'other' && !jobOther.trim()) {
       e.job = t('errors.jobRequired')
     }
@@ -227,6 +232,7 @@ export default function SignupPage() {
       profileType,
       // 항공 승무원: 소속 항공사 태그(데이터 축적·항공사 테마·파서 레이아웃 키).
       airline: isAirline ? (airline || undefined) : undefined,
+      base: isAirline ? (base || undefined) : undefined,
       // '기타'(personal) 전용: 직군(확장 우선순위용). KTX·항공엔 보내지 않는다.
       jobCategory: category === 'other' ? (jobCategory ?? undefined) : undefined,
       jobOther: category === 'other' && jobCategory === 'other' ? (jobOther.trim() || undefined) : undefined,
@@ -387,7 +393,8 @@ export default function SignupPage() {
                   })}
                   onChange={code => {
                     setAirline(code)
-                    setErrors(p => ({ ...p, airline: undefined }))
+                    setBase('')  // 항공사 바뀌면 베이스 초기화
+                    setErrors(p => ({ ...p, airline: undefined, base: undefined }))
                   }}
                 />
                 {errors.airline && (
@@ -406,6 +413,28 @@ export default function SignupPage() {
                           particle: koTopicParticle(selectedAirline.label),
                         })}
                 </p>
+                {/* 베이스(home base) — 지방 베이스가 있는 항공사(제주항공)만 노출, 필수.
+                    체류 판정이 베이스 공항 기준이라 가입 때 받아 둔다. */}
+                {baseOptions.length > 0 && (
+                  <div className="mt-3 flex flex-col gap-1">
+                    <span className="text-caption font-semibold tracking-wide text-ink-900">소속 베이스</span>
+                    <CbSelect
+                      value={base}
+                      placeholder="베이스를 선택하세요"
+                      options={baseOptions.map(b => ({ v: b.value, label: b.label }))}
+                      onChange={v => {
+                        setBase(v)
+                        setErrors(p => ({ ...p, base: undefined }))
+                      }}
+                    />
+                    {errors.base && (
+                      <p className="flex items-start gap-1 text-caption text-danger mt-0.5">
+                        <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-danger text-ink-on-brand text-[10px] font-bold grid place-items-center mt-px">!</span>
+                        {errors.base}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {inviteToken && (

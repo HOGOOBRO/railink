@@ -18,6 +18,9 @@ export interface Session {
    *  KTX·기타는 undefined. 항공사별 브랜드 컬러 테마 + 스케줄 파서 레이아웃 선택에 쓴다.
    *  profiles.airline (source of truth); user_metadata.airline은 레거시 폴백. */
   airline?: string
+  /** 소속 베이스 코드(lib/profile-fields.ts). 다중베이스 항공사(제주항공) 크루만 값이
+   *  있고, 그 외/단일베이스는 undefined(=서울 기본). 체류(레이오버) 판정 기준 공항에 쓴다. */
+  base?: string
   /** Google 가입자가 직업(카테고리)을 아직 안 골라 차단 온보딩이 필요한 상태.
    *  이메일 가입·데모·이미 선택한 계정은 false. OnboardingGate가 이걸 보고 /welcome로 보낸다. */
   needsOnboarding: boolean
@@ -123,7 +126,7 @@ function getDemoSession(): Session | null {
  * makes navigation network-free; uid/email/name/metadata still come live from
  * getSession(). Cached only on a successful fetch; invalidated on photo change
  * + logout. */
-let profileCache: { uid: string; photo: string | undefined; profileType: ProfileType; airline: string | undefined; jobCategory: string | undefined } | null = null
+let profileCache: { uid: string; photo: string | undefined; profileType: ProfileType; airline: string | undefined; base: string | undefined; jobCategory: string | undefined } | null = null
 
 /* Last resolved session, kept for the SPA lifetime. getCurrentSession is async,
  * so every page starts at session=null and flashes a loading gate on each route
@@ -172,18 +175,20 @@ async function resolveCurrentSession(): Promise<Session | null> {
   let photo: string | undefined
   let profileType: ProfileType
   let airline: string | undefined
+  let base: string | undefined
   let jobCategory: string | undefined
   let cleanFetch = false
   if (profileCache && profileCache.uid === u.id) {
     photo = profileCache.photo
     profileType = profileCache.profileType
     airline = profileCache.airline
+    base = profileCache.base
     jobCategory = profileCache.jobCategory
     cleanFetch = true
   } else {
     try {
       const { data: prof } = await supabase
-        .from('profiles').select('photo, profile_type, airline, job_category').eq('id', u.id).maybeSingle()
+        .from('profiles').select('photo, profile_type, airline, base, job_category').eq('id', u.id).maybeSingle()
       // No profiles row (shouldn't happen post-trigger) → fall back to metadata.
       profileType = prof
         ? (prof.profile_type === 'personal' ? 'personal' : 'ktx_attendant')
@@ -191,8 +196,9 @@ async function resolveCurrentSession(): Promise<Session | null> {
       photo = m.photo || (prof?.photo as string | null | undefined) || undefined
       // 소속 항공사: profiles가 진실의 원천, metadata는 레거시 폴백.
       airline = (prof?.airline as string | null | undefined) || m.airline || undefined
+      base = (prof?.base as string | null | undefined) || m.base || undefined
       jobCategory = (prof?.job_category as string | null | undefined) || undefined
-      profileCache = { uid: u.id, photo, profileType, airline, jobCategory }   // cache only on a clean fetch
+      profileCache = { uid: u.id, photo, profileType, airline, base, jobCategory }   // cache only on a clean fetch
       cleanFetch = true
     } catch {
       // profiles fetch is best-effort; fall back to metadata and DON'T cache so
@@ -200,6 +206,7 @@ async function resolveCurrentSession(): Promise<Session | null> {
       profileType = metaType
       photo = m.photo || undefined
       airline = m.airline || undefined
+      base = m.base || undefined
     }
   }
   // Google 가입자가 직업(카테고리)을 아직 안 고른 상태 → 온보딩 필요(차단 게이트).
@@ -216,6 +223,7 @@ async function resolveCurrentSession(): Promise<Session | null> {
     photo,
     profileType,
     airline,
+    base,
     needsOnboarding,
     isDemo: false,
   }
@@ -327,6 +335,9 @@ export interface SignupInput {
   /** 소속 항공사 코드(AIRLINES.code). 항공 승무원 가입에서만 보낸다. KTX/기타엔
    *  undefined. handle_new_user_profile() → profiles.airline (20260617000000). */
   airline?: string
+  /** 소속 베이스 코드(AirlineBase.value). 다중베이스 항공사(제주항공) 가입에서만 보낸다.
+   *  handle_new_user_profile() → profiles.base (20260624120000). */
+  base?: string
 }
 
 export type SignupResult =
@@ -370,6 +381,9 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
         // Read by handle_new_user_profile() → profiles.airline (20260617000000).
         // 항공 승무원 가입에서만 키를 싣는다(없으면 NULL = 항공 크루 아님).
         ...(input.airline ? { airline: input.airline } : {}),
+        // Read by handle_new_user_profile() → profiles.base (20260624120000).
+        // 다중베이스 항공사 가입에서만 키를 싣는다(없으면 NULL = 서울 기본).
+        ...(input.base ? { base: input.base } : {}),
         // Read by consume_invite_on_signup() → creates the bidirectional accepted
         // share at account creation (20260601000000), independent of the email
         // redirect. The client-side localStorage/URL path stays as a fallback.
@@ -669,6 +683,7 @@ export async function setJobCategory(category: string, other?: string): Promise<
 export async function completeOnboarding(input: {
   category: 'ktx' | 'airline' | 'other'
   airline?: string
+  base?: string
   jobCategory?: string
   jobOther?: string
 }): Promise<{ ok: boolean; message?: string }> {
@@ -683,6 +698,7 @@ export async function completeOnboarding(input: {
     .update({
       profile_type: profileType,
       airline: input.category === 'airline' ? (input.airline ?? null) : null,
+      base: input.category === 'airline' ? (input.base ?? null) : null,
       job_category: input.category === 'other' ? (input.jobCategory ?? null) : null,
       job_other:
         input.category === 'other' && input.jobCategory === 'other'
