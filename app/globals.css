@@ -136,7 +136,7 @@
    유지. 토스트는 brand 틴트(--brand-050)를 참조해 이 테마를 따라간다(소프트 톤). */
 [data-airline="jeju-air"] {
   --brand:     #FF6A33;     /* 공식 #ff5000을 한 단계 연하게 — 큰 채움이 쨍하지 않게 */
-  --brand-700: #D43A00;     /* primary 버튼(흰 글씨) 대비 4.5:1+ 유지 */
+  --brand-700: #E8500A;     /* primary 버튼 — 비비드 딥오렌지(갈색기 제거), 굵은 흰글씨 대비 ~3.8:1 */
   --brand-500: #FF8A5A;
   --brand-300: #FFB596;
   --brand-100: #FFDCCB;

@@ -809,7 +809,7 @@ export function UploadModal({
                 {sourceKind === 'image' ? t('preview.sourceImage') : t('preview.sourceFile')}
               </span>
             </button>
-            <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-md text-callout" style={{ background: '#DCFCE7', color: '#166534' }}>
+            <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-md text-callout mt-1 mb-3.5" style={{ background: '#DCFCE7', color: '#166534' }}>
               <span className="shrink-0 text-success"><CheckIcon size={16} /></span>
               <div>
                 <strong>{fileName || t('preview.defaultFileName')}</strong> ·{' '}
