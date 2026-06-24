@@ -98,19 +98,19 @@ export function DayDetailMock({ size, rotate }: { size?: string; rotate?: number
           {/* 생일 배너 */}
           <div
             className="shrink-0 flex items-center gap-3 mx-4 mt-2 mb-3 px-3.5 py-3 rounded-[14px]"
-            style={{ background: '#FBEEF4' }}
+            style={{ background: 'var(--birthday-bg)' }}
           >
             <span
               className="w-[42px] h-[42px] rounded-[13px] bg-white grid place-items-center shrink-0"
               style={{ boxShadow: '0 1px 3px rgba(184,58,110,.12)' }}
             >
-              <span style={{ color: '#E8669B' }}><CakeIcon size={24} /></span>
+              <span style={{ color: 'var(--birthday)' }}><CakeIcon size={24} /></span>
             </span>
             <div className="min-w-0">
-              <p className="text-[10.5px] font-extrabold tracking-[0.06em] uppercase" style={{ color: '#C24B82' }}>{t('birthdayLabel')}</p>
-              <p className="text-[15px] font-bold mt-0.5 truncate" style={{ color: '#7E2A52' }}>{t('birthdayName', { name: 'Fred' })}</p>
+              <p className="text-[10.5px] font-extrabold tracking-[0.06em] uppercase" style={{ color: 'var(--birthday-ink)' }}>{t('birthdayLabel')}</p>
+              <p className="text-[15px] font-bold mt-0.5 truncate" style={{ color: 'var(--birthday-ink-strong)' }}>{t('birthdayName', { name: 'Fred' })}</p>
             </div>
-            <span className="ml-auto rounded-full shrink-0" style={{ boxShadow: '0 0 0 2px #FBEEF4' }}>
+            <span className="ml-auto rounded-full shrink-0" style={{ boxShadow: '0 0 0 2px var(--birthday-bg)' }}>
               <Avatar name="Fred" color="c2" size="sm" className="!w-[30px] !h-[30px] !text-[11px]" />
             </span>
           </div>

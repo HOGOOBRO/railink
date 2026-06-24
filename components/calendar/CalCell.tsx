@@ -125,7 +125,7 @@ export function CalCell({ d, isOther, today, selected, bars, dow, holiday, isPas
       {hasBirthday && !isOther && (
         <span
           className={`absolute top-[7px] right-[8px] w-[7px] h-[7px] rounded-full pointer-events-none${dimCls}`}
-          style={{ background: '#E8669B', boxShadow: '0 0 0 1.5px #fff' }}
+          style={{ background: 'var(--birthday)', boxShadow: '0 0 0 1.5px #fff' }}
         />
       )}
       {inner}

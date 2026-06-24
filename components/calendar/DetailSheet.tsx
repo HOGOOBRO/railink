@@ -134,22 +134,22 @@ export function DetailSheet({
       {birthdays.length > 0 && (
         <div
           className="shrink-0 flex items-center gap-3 mx-4 mt-1 mb-3.5 px-3.5 py-3 rounded-[14px]"
-          style={{ background: '#FBEEF4' }}
+          style={{ background: 'var(--birthday-bg)' }}
         >
           <span
             className="w-[42px] h-[42px] rounded-[13px] bg-white grid place-items-center shrink-0"
             style={{ boxShadow: '0 1px 3px rgba(184,58,110,.12)' }}
           >
-            <span style={{ color: '#E8669B' }}><CakeIcon size={24} /></span>
+            <span style={{ color: 'var(--birthday)' }}><CakeIcon size={24} /></span>
           </span>
           <div className="min-w-0">
             <p
               className="text-[10.5px] font-extrabold tracking-[0.06em] uppercase"
-              style={{ color: '#C24B82' }}
+              style={{ color: 'var(--birthday-ink)' }}
             >
               {bdayIsToday ? t('bdayToday') : t('bday')}
             </p>
-            <p className="text-[15px] font-bold mt-0.5 truncate" style={{ color: '#7E2A52' }}>
+            <p className="text-[15px] font-bold mt-0.5 truncate" style={{ color: 'var(--birthday-ink-strong)' }}>
               {bdayLabel}
             </p>
           </div>
@@ -158,7 +158,7 @@ export function DetailSheet({
               <span
                 key={i}
                 className="rounded-full"
-                style={{ boxShadow: '0 0 0 2px #FBEEF4', marginLeft: i > 0 ? -8 : 0 }}
+                style={{ boxShadow: '0 0 0 2px var(--birthday-bg)', marginLeft: i > 0 ? -8 : 0 }}
               >
                 <Avatar
                   name={b.name}
@@ -172,7 +172,7 @@ export function DetailSheet({
             {birthdays.length > 3 && (
               <span
                 className="grid place-items-center w-[30px] h-[30px] rounded-full bg-white text-[11px] font-bold"
-                style={{ boxShadow: '0 0 0 2px #FBEEF4', marginLeft: -8, color: '#C24B82' }}
+                style={{ boxShadow: '0 0 0 2px var(--birthday-bg)', marginLeft: -8, color: 'var(--birthday-ink)' }}
               >
                 +{birthdays.length - 3}
               </span>
