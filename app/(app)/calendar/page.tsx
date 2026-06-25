@@ -97,13 +97,23 @@ function wallToUtcMs(year: number, month: number, day: number, hh: number, mm: n
   return guess - (localAsUtc - guess) // guess - offset
 }
 
-// 출발(공항 현지) + 도착(공항 현지)을 인천(KST) 기준 타임라인 위치로 환산.
-// 국내/같은 시간대면 기존 동작 그대로(KTX·일반 근무 안전). 외국 공항이 끼면 KST로 변환하고
-// 원래 현지시각은 메모(localTime)로 남긴다.
+// UTC 순간을 특정 타임존의 벽시계(HH:MM)로.
+function tzClock(utcMs: number, tz: string): string {
+  const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' }).formatToParts(new Date(utcMs))
+  const g = (t: string) => p.find(x => x.type === t)?.value ?? '00'
+  return `${g('hour')}:${g('minute')}`
+}
+
+// 출발 + 도착을 인천(KST) 기준 타임라인 위치로 환산.
+// 국내/같은 시간대면 기존 동작 그대로(KTX·일반 근무 안전).
+// baseKst=false(에어프레미아 '(L)', 아시아나): 로스터 시각 = 각 공항 현지시각 → KST로 변환.
+// baseKst=true(제주 '(B)'): 로스터 시각이 이미 KST(베이스). 블록은 그대로 두고, 외국 공항
+//   현지시각은 KST→공항으로 역산해 라벨에 표시. (B)=KST는 실제 스케줄 대조로 확정(2026-06).
 function placeShift(
   year: number, month: number,
   depDay: number, depLocal: string, fromAirport: string | undefined,
   arrDay: number, arrLocal: string, toAirport: string | undefined,
+  baseKst = false,
 ): { day: number; start: number; end: number; depLabel?: string; arrLabel?: string } {
   const fromTz = airportTz(fromAirport)
   const toTz = airportTz(toAirport)
@@ -113,6 +123,21 @@ function placeShift(
     if (arrDay > depDay) end += 24 * (arrDay - depDay)
     else if (end < start) end += 24
     return { day: depDay, start, end }
+  }
+  if (baseKst) {
+    // 로스터 시각이 KST. 블록 위치는 KST 그대로, 라벨의 외국 현지시각만 역산.
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const sh = Number(depLocal.split(':')[0]) % 24, sm = Number(depLocal.split(':')[1])
+    const eh = Number(arrLocal.split(':')[0]) % 24, em = Number(arrLocal.split(':')[1])
+    const depUtc = wallToUtcMs(year, month, depDay, sh, sm, KST_TZ)
+    let arrUtc = wallToUtcMs(year, month, arrDay, eh, em, KST_TZ)
+    while (arrUtc <= depUtc) arrUtc += 86_400_000
+    const start = sh + sm / 60
+    const depLabel = `${fromAirport ?? ''} ${fromTz !== KST_TZ ? tzClock(depUtc, fromTz) : `${pad(sh)}:${pad(sm)}`}`.trim()
+      + (fromTz !== KST_TZ ? ` (한국시간 ${pad(sh)}:${pad(sm)})` : '')
+    const arrLabel = `${toAirport ?? ''} ${toTz !== KST_TZ ? tzClock(arrUtc, toTz) : `${pad(eh)}:${pad(em)}`}`.trim()
+      + (toTz !== KST_TZ ? ` (한국시간 ${pad(eh)}:${pad(em)})` : '')
+    return { day: depDay, start, end: start + (arrUtc - depUtc) / 3_600_000, depLabel, arrLabel }
   }
   // 파서는 익일 종료를 24+로 저장(예: 17:50 → "41:50")하지만, 국제선은 출·도착
   // 타임존이 달라 그 +24를 신뢰하면 안 된다(이중계산 → 37시간짜리 블록). 실제 벽시계
@@ -172,6 +197,9 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
   // 체류(레이오버) 판정 기준 = 이 사람의 베이스 공항. 부산 베이스는 PUS만 집이라
   // 서울(ICN/GMP) 1박도 체류. 그 외/미지정은 서울 기본(BASE_AIRPORTS).
   const baseAirports = base === 'busan' ? new Set(['PUS']) : BASE_AIRPORTS
+  // 제주 로스터 시각은 KST(베이스, '(B)') — placeShift가 현지로 오인 변환하지 않게.
+  // 에어프레미아('(L)')·아시아나는 현지시각이라 false.
+  const baseKst = airline === 'jeju-air'
   // 비행 블록엔 체류 코드(REST·LAYOV·CHECKIN 등)를 배지로 붙이지 않는다 — 체류는
   // 아래 체류 band가 표현하므로, 비행에 '체류' 배지가 뜨면 비행이 쉬는 것처럼 보인다.
   // 'REST' 한 글자만 떼던 것을 체류 카테고리 전체로 일반화.
@@ -234,7 +262,7 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
     }
     if (hasStart && hasEnd) {
       const ep = flightEndpoints(airline, e.trainNr)
-      const p = placeShift(year, month, d, e.startTime as string, ep.from, d, e.endTime as string, ep.to)
+      const p = placeShift(year, month, d, e.startTime as string, ep.from, d, e.endTime as string, ep.to, baseKst)
       out.push({ day: p.day, dia: flightDia(e.diaNr), trainNr: e.trainNr, start: p.start, end: p.end, route: rt(e.trainNr), depLabel: p.depLabel, arrLabel: p.arrLabel, dir: flightDir(ep.from, ep.to), fromAirport: ep.from, toAirport: ep.to })
       continue
     }
@@ -248,7 +276,7 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
           [e.trainNr, nx.trainNr].flatMap(s => (s ? s.split(/\s*·\s*/) : [])).map(t => t.trim()).filter(Boolean),
         )].join(' · ') || undefined
         const ep = flightEndpoints(airline, trainNr)
-        const p = placeShift(year, month, d, e.startTime as string, ep.from, d + 1, nx.endTime, ep.to)
+        const p = placeShift(year, month, d, e.startTime as string, ep.from, d + 1, nx.endTime, ep.to, baseKst)
         out.push({ day: p.day, dia: flightDia(e.diaNr || nx.diaNr), trainNr, start: p.start, end: p.end, route: rt(trainNr), depLabel: p.depLabel, arrLabel: p.arrLabel, dir: flightDir(ep.from, ep.to), fromAirport: ep.from, toAirport: ep.to })
         skip.add(d + 1)
         continue
