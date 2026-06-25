@@ -527,8 +527,12 @@ export async function logout(): Promise<void> {
   // 재구독도 안 일어남). signOut 전에 토큰이 살아있을 때 RPC가 통하도록 먼저.
   try {
     const { disablePush } = await import('@/lib/push')
-    await disablePush()
-  } catch { /* 미지원/실패 — 로그아웃은 계속 */ }
+    // 콜드 프록시에서 delete_push_subscription RPC가 멈추면 await가 안 풀려 logout 전체가
+    // 막힌다 → 아래 localStorage 정리·signOut·호출부의 /login 리다이렉트가 전부 안 일어남
+    // ("로그아웃해도 로그인 화면으로 안 감"의 원인. 푸시 구독이 있는 데스크탑에서 재현,
+    // 구독 없는 모바일은 disablePush가 조기 return이라 무사). 2초 상한 — 못 끝내면 정리하고 계속.
+    await withTimeout(disablePush(), 2000, 'disablePush')
+  } catch { /* 미지원/실패/시한초과 — 로그아웃은 계속 */ }
   if (typeof window !== 'undefined') {
     localStorage.removeItem(DEMO_SESSION_KEY)
     clearPersistedIdentity() // 신원 스냅샷도 폐기 — 로그아웃 후 콜드 부팅은 BootSplash→/login
