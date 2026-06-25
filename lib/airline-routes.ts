@@ -242,6 +242,28 @@ export function flightEndpoints(
   return { from, to }
 }
 
+/** 인바운드 편명(외국→집)에 대응하는 출발편(집→외국) 편명을 추론한다. OCR이 같은날
+ *  왕복 퀵턴의 출발편을 빠뜨려 인바운드만 남았을 때, 채워 넣을 후보를 제시하는 용도.
+ *  ① 짝(inboundNo-1)이 그 노선의 역방향이면 우선(제주 규칙: 출발 홀수/도착 짝수).
+ *  ② 아니면 그 외국공항으로 가는 한국발 편명 아무거나. 없으면 null. */
+export function pairedOutbound(airline: string | undefined, inboundNo: string | undefined): string | null {
+  if (!airline || !inboundNo) return null
+  const table = ROUTES_BY_AIRLINE[airline]
+  if (!table) return null
+  const inb = table[inboundNo.trim().toUpperCase()]
+  if (!inb) return null
+  const dest = inb.from // 인바운드가 떠나온 곳 = 출발편이 가야 할 곳
+  const n = Number(inboundNo)
+  if (Number.isFinite(n)) {
+    const pair = table[String(n - 1)]
+    if (pair && pair.to === dest && airportTz(pair.from) === 'Asia/Seoul') return String(n - 1)
+  }
+  for (const [no, r] of Object.entries(table)) {
+    if (r.to === dest && airportTz(r.from) === 'Asia/Seoul') return no
+  }
+  return null
+}
+
 /** trainNr("YP801" 또는 "YP801 · YP802")을 노선 경로 문자열로 변환.
  *  예: "YP801·YP802" → "ICN→HKG→ICN", "YP735" → "ICN→NRT". 매칭 없으면 null. */
 export function routeForFlights(airline: string | undefined, trainNr: string | undefined): string | null {
