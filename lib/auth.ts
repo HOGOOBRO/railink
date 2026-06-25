@@ -207,6 +207,10 @@ async function resolveCurrentSession(): Promise<Session | null> {
   // user_metadata. Reading metadata here misses those and mis-shows a 'personal'
   // user as KTX (the calendar's 등록 UI branches entirely on this).
   const metaType: ProfileType = m.profile_type === 'personal' ? 'personal' : 'ktx_attendant'
+  // Google 로그인 사용자의 구글 프로필 사진(OAuth가 user_metadata에 넣어줌: avatar_url,
+  // 보조로 picture). 직접 올린 사진이 없을 때의 폴백 — 이게 없으면 구글 가입자는 사진을
+  // 한 번도 안 올렸을 때 늘 이니셜만 보였다. 직접 올린 사진이 있으면 항상 그게 우선.
+  const googlePhoto = m.avatar_url || m.picture || undefined
   // Photo also lives in profiles (see updatePhoto); metadata.photo is the legacy
   // fallback, preferred first to preserve prior behavior. One cached profiles read
   // resolves both photo and profile_type.
@@ -241,7 +245,7 @@ async function resolveCurrentSession(): Promise<Session | null> {
       profileType = prof
         ? (prof.profile_type === 'personal' ? 'personal' : 'ktx_attendant')
         : metaType
-      photo = m.photo || (prof?.photo as string | null | undefined) || undefined
+      photo = m.photo || (prof?.photo as string | null | undefined) || googlePhoto
       // 소속 항공사: profiles가 진실의 원천, metadata는 레거시 폴백.
       airline = (prof?.airline as string | null | undefined) || m.airline || undefined
       base = (prof?.base as string | null | undefined) || m.base || undefined
@@ -252,7 +256,11 @@ async function resolveCurrentSession(): Promise<Session | null> {
       // profiles fetch is best-effort; fall back to metadata and DON'T cache so
       // the next call retries against the source of truth.
       profileType = metaType
-      photo = m.photo || undefined
+      // 콜드 부팅에서 profiles 조회가 데드라인을 넘기면, 직접 올린 사진은 profiles에만
+      // 있어 metadata 폴백만으론 사진이 사라진다(콜드부팅 시 프로필 사진이 잠깐 없어지던
+      // 회귀). 마지막으로 성공 해석된 신원 스냅샷의 사진을 먼저 쓰고(직접 올린 사진 유지),
+      // 그것도 없으면 구글 아바타로 폴백한다.
+      photo = m.photo || getPersistedIdentity()?.photo || googlePhoto
       airline = m.airline || undefined
       base = m.base || undefined
     }
