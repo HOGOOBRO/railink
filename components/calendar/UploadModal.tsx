@@ -1145,6 +1145,22 @@ function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline 
         </button>
       </div>
 
+      {/* 출발편 누락 요약 배너 — 행에 묻히지 않게 맨 위에서 문제 날짜를 바로 알려준다. */}
+      {missingDep.size > 0 && (
+        <div
+          className="mb-2.5 flex items-start gap-2 px-3 py-2.5 rounded-md text-[12px] font-semibold leading-snug"
+          style={{ background: '#FDECEC', color: '#B42318', border: '1px solid #F4C9C9' }}
+        >
+          <span className="shrink-0 w-4 h-4 rounded-full bg-danger text-ink-on-brand text-[10px] grid place-items-center mt-px">!</span>
+          <span>
+            {[...missingDep.keys()]
+              .map(idx => { const p = rows[idx].date.split('-'); return `${Number(p[1])}/${Number(p[2])}` })
+              .join(', ')}
+            일에 <b>출발편이 누락</b>된 것 같아요. 그 날 편명을 사진과 비교해 확인해 주세요.
+          </span>
+        </div>
+      )}
+
       <div className="border border-line rounded-md overflow-hidden">
         {rows.map((row, i) => (
           <div
