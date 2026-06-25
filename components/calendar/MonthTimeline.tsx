@@ -442,7 +442,11 @@ export function MonthTimeline({
                           {s.dia && <span className="font-en text-[10px] font-bold bg-white px-1 rounded-xs whitespace-nowrap shrink-0" style={{ color: p.color }}>{s.dia}</span>}
                         </div>
                       )}
-                      <span className="font-en text-[10.5px] font-bold text-ink-900 truncate">{depTxt} → {arrTxt}</span>
+                      {s.route && <span className="font-en text-[10px] font-bold text-ink-700 truncate">{s.route}</span>}
+                      <div className="flex items-center justify-between gap-1 min-w-0">
+                        <span className="font-en text-[10.5px] font-bold text-ink-900 truncate">{depTxt} → {arrTxt}</span>
+                        {s.trainNr && <span className="font-en text-[9px] font-bold text-ink-700 px-1 bg-bg rounded-xs shrink-0">{prettyTrain(s.trainNr)}</span>}
+                      </div>
                     </>
                   ) : (
                     <>
