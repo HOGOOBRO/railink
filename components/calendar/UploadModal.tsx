@@ -12,7 +12,7 @@ import { recognizeScheduleImage, type OcrProgress } from '@/lib/parse/schedule-i
 import { fmtClock, hmToDecimal, canonicalEnd, isOvernight, normalizeTimeInput } from '@/lib/schedule-utils'
 import { getCodebook, type CodebookEntry } from '@/lib/store/codebook'
 import { canonCode, builtinCode, normalizeAnswerLabel, categoryEffect, CATEGORY_ORDER, CATEGORY_META, type RosterCategory } from '@/lib/roster-codes'
-import { isAirportCode } from '@/lib/airline-routes'
+import { isAirportCode, flightEndpoints, airportTz } from '@/lib/airline-routes'
 import { fetchRosterCodes, recordRosterCode, type RosterCodeEntry } from '@/lib/store/roster-codes'
 import { AnalyzeTableSkeleton } from '@/components/calendar/AnalyzeTableSkeleton'
 import { RosterExampleCard } from '@/components/calendar/RosterExampleCard'
@@ -1109,6 +1109,27 @@ interface PreviewBodyProps {
 
 function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline }: PreviewBodyProps) {
   const t = useTranslations('upload')
+  // 출발편 누락 가드(노선 룩업 항공사): 그날이 외국 공항에서 시작하는데, 직전 비행이
+  // 거기 도착하지 않았으면(=거기 간 적 없음) 출발편이 OCR로 누락됐을 가능성이 크다
+  // (예: 8905 누락 → 8906만 남아 하얼빈에서 순간출발). 정상 복편(체류 후 귀국)은 직전
+  // 비행이 그 공항에 도착해 있어 안 걸린다. index → 외국 출발공항.
+  const missingDep = new Map<number, string>()
+  if (airline) {
+    const foreign = (iata?: string) => !!iata && airportTz(iata) !== 'Asia/Seoul'
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i]
+      if (r.isOff || !r.trainNr) continue
+      const from = flightEndpoints(airline, r.trainNr).from
+      if (!foreign(from)) continue
+      let priorTo: string | undefined
+      for (let j = i - 1; j >= 0; j--) {
+        if (rows[j].isOff || !rows[j].trainNr) continue
+        priorTo = flightEndpoints(airline, rows[j].trainNr).to
+        break
+      }
+      if (priorTo !== from) missingDep.set(i, from as string)
+    }
+  }
   return (
     <div className="mt-3">
       <div className="flex items-center justify-between px-1 mb-2">
@@ -1255,6 +1276,12 @@ function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline 
                 </span>
               )
             })()}
+            {missingDep.has(i) && (
+              <span className="mt-1.5 flex items-start gap-1 text-[10px] font-bold leading-snug text-danger">
+                <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-danger text-ink-on-brand text-[9px] grid place-items-center mt-px">!</span>
+                {`출발편이 누락된 것 같아요 — ${missingDep.get(i)}에서 시작하는데 그 전에 거기 도착한 비행이 없어요. 사진에서 편명을 확인해 주세요.`}
+              </span>
+            )}
           </div>
         ))}
       </div>
