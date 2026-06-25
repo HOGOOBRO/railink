@@ -12,7 +12,7 @@ import { recognizeScheduleImage, type OcrProgress } from '@/lib/parse/schedule-i
 import { fmtClock, hmToDecimal, canonicalEnd, isOvernight, normalizeTimeInput } from '@/lib/schedule-utils'
 import { getCodebook, type CodebookEntry } from '@/lib/store/codebook'
 import { canonCode, builtinCode, normalizeAnswerLabel, categoryEffect, CATEGORY_ORDER, CATEGORY_META, type RosterCategory } from '@/lib/roster-codes'
-import { isAirportCode, flightEndpoints, airportTz } from '@/lib/airline-routes'
+import { isAirportCode, flightEndpoints, airportTz, pairedOutbound } from '@/lib/airline-routes'
 import { fetchRosterCodes, recordRosterCode, type RosterCodeEntry } from '@/lib/store/roster-codes'
 import { AnalyzeTableSkeleton } from '@/components/calendar/AnalyzeTableSkeleton'
 import { RosterExampleCard } from '@/components/calendar/RosterExampleCard'
@@ -1113,12 +1113,13 @@ function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline 
   // 거기 도착하지 않았으면(=거기 간 적 없음) 출발편이 OCR로 누락됐을 가능성이 크다
   // (예: 8905 누락 → 8906만 남아 하얼빈에서 순간출발). 정상 복편(체류 후 귀국)은 직전
   // 비행이 그 공항에 도착해 있어 안 걸린다. index → 외국 출발공항.
-  const missingDep = new Map<number, string>()
+  const missingDep = new Map<number, { from: string; outbound: string | null }>()
   if (airline) {
     const foreign = (iata?: string) => !!iata && airportTz(iata) !== 'Asia/Seoul'
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i]
       if (r.isOff || !r.trainNr) continue
+      const firstTok = r.trainNr.split(/\s*[·,]\s*/)[0]
       const from = flightEndpoints(airline, r.trainNr).from
       if (!foreign(from)) continue
       let priorTo: string | undefined
@@ -1127,7 +1128,7 @@ function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline 
         priorTo = flightEndpoints(airline, rows[j].trainNr).to
         break
       }
-      if (priorTo !== from) missingDep.set(i, from as string)
+      if (priorTo !== from) missingDep.set(i, { from: from as string, outbound: pairedOutbound(airline, firstTok) })
     }
   }
   return (
@@ -1292,12 +1293,26 @@ function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline 
                 </span>
               )
             })()}
-            {missingDep.has(i) && (
-              <span className="mt-1.5 flex items-start gap-1 text-[10px] font-bold leading-snug text-danger">
-                <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-danger text-ink-on-brand text-[9px] grid place-items-center mt-px">!</span>
-                {`출발편이 누락된 것 같아요 — ${missingDep.get(i)}에서 시작하는데 그 전에 거기 도착한 비행이 없어요. 사진에서 편명을 확인해 주세요.`}
-              </span>
-            )}
+            {missingDep.has(i) && (() => {
+              const md = missingDep.get(i)!
+              return (
+                <div className="mt-1.5 flex flex-col gap-1.5">
+                  <span className="flex items-start gap-1 text-[10px] font-bold leading-snug text-danger">
+                    <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-danger text-ink-on-brand text-[9px] grid place-items-center mt-px">!</span>
+                    {`출발편이 누락된 것 같아요 — ${md.from}에서 시작하는데 그 전에 거기 도착한 비행이 없어요. 사진에서 편명을 확인해 주세요.`}
+                  </span>
+                  {md.outbound && (
+                    <button
+                      type="button"
+                      onClick={() => onChange(i, { trainNr: `${md.outbound} · ${row.trainNr}` })}
+                      className="self-start inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-brand-050 text-brand text-[11px] font-bold"
+                    >
+                      <PlusIcon size={12} /> 출발편 {md.outbound} 추가
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         ))}
       </div>
