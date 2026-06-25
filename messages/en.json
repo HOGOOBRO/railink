@@ -808,7 +808,7 @@
       "comparing": "✓ Comparing",
       "add": "+ Add",
       "ktxBadge": "KTX crew",
-      "privateNote": "Private account · employee ID must match exactly to add",
+      "privateNote": "Private account. Found only by exact email or employee ID.",
       "pending": "Awaiting acceptance"
     }
   },

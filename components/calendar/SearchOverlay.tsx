@@ -104,6 +104,14 @@ export function SearchOverlay({
   const emailLoading = showEmail && !emailReady
   const emailDup = emailResult != null && filtered.some(u => u.uid === emailResult.uid)
 
+  // 헤더 카운트엔 디렉토리 매칭뿐 아니라 정확매칭(사번·이메일)으로 찾은 비중복 결과도
+  // 함께 센다. 안 그러면 비공개 계정을 이메일로 찾았을 때 "검색 결과 0건"인데 아래엔
+  // 결과가 보이는 모순이 생긴다.
+  const exactFound =
+    (sabunReady && sabunResult && !sabunDup ? 1 : 0) +
+    (emailReady && emailResult && !emailDup ? 1 : 0)
+  const shownCount = filtered.length + exactFound
+
   const count = comparedUids.size
   const pendingOf = (uid: string) => shareGated && shareStatus[uid] === 'pending'
 
@@ -165,7 +173,7 @@ export function SearchOverlay({
               q,
               quoted: (chunks) => <span className="text-ink-900">{chunks}</span>,
               count: (chunks) => <span className="font-en">{chunks}</span>,
-              n: filtered.length,
+              n: shownCount,
             })
           ) : t('recommended')}
         </p>
