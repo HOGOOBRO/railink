@@ -431,8 +431,11 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
         marketing_consent: input.marketingConsent,
         // Read by handle_new_user_profile() → profiles.job_category / job_other
         // (20260614020000). 키가 있을 때만 기록되므로, KTX 가입처럼 직군을 안
-        // 받는 경우엔 아예 키를 싣지 않는다(미응답 = NULL 유지).
-        ...(input.jobCategory ? { job_category: input.jobCategory } : {}),
+        // 받는 경우엔 아예 키를 싣지 않는다(미응답 = NULL 유지). 항공 승무원은 직무가
+        // 자명하게 flight_attendant라 직무칩 없이도 채운다(집계 일관).
+        ...((input.airline ? 'flight_attendant' : input.jobCategory)
+          ? { job_category: input.airline ? 'flight_attendant' : input.jobCategory }
+          : {}),
         ...(input.jobOther ? { job_other: input.jobOther } : {}),
         // Read by handle_new_user_profile() → profiles.airline (20260617000000).
         // 항공 승무원 가입에서만 키를 싣는다(없으면 NULL = 항공 크루 아님).
@@ -759,7 +762,11 @@ export async function completeOnboarding(input: {
       profile_type: profileType,
       airline: input.category === 'airline' ? (input.airline ?? null) : null,
       base: input.category === 'airline' ? (input.base ?? null) : null,
-      job_category: input.category === 'other' ? (input.jobCategory ?? null) : null,
+      // 항공 승무원은 직무가 자명하게 flight_attendant — 직무칩 안 거쳐도 채워준다(집계 일관).
+      job_category:
+        input.category === 'airline' ? 'flight_attendant'
+          : input.category === 'other' ? (input.jobCategory ?? null)
+            : null,
       job_other:
         input.category === 'other' && input.jobCategory === 'other'
           ? (input.jobOther?.trim() || null)
