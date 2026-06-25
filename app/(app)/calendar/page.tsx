@@ -172,8 +172,10 @@ function monthShifts(entryOf: (iso: string) => ScheduleEntry | undefined, year: 
   // 체류(레이오버) 판정 기준 = 이 사람의 베이스 공항. 부산 베이스는 PUS만 집이라
   // 서울(ICN/GMP) 1박도 체류. 그 외/미지정은 서울 기본(BASE_AIRPORTS).
   const baseAirports = base === 'busan' ? new Set(['PUS']) : BASE_AIRPORTS
-  // 비행에는 REST(레이오버 마커)를 코드로 붙이지 않는다(인바운드 비행이 쉬는 것처럼 보임).
-  const flightDia = (raw?: string) => (raw === 'REST' ? undefined : raw)
+  // 비행 블록엔 체류 코드(REST·LAYOV·CHECKIN 등)를 배지로 붙이지 않는다 — 체류는
+  // 아래 체류 band가 표현하므로, 비행에 '체류' 배지가 뜨면 비행이 쉬는 것처럼 보인다.
+  // 'REST' 한 글자만 떼던 것을 체류 카테고리 전체로 일반화.
+  const flightDia = (raw?: string) => (builtinCode(raw)?.category === 'other' ? undefined : raw)
   for (let d = 1; d <= dim; d++) {
     if (skip.has(d)) continue
     const e = at(d)

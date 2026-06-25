@@ -1140,7 +1140,9 @@ function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline 
                 className="font-en text-caption text-ink-900 outline-none px-2 h-8 rounded-xs border border-line bg-bg"
                 style={{ width: 106 }}
               />
-              <label className="shrink-0 inline-flex items-center gap-1.5 text-caption font-semibold text-ink-700">
+              <label className="shrink-0 inline-flex items-center gap-1.5 text-caption font-semibold text-ink-700 cursor-pointer">
+                {/* 커스텀 체크박스 — 네이티브 accent-color는 밝은 brand에서 체크색을
+                    브라우저가 검정으로 그려(안 보임). brand 채움 + 흰 체크로 고정. */}
                 <input
                   type="checkbox"
                   checked={row.isOff}
@@ -1149,8 +1151,11 @@ function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline 
                     startTime: e.target.checked ? undefined : row.startTime,
                     endTime: e.target.checked ? undefined : row.endTime,
                   })}
-                  className="w-4 h-4 accent-[var(--brand)]"
+                  className="peer sr-only"
                 />
+                <span className="w-4 h-4 rounded-[5px] border border-ink-300 grid place-items-center text-white transition-colors peer-checked:bg-brand peer-checked:border-brand">
+                  {row.isOff && <CheckIcon size={11} />}
+                </span>
                 {t('preview.off')}
               </label>
               <div className="flex-1" />
