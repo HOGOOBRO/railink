@@ -149,7 +149,7 @@ function manualRowsToParsed(
       out.push({
         date, isOff: false,
         diaNr: (r.dia || '').trim() || undefined,
-        trainNr: (r.tr || '').trim() || undefined,
+        trainNr: normalizeTrainTokens(r.tr),
         startTime: (r.st || '').trim() || undefined,
         endTime: (r.et || '').trim() || undefined,
       })
@@ -160,6 +160,19 @@ function manualRowsToParsed(
 
 function isIsoDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+/** 열번 문자열을 서버 OCR(normalizeTrainNr)와 같은 규칙으로 정규화 — 쉼표/점/공백/·로
+ *  토큰을 나눠 " · "로 다시 잇는다. 미리보기·직접입력에서 구분자를 지우거나 다르게
+ *  입력해도 저장은 항상 표준 표기("205 · 214")가 되게. */
+function normalizeTrainTokens(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const joined = value
+    .split(/[,.、·\s]+/)
+    .map(token => token.trim())
+    .filter(token => token && token !== '-')
+    .join(' · ')
+  return joined || undefined
 }
 
 // Sentinel thrown by normalizePreviewRows for a malformed date — caught in
@@ -186,7 +199,7 @@ function normalizePreviewRows(rows: ParsedScheduleRow[]): ParsedScheduleRow[] {
           date,
           isOff: false,
           diaNr: row.diaNr?.trim() || undefined,
-          trainNr: row.trainNr?.trim() || undefined,
+          trainNr: normalizeTrainTokens(row.trainNr),
           startTime: row.startTime?.trim() || undefined,
           // Re-derive 24+ notation for overnight ends from the wrapped clock the
           // user edited, so storage stays canonical even though the input showed "11:49".
