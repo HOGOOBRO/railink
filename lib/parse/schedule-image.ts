@@ -56,6 +56,17 @@ const COMPRESSION_PLANS = [
   { maxEdge: 2048, quality: 0.80 },
   { maxEdge: 1800, quality: 0.72 },
 ]
+// 세로로 긴 캡쳐(예: 코레일관광개발 모바일 승무근무표 전체 캡쳐)는 OpenAI 비전이 짧은
+// 변(폭)을 768px까지 축소해 시각 숫자가 ~7px로 뭉개진다 — 셀 하단 3칸 중 퇴근시각 대신
+// 가운데 근무시간을 집던 오인식(2026-07-02)의 근본 원인. 높이 768px 이하의 가로 밴드로
+// 잘라 보내면 축소가 전혀 없어 원본 해상도가 그대로 전달된다. 프롬프트는 이미 여러 장을
+// "같은 근무표의 조각, 겹치는 날짜는 병합"으로 처리한다. 항공사 로스터는 현행 인식이
+// 안정적이라 KTX/일반 경로(airline 없음)에만 적용한다.
+const SPLIT_MIN_ASPECT = 1.4        // 세로/가로 비율이 이 이상일 때만 분할 후보
+const SPLIT_SHORT_SIDE_CAP = 768    // OpenAI 비전(detail:high)의 짧은 변 상한
+const SPLIT_LONG_SIDE_CAP = 2048    // OpenAI 비전(detail:high)의 긴 변 상한
+const SPLIT_OVERLAP = 180           // 날짜 셀이 경계에 걸려도 어느 한 밴드엔 통째로 담기게
+const SPLIT_MAX_BANDS = 5           // 서버 MAX_IMAGES와 동일
 
 export async function recognizeScheduleImage(
   input: File | File[],
@@ -89,7 +100,8 @@ export async function recognizeScheduleImage(
     status: files.length > 1 ? `이미지 ${files.length}장을 압축하고 있어요` : '이미지를 압축하고 있어요',
     progress: 0.08,
   })
-  const uploadFiles = await prepareImagesForUpload(files)
+  const sources = await maybeSplitTallImage(files, airline)
+  const uploadFiles = await prepareImagesForUpload(sources)
 
   const form = new FormData()
   uploadFiles.forEach(file => form.append('image', file))
@@ -148,6 +160,63 @@ export async function recognizeScheduleImage(
 
 function isSupportedImage(file: File): boolean {
   return SUPPORTED_IMAGE_TYPES.has(file.type) || IMAGE_EXT_RE.test(file.name)
+}
+
+/** 세로로 긴 단일 캡쳐를 가로 밴드로 분할(KTX/일반 경로 전용 — airline이 있으면 원본 그대로).
+ *  각 밴드는 짧은 변(높이)이 768px 이하가 되도록 잘라 OpenAI 비전의 축소를 피한다.
+ *  분할이 이득이 없거나(작은 이미지) 실패하면 조용히 원본을 반환한다. */
+async function maybeSplitTallImage(files: File[], airline?: string): Promise<File[]> {
+  if (typeof window === 'undefined') return files
+  if (files.length !== 1) return files
+  if (airline?.trim()) return files
+  const file = files[0]
+  let url = ''
+  try {
+    url = URL.createObjectURL(file)
+    const image = await loadImage(url)
+    const w = image.naturalWidth
+    const h = image.naturalHeight
+    if (!w || !h || h / w < SPLIT_MIN_ASPECT) return files
+    // 통짜로 보내도 축소가 안 일어나는 크기면 분할 이득이 없다.
+    if (w <= SPLIT_SHORT_SIDE_CAP && h <= SPLIT_LONG_SIDE_CAP) return files
+
+    const bands = Math.min(
+      SPLIT_MAX_BANDS,
+      Math.ceil((h - SPLIT_OVERLAP) / (SPLIT_SHORT_SIDE_CAP - SPLIT_OVERLAP)),
+    )
+    if (bands < 2) return files
+    // 밴드 높이는 겹침을 감안해 전체를 정확히 덮도록 계산. 매우 긴 이미지가 밴드 수
+    // 상한에 걸리면 밴드가 768px를 넘을 수 있지만, 그래도 통짜보다 훨씬 덜 축소된다.
+    const bandH = Math.ceil((h + (bands - 1) * SPLIT_OVERLAP) / bands)
+    const step = (h - bandH) / (bands - 1)
+    // 폭이 긴 변 상한을 넘는 경우만 미리 줄인다(폰 캡쳐에선 사실상 없음).
+    const scale = Math.min(1, SPLIT_LONG_SIDE_CAP / w)
+
+    const out: File[] = []
+    for (let i = 0; i < bands; i++) {
+      const sy = Math.round(i * step)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(w * scale))
+      canvas.height = Math.max(1, Math.round(bandH * scale))
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return files
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
+      ctx.drawImage(image, 0, sy, w, bandH, 0, 0, canvas.width, canvas.height)
+      const blob = await canvasToBlob(canvas, 'image/jpeg', 0.95)
+      out.push(new File([blob], replaceExtension(file.name, `band${i + 1}.jpg`), {
+        type: 'image/jpeg',
+        lastModified: file.lastModified,
+      }))
+    }
+    return out
+  } catch {
+    return files
+  } finally {
+    if (url) URL.revokeObjectURL(url)
+  }
 }
 
 async function prepareImagesForUpload(files: File[]): Promise<File[]> {
