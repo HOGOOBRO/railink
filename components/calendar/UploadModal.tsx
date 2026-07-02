@@ -1263,6 +1263,12 @@ function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline 
                   placeholder={airline ? t('preview.placeholderTrainAirline') : t('preview.placeholderTrainKtx')}
                   disabled={row.isOff}
                   onChange={e => onChange(i, { trainNr: e.target.value })}
+                  // 값이 실제로 바뀔 때만 패치 — setPreviewRow가 trainNr 패치만 봐도
+                  // 항공 레그(flights)를 비우므로, 무변경 blur에 패치를 보내면 안 된다.
+                  onBlur={e => {
+                    const normalized = normalizeTrainTokens(e.target.value) ?? ''
+                    if (normalized !== (row.trainNr ?? '')) onChange(i, { trainNr: normalized })
+                  }}
                   className="min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
                 />
                 <input
@@ -1645,6 +1651,7 @@ function ManualBody({
                     value={r.tr ?? ''}
                     placeholder={t('manual.placeholderTrain')}
                     onChange={e => onChange(i, { tr: e.target.value })}
+                    onBlur={e => onChange(i, { tr: normalizeTrainTokens(e.target.value) })}
                     className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
                       r.tr ? 'border-line-2 bg-surface' : 'border-line bg-bg'
                     }`}
