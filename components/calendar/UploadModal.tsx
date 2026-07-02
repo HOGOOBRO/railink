@@ -149,7 +149,7 @@ function manualRowsToParsed(
       out.push({
         date, isOff: false,
         diaNr: (r.dia || '').trim() || undefined,
-        trainNr: (r.tr || '').trim() || undefined,
+        trainNr: normalizeTrainTokens(r.tr),
         startTime: (r.st || '').trim() || undefined,
         endTime: (r.et || '').trim() || undefined,
       })
@@ -160,6 +160,19 @@ function manualRowsToParsed(
 
 function isIsoDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+/** 열번 문자열을 서버 OCR(normalizeTrainNr)와 같은 규칙으로 정규화 — 쉼표/점/공백/·로
+ *  토큰을 나눠 " · "로 다시 잇는다. 미리보기·직접입력에서 구분자를 지우거나 다르게
+ *  입력해도 저장은 항상 표준 표기("205 · 214")가 되게. */
+function normalizeTrainTokens(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const joined = value
+    .split(/[,.、·\s]+/)
+    .map(token => token.trim())
+    .filter(token => token && token !== '-')
+    .join(' · ')
+  return joined || undefined
 }
 
 // Sentinel thrown by normalizePreviewRows for a malformed date — caught in
@@ -186,7 +199,7 @@ function normalizePreviewRows(rows: ParsedScheduleRow[]): ParsedScheduleRow[] {
           date,
           isOff: false,
           diaNr: row.diaNr?.trim() || undefined,
-          trainNr: row.trainNr?.trim() || undefined,
+          trainNr: normalizeTrainTokens(row.trainNr),
           startTime: row.startTime?.trim() || undefined,
           // Re-derive 24+ notation for overnight ends from the wrapped clock the
           // user edited, so storage stays canonical even though the input showed "11:49".
@@ -1250,6 +1263,12 @@ function PreviewBody({ rows, onChange, onChangeLeg, onRemove, onAppend, airline 
                   placeholder={airline ? t('preview.placeholderTrainAirline') : t('preview.placeholderTrainKtx')}
                   disabled={row.isOff}
                   onChange={e => onChange(i, { trainNr: e.target.value })}
+                  // 값이 실제로 바뀔 때만 패치 — setPreviewRow가 trainNr 패치만 봐도
+                  // 항공 레그(flights)를 비우므로, 무변경 blur에 패치를 보내면 안 된다.
+                  onBlur={e => {
+                    const normalized = normalizeTrainTokens(e.target.value) ?? ''
+                    if (normalized !== (row.trainNr ?? '')) onChange(i, { trainNr: normalized })
+                  }}
                   className="min-w-0 font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border border-line bg-bg disabled:opacity-50"
                 />
                 <input
@@ -1632,6 +1651,7 @@ function ManualBody({
                     value={r.tr ?? ''}
                     placeholder={t('manual.placeholderTrain')}
                     onChange={e => onChange(i, { tr: e.target.value })}
+                    onBlur={e => onChange(i, { tr: normalizeTrainTokens(e.target.value) })}
                     className={`font-en text-caption text-ink-900 placeholder:text-ink-500 outline-none px-2 h-8 rounded-xs border ${
                       r.tr ? 'border-line-2 bg-surface' : 'border-line bg-bg'
                     }`}
